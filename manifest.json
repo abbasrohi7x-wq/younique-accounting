@@ -1,14 +1,14 @@
 {
   "name": "یونیک | حسابداری و مدیریت فروشگاه",
   "short_name": "یونیک",
-  "description": "مدیریت فروشگاه، کالا، انبار و حسابداری",
+  "description": "یونیک ۴۴٫۴٫۰؛ مدیریت فروشگاه و حسابداری آفلاین‌محور با قیمت‌گذاری ویژه مشتری و کنترل یکپارچگی داده‌ها.",
   "lang": "fa",
   "dir": "rtl",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f7fb",
-  "theme_color": "#0b1020",
+  "background_color": "#f2f6fa",
+  "theme_color": "#1769aa",
   "icons": [
     {
       "src": "./icon-192.png",

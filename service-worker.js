@@ -1,6 +1,6 @@
-/* Younique 42.5.0 — standalone PWA cache */
+/* Younique 44.4.0 — standalone PWA cache */
 'use strict';
-const CACHE_NAME = 'younique-v42.5.0';
+const CACHE_NAME = 'younique-v44.4.0';
 const APP_SHELL = ['./index.html','./manifest.json','./icon-192.png','./icon-512.png'];
 self.addEventListener('install', event => {
   event.waitUntil((async () => { const cache = await caches.open(CACHE_NAME); await cache.addAll(APP_SHELL); await self.skipWaiting(); })());
