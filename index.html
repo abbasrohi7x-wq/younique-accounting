@@ -69,8 +69,8 @@ table th{background:#f1f5f9;color:#33465d;font-weight:700}table td,table th{bord
 .side-ai{background:#eef6fc;border:1px solid #d7e8f5;color:#164e79}.side-ai small{color:#526f88}.sidebar .sidebar-close{background:#f1f5f9;color:#334155;border-color:#dce4ee}
 </style>
 
-</head><body>
-<div id="app"><div class="boot"><div class="boot-logo">Y</div><strong>یونیک</strong><span>در حال آماده‌سازی برنامه</span></div></div>
+<style>.logo svg,.boot-logo svg{width:62%;height:auto;display:block}.logo,.boot-logo{color:#fff}</style></head><body>
+<div id="app"><div class="boot"><div class="boot-logo"><svg class="umark" aria-label="Unique" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 135" fill="none" stroke="#fff" stroke-linejoin="round"><path d="M5.5 22Q5.5 5.5 22 5.5H78Q94.5 5.5 94.5 22V76C94.5 108 75 129.5 50 129.5C25 129.5 5.5 108 5.5 76Z" stroke-width="11"/><path d="M18 33Q18 20.5 30.5 20.5H69.5Q82 20.5 82 33V76C82 100 68 115.5 50 115.5C32 115.5 18 100 18 76Z" stroke-width="3.4" opacity=".95"/><path d="M32 46V74A18 18 0 0 0 68 74V46" stroke-width="12" stroke-linecap="butt"/></svg></div><strong>یونیک</strong><span>در حال آماده‌سازی برنامه</span></div></div>
 <script>'use strict';
 const DB={name:'younique_v16',key:'younique_v16_db'};
 const COLORS=['مشکی','سفید','قرمز','آبی','سبز','زرد','نارنجی','صورتی','بنفش','قهوه‌ای','کرم','بژ','طوسی','خاکستری','سرمه‌ای','زرشکی','سبز یشمی','سبز زیتونی','آبی آسمانی','آبی نفتی','طلایی','نقره‌ای','مسی','نود','شتری','عسلی','کاراملی','استخوانی','شیری','مشکی / سفید','سفید / طلایی','چندرنگ'];
@@ -319,7 +319,7 @@ window.reconcileAccounts=reconcileAccounts;
 'use strict';
 const groups=[['مدیریت',[['dashboard','داشبورد','▦'],['sale','فروش جدید','＋'],['sales','فروش‌ها','◉'],['returns','برگشت‌ها','↩'],['purchase','خرید جدید','↙'],['purchases','خریدها','▰']]],['کالا و انبار',[['products','کالاها و تنوع‌ها','▣'],['inventory','انبار','▤'],['warehouse','انبار حرفه‌ای','⌂'],['barcode','بارکد و چاپ','▥']]],['اشخاص',[['customers','مشتریان','♙'],['suppliers','تأمین‌کنندگان','♧'],['crm','باشگاه مشتریان','★']]],['مالی و حسابداری',[['finance','خزانه و صندوق','﷼'],['checks','مدیریت چک‌ها','▤'],['loans','وام و قرض','↔'],['reports','گزارش‌ها','◒'],['accounting','مرکز حسابداری','▤'],['automation','اتوماسیون','⚡']]],['هوشمند',[['ai','دستیار هوشمند','✦'],['documents','اسناد و OCR','▧'],['insights','تحلیل هوشمند','✧']]],['سیستم',[['backup','پشتیبان‌گیری','↥'],['security','کاربران و امنیت','♙'],['tax','مالیات و اتصال','▤'],['sync','همگام‌سازی','↻'],['settings','تنظیمات','⚙']]]];
 const pageNames=Object.fromEntries(groups.flatMap(g=>g[1]).map(x=>[x[0],x[1]]));
-function shell(page){return `<div class="app"><div class="sidebar-backdrop" id="sidebarBackdrop"></div><aside class="sidebar" id="sidebar"><button class="sidebar-close" id="sidebarClose" aria-label="بستن">×</button><div class="brand"><div class="logo">Y</div><div><b>یونیک</b><small>مدیریت هوشمند فروشگاه</small></div></div><div class="storebox"><b>${esc(db.settings.shopName)}</b><small>● ذخیره محلی · خودکار</small><div class="statusline"><span class="statusdot"></span><span id="saveStatus">همگام‌سازی محلی</span></div></div><nav class="nav">${groups.map(g=>`<div class="nav-group"><div class="nav-title">${g[0]}</div>${g[1].map(x=>`<button class="${page===x[0]?'active':''}" data-page="${x[0]}"><span class="ico">${x[2]}</span>${x[1]}</button>`).join('')}</div>`).join('')}</nav><div class="side-ai" data-page="ai"><b>✦ دستیار یونیک</b><small>تحلیل، پیشنهاد و اتوماسیون</small></div></aside><main class="main"><header class="topbar"><div><button class="iconbtn" id="menu">☰</button> <span class="crumb">یونیک / <b>${pageNames[page]||'داشبورد'}</b></span></div><div class="top-actions"><button class="searchbtn" id="global">⌕ <span>جستجوی سریع · Ctrl K</span></button><button class="iconbtn" id="quickAI" title="دستیار">✦</button><button class="iconbtn avatar">ی</button></div></header><section class="content" id="content"></section></main><nav class="mobile-nav">${[['dashboard','⌂','خانه'],['sale','＋','فروش'],['products','▣','کالا'],['ai','✦','AI'],['finance','﷼','مالی']].map(x=>`<button class="${page===x[0]?'active':''}" data-page="${x[0]}"><b>${x[1]}</b>${x[2]}</button>`).join('')}</nav><div id="modal" class="modal"></div><div id="toast" class="toast"></div></div>`}
+function shell(page){return `<div class="app"><div class="sidebar-backdrop" id="sidebarBackdrop"></div><aside class="sidebar" id="sidebar"><button class="sidebar-close" id="sidebarClose" aria-label="بستن">×</button><div class="brand"><div class="logo"><svg class="umark" aria-label="Unique" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 135" fill="none" stroke="#fff" stroke-linejoin="round"><path d="M5.5 22Q5.5 5.5 22 5.5H78Q94.5 5.5 94.5 22V76C94.5 108 75 129.5 50 129.5C25 129.5 5.5 108 5.5 76Z" stroke-width="11"/><path d="M18 33Q18 20.5 30.5 20.5H69.5Q82 20.5 82 33V76C82 100 68 115.5 50 115.5C32 115.5 18 100 18 76Z" stroke-width="3.4" opacity=".95"/><path d="M32 46V74A18 18 0 0 0 68 74V46" stroke-width="12" stroke-linecap="butt"/></svg></div><div><b>یونیک</b><small>مدیریت هوشمند فروشگاه</small></div></div><div class="storebox"><b>${esc(db.settings.shopName)}</b><small>● ذخیره محلی · خودکار</small><div class="statusline"><span class="statusdot"></span><span id="saveStatus">همگام‌سازی محلی</span></div></div><nav class="nav">${groups.map(g=>`<div class="nav-group"><div class="nav-title">${g[0]}</div>${g[1].map(x=>`<button class="${page===x[0]?'active':''}" data-page="${x[0]}"><span class="ico">${x[2]}</span>${x[1]}</button>`).join('')}</div>`).join('')}</nav><div class="side-ai" data-page="ai"><b>✦ دستیار یونیک</b><small>تحلیل، پیشنهاد و اتوماسیون</small></div></aside><main class="main"><header class="topbar"><div><button class="iconbtn" id="menu">☰</button> <span class="crumb">یونیک / <b>${pageNames[page]||'داشبورد'}</b></span></div><div class="top-actions"><button class="searchbtn" id="global">⌕ <span>جستجوی سریع · Ctrl K</span></button><button class="iconbtn" id="quickAI" title="دستیار">✦</button><button class="iconbtn avatar">ی</button></div></header><section class="content" id="content"></section></main><nav class="mobile-nav">${[['dashboard','⌂','خانه'],['sale','＋','فروش'],['products','▣','کالا'],['ai','✦','AI'],['finance','﷼','مالی']].map(x=>`<button class="${page===x[0]?'active':''}" data-page="${x[0]}"><b>${x[1]}</b>${x[2]}</button>`).join('')}</nav><div id="modal" class="modal"></div><div id="toast" class="toast"></div></div>`}
 function pageHead(title,desc,actions=''){return `<div class="pagehead"><div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${actions}</div></div>`}
 function metricCard(label,value,sub,kind=''){return `<div class="card metric ${kind}"><div class="micon">${kind==='red'?'!':kind==='green'?'◆':kind==='amber'?'◷':'▦'}</div><div><span>${label}</span><strong>${value}</strong><small>${sub}</small></div></div>`}
 function modal(html){const m=$('#modal');m.innerHTML=`<div class="modalbox">${html}</div>`;m.classList.add('show');$$('[data-close]',m).forEach(x=>x.onclick=closeModal);m.onclick=e=>{if(e.target===m)closeModal()}}
@@ -3056,7 +3056,7 @@ NLU.extract=function(text,ctx){
   e.usedNum=new Set(e.used);
   /* colors */
   const colors=D.knownColors();e.color=null;
-  for(let i=0;i<tokens.length;i++){if(e.used.has(i))continue;for(const len of[2,1]){if(i+len>tokens.length)continue;const w=tokens.slice(i,i+len).join(' ');const s=S(w);if(colors.some(c=>S(c)===s||(s.length>=4&&U.fuzzyEq(S(c),s)))){e.color=w;for(let k=0;k<len;k++)e.used.add(i+k);i+=len-1;break}}}
+  for(let i=0;i<tokens.length;i++){if(e.used.has(i))continue;for(const len of[2,1]){if(i+len>tokens.length)continue;const wt=tokens.slice(i,i+len);if(wt.some(x=>/^(سایز|سایزش|شماره|size|عدد|تا|جفت|دونه)$/.test(x)))continue;const w=wt.join(' ');const s=S(w);if(colors.some(c=>S(c)===s||(len===1&&s.length>=4&&U.fuzzyEq(S(c),s)))){e.color=w;for(let k=0;k<len;k++)e.used.add(i+k);i+=len-1;break}}}
   /* implicit size: a plain integer that equals a real size of an existing variant ("نایک مشکی ۴۲") */
   const sizes=new Set(window.activeVariants().map(v=>String(v.size)));
   let implicitSize=null;
@@ -3401,6 +3401,10 @@ async function confirmPending(text,src){
   remember(p.tool,prep.params,r.data);const out=[msg(r.text,'success',{tool:p.tool,data:r.data})];
   if(window.UAI.ui&&UAI.ui.afterWrite)UAI.ui.afterWrite();
   if(p.index+1<p.steps.length)out.push(...await runSteps(p.steps,p.index+1,p.info||{},src,p.request));
+  if(p.continueText&&Provider.enabled()&&Provider.cfg().mode!=='local'){
+    try{const note='(بخش قبلی درخواست با موفقیت انجام شد: '+String(r.text).slice(0,200)+') درخواست اصلی کاربر این بود: «'+p.continueText+'». فقط بخش‌هایی که هنوز انجام نشده را انجام بده؛ اگر چیزی باقی نمانده فقط بگو کار تمام شد.';
+      const c=await llmHandle(note,src,null,p.continueText,p.depth||1);out.push(...c.messages)}catch(e){Audit.log({source:src,request:p.continueText,result:'llm-continue-failed',error:e.message})}
+  }
   return out;
 }
 /* answer to a clarification question */
@@ -3436,13 +3440,17 @@ async function answerClarify(text,src){
 
 /* ---------- LLM provider (OpenAI-compatible; chat/completions or responses) ---------- */
 const Provider=U.Provider={
-  cfg(){return Object.assign({provider:'local',mode:'hybrid',endpoint:'',model:'',apiKey:''},window.db.settings.ai||{})},
+  cfg(){const c=Object.assign({provider:'local',mode:'smart',endpoint:'',model:'',apiKey:''},window.db.settings.ai||{});
+    if(c.mode==='hybrid'||!c.mode)c.mode='smart';
+    if(!c.apiKey){try{c.apiKey=localStorage.getItem('uai_key_device')||''}catch(_){}}
+    if(c.apiKey&&c.provider==='local')c.provider='openai';
+    return c},
   enabled(){const c=Provider.cfg();return c.provider==='openai'&&!!c.apiKey&&c.mode!=='local'},
   async call(messages,tools){
     const c=Provider.cfg(),endpoint=(c.endpoint||'').trim()||'https://api.openai.com/v1/responses',chat=/chat\/completions/i.test(endpoint);
     const t0=performance.now();let body;
-    if(chat)body={model:c.model,temperature:.1,messages,tools:tools.map(t=>({type:'function',function:t})),max_tokens:1500};
-    else body={model:c.model,input:messages,tools:tools.map(t=>({type:'function',...t})),max_output_tokens:1500};
+    if(chat)body={model:c.model||'gpt-4o-mini',temperature:.1,messages,tools:tools.map(t=>({type:'function',function:t})),max_tokens:1500};
+    else body={model:c.model||'gpt-4o-mini',input:messages,tools:tools.map(t=>({type:'function',...t})),max_output_tokens:1500};
     const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+c.apiKey},body:JSON.stringify(body)});
     U.stats.llmCalls++;U.stats.lastLatencyMs=Math.round(performance.now()-t0);
     if(!r.ok){let m='AI '+r.status;try{const j=await r.json();m=(j.error&&j.error.message)||m}catch(_){}throw Error(m)}
@@ -3451,15 +3459,27 @@ const Provider=U.Provider={
     const out=j.output||[];return{text:j.output_text||out.filter(x=>x.type==='message').flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('\n'),calls:out.filter(x=>x.type==='function_call').map(x=>({id:x.call_id,name:x.name,args:x.arguments})),raw:out,chat:false}
   }
 };
-const SYSTEM='تو دستیار عملیاتی نرم‌افزار حسابداری و فروشگاهی «یونیک» هستی و فقط فارسی پاسخ می‌دهی. قوانین: ۱) هر عدد و اطلاعات مالی را فقط از خروجی ابزارها بگو؛ هرگز مبلغ، موجودی، مشتری یا فاکتور نساز. ۲) برای عملیات ثبت/ویرایش/حذف فقط ابزار مناسب را صدا بزن؛ تأیید نهایی را خود سیستم از کاربر می‌گیرد و تو نباید بگویی عملیات انجام شد. ۳) اگر اطلاعات لازم مبهم یا ناقص است (مثلاً چند مشتری هم‌نام) ابزار را با همان اطلاعات صدا بزن یا یک سؤال کوتاه بپرس؛ حدس نزن. ۴) مبلغ‌ها را همان‌طور که کاربر گفته با unit (تومان/ریال) بده. ۵) پاسخ کوتاه و دقیق بده.';
+try{const _k=localStorage.getItem('uai_key_device'),_a=window.db&&window.db.settings&&window.db.settings.ai;if(_k&&_a&&!_a.apiKey){_a.apiKey=_k;if(_a.provider==='local')_a.provider='openai'}}catch(_){}
+const SYSTEM_BASE='تو مغز دستیار عملیاتی نرم‌افزار حسابداری و فروشگاهی «یونیک» هستی و فقط فارسی پاسخ می‌دهی. کاربر به فارسی محاوره‌ای، عامیانه، کوتاه، با غلط املایی، یا از طریق تشخیص گفتار (که ممکن است کلمات را اشتباه بنویسد) حرف می‌زند. وظیفهٔ تو فهمیدن منظور واقعی اوست، نه تطبیق کلمه‌به‌کلمه؛ مثلاً «چقد فروختیم»=گزارش فروش، «کی بهم بدهکاره»=بدهکاران، «تومن»=تومان، «موجودی ندارم»=کم‌موجودی. هر درخواستی را به ابزار مناسب نگاشت کن و اگر چند کار خواست، چند ابزار را پشت‌سرهم صدا بزن. قوانین: ۱) هر عدد و اطلاعات مالی را فقط از خروجی ابزارها بگو؛ هرگز مبلغ، موجودی، مشتری یا فاکتور نساز. ۲) برای ثبت/ویرایش/ابطال فقط ابزار مناسب را صدا بزن؛ تأیید نهایی را خود سیستم از کاربر می‌گیرد و تو نباید بگویی عملیات انجام شد. ۳) نام مشتری، کالا و تأمین‌کننده را همان‌طور که شنیده یا خوانده‌ای به ابزار بده (ابزارها خودشان شبیه‌یابی می‌کنند)؛ اگر مبهم بود ابزار را صدا بزن تا خود سیستم بپرسد. ۴) عبارت‌های ارجاعی مثل «همون»، «دیروز چی؟»، «مقایسه‌شون کن»، «فقط مشکی‌ها» را با تاریخچهٔ گفتگو حل کن. ۵) مبلغ‌ها را همان‌طور که کاربر گفته با unit (تومان/ریال) بده؛ اگر واحد نگفته unit را نگذار. ۶) اگر پیام سلام یا پرسش دربارهٔ قابلیت‌هاست کوتاه و دوستانه پاسخ بده؛ اگر بی‌ربط به کار فروشگاه است مؤدبانه بگو فقط در کارهای یونیک کمک می‌کنی. ۷) فقط وقتی سؤال بپرس که بدون آن اجرای درست ممکن نیست؛ سؤال کوتاه و تک‌موردی باشد. ۸) اگر کاربر گفت کالا اضافه/ثبت/تعریف کن، بلافاصله create_product را با هر اطلاعاتی که دارد صدا بزن: نام کالا بدون رنگ و سایز، برند، رنگ‌ها و سایزها به‌صورت آرایهٔ جدا، و قیمت‌هایی که گفته؛ قیمتی که نگفته را خودت نساز. اگر مبلغ ناقص یا مبهم بود (مثلاً ارقام ناقص) حدس نزن و کوتاه بپرس. ۹) اگر درخواست چند کار دارد (مثلاً ثبت کالا و بعد ثبت خرید)، کارها را به ترتیب انجام بده. ۱۰) پاسخ کوتاه و دقیق بده.';
+function sysPrompt(){
+  const L=ctx.last||{},p=[];
+  try{p.push('تاریخ امروز (شمسی): '+U.fmtJalali(new Date())+'، ساعت '+new Date().toTimeString().slice(0,5))}catch(_){}
+  try{p.push('نقش کاربر: '+Perm.user().role)}catch(_){}
+  p.push('واحد پیش‌فرض مبالغ گفتاری: '+((window.db.settings.ai||{}).spokenUnit==='rial'?'ریال':'تومان'));
+  if(L.tool)p.push('آخرین ابزار اجراشده: '+L.tool);
+  if(L.periods&&L.periods.length)p.push('بازه‌های اخیر گفتگو: '+L.periods.map(x=>x.label).join('، '));
+  if(L.invoiceNumber)p.push('آخرین فاکتور مطرح‌شده: '+L.invoiceNumber);
+  return SYSTEM_BASE+'\n\nوضعیت فعلی: '+p.join(' | ');
+}
 function numbersIn(s){return(U.digits(String(s)).replace(/(\d)[,٬](?=\d{3})/g,'$1').match(/\d+(?:\.\d+)?/g)||[]).map(Number)}
 /* hallucination guard: every number in the model text must exist in tool evidence (as is, or toman<->rial) */
 U.Guard={check(text,evidence){const ev=new Set();for(const n of numbersIn(evidence)){ev.add(n);ev.add(Math.round(n/10));ev.add(n*10);ev.add(Math.round(n))}
   for(const n of numbersIn(text)){if(n<10&&Number.isInteger(n))continue;if(!ev.has(n)&&!ev.has(Math.round(n)))return{ok:false,bad:n}}return{ok:true}}};
-async function llmHandle(text,src){
+async function llmHandle(text,src,alts,origText,depth){
   const can=Perm.can,tools=Tools.schemas(can);
-  const msgs=[{role:'system',content:SYSTEM},...ctx.history.slice(-6).map(x=>({role:x.role,content:x.text.slice(0,400)})),{role:'user',content:text}];
-  const results=[],evidence=[text];
+  const hint=src==='voice'?'\n(این متن از تشخیص گفتار آمده و ممکن است غلط باشد'+(alts&&alts.length>1?'؛ حالت‌های دیگرِ شنیده‌شده: '+alts.filter(a=>a!==text).slice(0,4).join(' | '):'')+')':'';
+  const msgs=[{role:'system',content:sysPrompt()},...ctx.history.slice(-10).map(x=>({role:x.role,content:x.text.slice(0,500)})),{role:'user',content:text+hint}];
+  const results=[],evidence=[text,...(alts||[])];
   for(let round=0;round<5;round++){
     const r=await Provider.call(msgs,tools);
     if(!r.calls.length){
@@ -3477,7 +3497,8 @@ async function llmHandle(text,src){
         const info={intent:'llm:'+call.name,entities:{}};
         const steps=[{tool:call.name,params}];
         const saved=ctx.pending;const out=await runSteps(steps,0,info,src,text);
-        if(ctx.pending&&ctx.pending!==saved||ctx.clarify)return{messages:out,results};
+        if(ctx.pending&&ctx.pending!==saved){const ot=origText||text;if((depth||0)<3&&/(?:\sو\s|بعد|سپس|همچنین|،|و یک|و همچنین)/.test(ot)){ctx.pending.continueText=ot;ctx.pending.depth=(depth||0)+1}return{messages:out,results}}
+        if(ctx.clarify){if(ctx.clarify)ctx.clarify.continueText=origText||text;return{messages:out,results}}
         const last=out[out.length-1];
         if(last&&last.kind==='error'){outStr=JSON.stringify({error:last.text})}
         else{const d=last&&last.data;outStr=JSON.stringify(d===undefined?{ok:true}:slim(d));results.push({text:last.text});evidence.push(outStr)}
@@ -3491,36 +3512,43 @@ function slim(d){const s=JSON.stringify(d);if(s.length<6000)return d;const o=Arr
 
 /* ---------- conversation manager ---------- */
 const Chat=U.chat={
-  async handle(text,opts={}){
+  async handle(text,opts={}){const alts=opts.alts;
     const src=opts.source||'text';text=String(text||'').trim();
     if(!text)return[];
     if(Perm.locked())return[msg('برنامه قفل است؛ ابتدا PIN را وارد کنید.','error')];
     let out;
-    try{out=await Chat._handle(text,src)}catch(e){Audit.log({source:src,request:text,result:'crash',error:e&&e.message});out=[msg('خطای غیرمنتظره در دستیار: '+((e&&e.message)||e)+'. برنامه و اطلاعات سالم هستند؛ دوباره تلاش کنید.','error')]}
+    try{out=await Chat._handle(text,src,alts)}catch(e){Audit.log({source:src,request:text,result:'crash',error:e&&e.message});out=[msg('خطای غیرمنتظره در دستیار: '+((e&&e.message)||e)+'. برنامه و اطلاعات سالم هستند؛ دوباره تلاش کنید.','error')]}
     ctx.history.push({role:'user',text});for(const m of out)ctx.history.push({role:'assistant',text:m.text});if(ctx.history.length>40)ctx.history.splice(0,ctx.history.length-40);
     return out;
   },
-  async _handle(text,src){
+  async _handle(text,src,alts){
     if(ctx.pending){
       if(isYes(text)||isNo(text)){if(isNo(text)){const p=ctx.pending;ctx.pending=null;Audit.log({source:src,request:text,tool:p.tool,params:p.params,confirmation:'declined',result:'cancelled'});return[msg('لغو شد؛ عملیاتی انجام نشد.')]}
         return confirmPending(text,src)}
       const p=ctx.pending;ctx.pending=null;Audit.log({source:src,request:text,tool:p.tool,confirmation:'superseded',result:'cancelled'});
-      const rest=await Chat._route(text,src);return[msg('درخواست قبلی بدون تأیید لغو شد.','ai'),...rest];
+      const rest=await Chat._route(text,src,alts);return[msg('درخواست قبلی بدون تأیید لغو شد.','ai'),...rest];
     }
     if(ctx.clarify){const r=await answerClarify(text,src);if(r)return r}
     if(isYes(text)||isNo(text))return[msg('درخواست در انتظار تأییدی وجود ندارد.')];
-    return Chat._route(text,src);
+    return Chat._route(text,src,alts);
   },
-  async _route(text,src){
+  async _route(text,src,alts){
     const mode=Provider.cfg().mode;const info=NLU.understand(text,ctx);
     info.entities={period:info.e.periods.map(p=>p.label),customer:info.e.customerMatches.length?'matched':'',product:info.e.productQuery||'',color:info.e.color||'',size:info.e.size||'',amounts:info.e.amounts.length};
-    const llmOn=Provider.enabled();
-    const useLLM=llmOn&&(mode==='llm'||(mode==='hybrid'&&(info.unknown||info.ambiguousIntents||(info.best&&info.best.score<5)||/(?:و|بعد|سپس).{0,40}(?:بساز|بگو|پیدا)/.test(text)&&false)));
-    if(useLLM){try{const r=await llmHandle(text,src);return r.messages}catch(e){Audit.log({source:src,request:text,result:'llm-failed',error:e.message});if(mode==='llm'&&!info.best){return[msg('اتصال به مدل هوش مصنوعی ناموفق بود ('+e.message+') و درخواست با تحلیل محلی قابل تشخیص نبود.','error')]}}}
+    let note=null;
+    /* smart mode: the language model understands EVERY sentence first; the local engine is the offline fallback */
+    if(Provider.enabled()&&mode!=='local'){
+      try{const r=await llmHandle(text,src,alts);if(r.messages&&r.messages.length)return r.messages}
+      catch(e){Audit.log({source:src,request:text,result:'llm-failed',error:e.message});note=msg('اتصال به مدل هوشمند ناموفق بود ('+e.message+'). با تحلیل محلی ادامه می‌دهم.','error')}
+    }
+    const out=await Chat._local(text,src,info);
+    return note?[note,...out]:out;
+  },
+  async _local(text,src,info){
     U.stats.localHits++;
     let plan=null;
     if(info.followUp){plan=info.plan}
-    else if(info.unknown)return[msg(unknownText(),'ai')];
+    else if(info.unknown){Audit.log({source:src,request:text,intent:'unknown',result:'unknown'});return[msg(unknownText(),'ai')]}
     else if(info.ambiguousIntents){
       const opts=info.ambiguousIntents.map(x=>({label:INTENT_LABEL[x.id]||x.id,value:x.id}));ctx.clarify=null;
       ctx.clarify={steps:null,ask:{question:'منظورتان کدام است؟',options:opts,field:'__intent'},info,src,request:text,intentChoice:true};
@@ -3532,7 +3560,7 @@ const Chat=U.chat={
   }
 };
 const INTENT_LABEL={sales_report:'گزارش فروش',invoice_list:'فهرست فاکتورها',customer_balance:'مانده مشتری',supplier_balance:'مانده تأمین‌کننده',create_sale:'ثبت فاکتور فروش',compare_sales:'مقایسه فروش',inventory_query:'موجودی کالا',list_debtors:'فهرست بدهکاران',account_balances:'مانده صندوق/بانک',expenses_report:'گزارش هزینه‌ها',create_expense:'ثبت هزینه',profit_loss:'سود و زیان',top_products:'پرفروش‌ترین کالاها',low_stock:'کالاهای کم‌موجود',party_payment:'ثبت دریافت/پرداخت'};
-function unknownText(){return'متوجه منظورتان نشدم. می‌توانید مثلاً بپرسید «فروش امروز»، «موجودی نایک مشکی»، «بدهکارها» یا بگویید «راهنما» تا قابلیت‌ها را ببینید.'}
+function unknownText(){return'متوجه منظورتان نشدم. '+(Provider.enabled()?'':'برای اینکه هر جمله و صدایی را آزادانه بفهمم، در «تنظیمات دستیار» اتصال هوش مصنوعی (Endpoint و API Key) را فعال کنید. ')+'فعلاً می‌توانید مثلاً بپرسید «فروش امروز»، «موجودی نایک مشکی»، «بدهکارها» یا بگویید «راهنما».'}
 /* resolve the two special clarification kinds that don't map to a tool param */
 const _answer=answerClarify;
 async function answerClarifyWrapped(text,src){
@@ -3554,9 +3582,9 @@ async function answerClarifyWrapped(text,src){
 }
 Chat._answerOrig=_answer;
 /* patch Chat._handle to use wrapped answer */
-const _h=Chat._handle;Chat._handle=async function(text,src){
+const _h=Chat._handle;Chat._handle=async function(text,src,alts){
   if(!ctx.pending&&ctx.clarify&&(ctx.clarify.intentChoice||ctx.clarify.partyResume)){const r=await answerClarifyWrapped(text,src);if(r)return r}
-  return _h.call(Chat,text,src)};
+  return _h.call(Chat,text,src,alts)};
 U.runStepsForTest=runSteps;
 })();
 
@@ -3565,7 +3593,7 @@ U.runStepsForTest=runSteps;
 const U=window.UAI;
 const V=U.Voice={listening:false,rec:null,lastHeard:''};
 const cfg=()=>Object.assign({tts:true,autoListen:true},(window.db&&window.db.settings&&window.db.settings.ai)||{});
-V.supported=()=>!!(window.SpeechRecognition||window.webkitSpeechRecognition)&&location.protocol!=='file:';
+V.supported=()=>(!!(window.SpeechRecognition||window.webkitSpeechRecognition)&&location.protocol!=='file:')||V.whisperReady();
 V.ttsSupported=()=>'speechSynthesis' in window&&typeof window.SpeechSynthesisUtterance==='function';
 V.faVoice=()=>{try{return(speechSynthesis.getVoices()||[]).find(v=>/^fa/i.test(v.lang))||null}catch(_){return null}};
 /* text -> something pleasant to hear: drop bullets/markup, keep numbers; confirmations are read in full */
@@ -3580,24 +3608,65 @@ V.speak=function(text,onend){
   try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='fa-IR';const v=V.faVoice();if(v)u.voice=v;u.rate=.95;u.onend=()=>{if(onend)onend()};u.onerror=()=>{if(onend)onend()};speechSynthesis.speak(u);return true}catch(_){if(onend)onend();return false}
 };
 V.start=function(){
+  if(V.whisperReady())return V.whisperStart();
   const R=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!R)return V.fallback();
   if(location.protocol==='file:'){window.toast('فرمان صوتی در اجرای مستقیم فایل توسط بعضی مرورگرها مسدود است. برنامه را با HTTPS یا localhost اجرا کنید.',true);return false}
   if(V.listening)return true;
   try{speechSynthesis&&speechSynthesis.cancel()}catch(_){}
-  const r=new R();r.lang='fa-IR';r.interimResults=true;r.continuous=false;r.maxAlternatives=1;V.rec=r;V.listening=true;V.setBtn(true);
-  r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;V.lastHeard=t;const box=document.querySelector('#prompt');if(box)box.value=t;if(e.results[e.results.length-1].isFinal){V.listening=false;V.setBtn(false);if(box)box.value='';V.onFinal(t)}};
+  const r=new R();r.lang='fa-IR';r.interimResults=true;r.continuous=false;r.maxAlternatives=5;V.rec=r;V.listening=true;V.setBtn(true);
+  r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;V.lastHeard=t;const box=document.querySelector('#prompt');if(box)box.value=t;
+    const last=e.results[e.results.length-1];
+    if(last.isFinal){V.listening=false;V.setBtn(false);if(box)box.value='';
+      const alts=[];for(let k=0;k<last.length;k++){const a=String(last[k].transcript||'').trim();if(a&&!alts.includes(a))alts.push(a)}
+      /* finished utterance = all final segments joined; alternatives come from the last segment only */
+      const prefix=[...e.results].slice(0,-1).map(x=>x[0].transcript).join('');
+      const full=alts.map(a=>(prefix+a).trim());
+      V.onFinal(V.pickBest(full),full)}};
   r.onend=()=>{V.listening=false;V.setBtn(false)};
   r.onerror=e=>{V.listening=false;V.setBtn(false);const m=e&&e.error==='not-allowed'?'دسترسی به میکروفون داده نشد':e&&e.error==='no-speech'?'صدایی شنیده نشد':'تشخیص صدا ناموفق بود';window.toast(m,true)};
   try{r.start()}catch(e){V.listening=false;V.setBtn(false);window.toast('شروع تشخیص صدا ممکن نشد',true);return false}
   return true;
 };
-V.stop=function(){try{V.rec&&V.rec.stop()}catch(_){}V.listening=false;V.setBtn(false)};
+
+/* choose the alternative the local NLU understands best (the cloud model also receives all alternatives as hints) */
+V.pickBest=function(alts){
+  if(!alts||alts.length<2)return(alts&&alts[0])||'';
+  try{let best=alts[0],bs=-1;for(const a of alts){const i=U.NLU.understand(a,U.ctx);const sc=i.followUp?4:(i.best?i.best.score:0);if(sc>bs+1e-9){bs=sc;best=a}}return best}catch(_){return alts[0]}
+};
+/* high-accuracy path: record with MediaRecorder (auto-stop on silence) and send to a Whisper-compatible endpoint */
+V.whisperReady=function(){const a=U.Provider.cfg();return a.sttMode==='whisper'&&!!a.transcribeEndpoint&&!!a.apiKey&&!!navigator.mediaDevices&&typeof MediaRecorder!=='undefined'};
+V.whisperStart=async function(){
+  if(V.listening)return V.whisperStop();
+  let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:true})}catch(_){window.toast('دسترسی به میکروفون داده نشد',true);return false}
+  try{speechSynthesis&&speechSynthesis.cancel()}catch(_){}
+  const chunks=[],mr=new MediaRecorder(stream);V.mr=mr;V.listening=true;V.setBtn(true);
+  let ctxA,raf,heard=false,silentSince=0;const t0=Date.now();
+  try{ctxA=new (window.AudioContext||window.webkitAudioContext)();const src=ctxA.createMediaStreamSource(stream),an=ctxA.createAnalyser();an.fftSize=1024;src.connect(an);const buf=new Uint8Array(an.fftSize);
+    const tick=()=>{if(!V.listening)return;an.getByteTimeDomainData(buf);let m=0;for(const v of buf)m=Math.max(m,Math.abs(v-128));const now=Date.now();
+      if(m>14){heard=true;silentSince=0}else if(heard){if(!silentSince)silentSince=now;if(now-silentSince>1400)return V.whisperStop()}
+      if(!heard&&now-t0>8000)return V.whisperStop();if(now-t0>25000)return V.whisperStop();raf=requestAnimationFrame(tick)};tick()}catch(_){}
+  mr.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+  mr.onstop=async()=>{cancelAnimationFrame(raf);try{ctxA&&ctxA.close()}catch(_){}stream.getTracks().forEach(t=>t.stop());V.listening=false;V.setBtn(false);
+    if(!heard||!chunks.length){window.toast('صدایی شنیده نشد',true);return}
+    try{const blob=new Blob(chunks,{type:mr.mimeType||'audio/webm'});const txt=await V.transcribe(blob);if(!txt){window.toast('متنی از صدا دریافت نشد',true);return}V.onFinal(txt,[txt])}catch(e){window.toast('تبدیل صدا به متن ناموفق بود: '+e.message,true)}};
+  mr.start();return true;
+};
+V.whisperStop=function(){try{V.mr&&V.mr.state!=='inactive'&&V.mr.stop()}catch(_){}V.listening=false;V.setBtn(false);return true};
+V.transcribe=async function(blob){
+  const a=U.Provider.cfg();if(!a.transcribeEndpoint)throw Error('Endpoint تبدیل صدا به متن مشخص نشده');
+  const fd=new FormData();fd.append('file',blob,'voice.'+((blob.type||'').includes('mp4')?'mp4':(blob.type||'').includes('ogg')?'ogg':'webm'));
+  fd.append('model',a.sttModel||'whisper-1');fd.append('language','fa');
+  fd.append('prompt','فروش، فاکتور، موجودی، بدهکار، مشتری، تأمین‌کننده، تومان، ریال، میلیون، هزار، نایک، مشکی، سایز');
+  const r=await fetch(a.transcribeEndpoint,{method:'POST',headers:{'Authorization':'Bearer '+a.apiKey},body:fd});
+  if(!r.ok)throw Error('STT '+r.status);const j=await r.json();return String(j.text||j.transcript||'').trim();
+};
+V.stop=function(){try{V.mr&&V.whisperStop()}catch(_){}try{V.rec&&V.rec.stop()}catch(_){}V.listening=false;V.setBtn(false)};
 V.toggle=function(){return V.listening?V.stop():V.start()};
 V.setBtn=on=>{const b=document.querySelector('#voiceBtn');if(b){b.textContent=on?'■ در حال شنیدن…':'🎤 فرمان صوتی';b.classList.toggle('listening',!!on)}};
 /* spoken request -> same engine as typed text; reply is spoken; if the assistant asked something, listen again */
-V.onFinal=async function(text){
-  const msgs=await U.ui.submit(text,'voice');
+V.onFinal=async function(text,alts){
+  const msgs=await U.ui.submit(text,'voice',undefined,{alts});
   const need=U.ctx.pending||U.ctx.clarify;
   V.speak(V.speakable(msgs||[]),()=>{if(need&&cfg().autoListen&&V.supported())setTimeout(()=>V.start(),250)});
 };
@@ -3615,7 +3684,7 @@ const UI=U.ui={transcript:[],busy:false,wasOnAI:false};
 const legacyAsk=window.askAI;
 /* defaults for new settings (never overwrite existing user choices) */
 const db0=window.db.settings.ai=window.db.settings.ai||{};
-for(const[k,v]of Object.entries({mode:'hybrid',spokenUnit:'toman',tts:true,autoListen:true}))if(db0[k]===undefined)db0[k]=v;
+for(const[k,v]of Object.entries({mode:'smart',spokenUnit:'toman',tts:true,autoListen:true,sttMode:'browser'}))if(db0[k]===undefined)db0[k]=v;
 
 UI.renderChat=function(){
   const box=document.querySelector('#chatlog');if(!box)return;box.innerHTML='';
@@ -3630,13 +3699,13 @@ UI.renderChat=function(){
   box.scrollTop=box.scrollHeight;
   const st=document.querySelector('#aiStats');if(st)st.textContent=`فراخوانی مدل ابری: ${U.fa(U.stats.llmCalls)} · توکن: ${U.fa(U.stats.tokens)} · پاسخ محلی: ${U.fa(U.stats.localHits)} · از کش: ${U.fa(U.stats.cacheHits)} · آخرین تأخیر: ${U.fa(U.stats.lastLatencyMs)}ms`;
 };
-UI.submit=async function(text,source,attachment){
+UI.submit=async function(text,source,attachment,extra){
   text=String(text||'').trim();if(!text)return[];
   UI.wasOnAI=window.page==='ai';
   UI.transcript.push({role:'user',text,source});UI.renderChat();
   const input=document.querySelector('#prompt');if(input&&source!=='voice')input.value='';
   const tmp={role:'ai',text:'در حال بررسی…',kind:'ai'};UI.transcript.push(tmp);UI.renderChat();UI.busy=true;
-  let msgs=[];try{msgs=await U.chat.handle(text,{source:source==='ui'?'text':source})}finally{UI.busy=false}
+  let msgs=[];try{msgs=await U.chat.handle(text,{source:source==='ui'?'text':source,alts:extra&&extra.alts})}finally{UI.busy=false}
   UI.transcript.splice(UI.transcript.indexOf(tmp),1);
   for(const m of msgs)UI.transcript.push({role:'ai',...m});
   if(UI.transcript.length>200)UI.transcript.splice(0,UI.transcript.length-200);
@@ -3673,18 +3742,23 @@ window.audioFallback=function(file){UI.transcript.push({role:'ai',text:'در ح�
 window.aiSettings=function(){
   const a=window.db.settings.ai;
   window.modal(`<div class="modalhead"><h2>دستیار هوشمند و اتصال AI</h2><button class="close" data-close>×</button></div><form id="aif"><div class="formgrid">
-  <label class="field">حالت<select id="amode"><option value="local" ${(a.mode||'hybrid')==='local'?'selected':''}>فقط محلی (بدون هزینه، آفلاین)</option><option value="hybrid" ${(a.mode||'hybrid')==='hybrid'?'selected':''}>ترکیبی (محلی؛ ابری برای جمله‌های پیچیده)</option><option value="llm" ${(a.mode||'hybrid')==='llm'?'selected':''}>همیشه مدل ابری</option></select></label>
+  <label class="field">حالت<select id="amode"><option value="smart" ${(a.mode||'smart')!=='local'?'selected':''}>هوشمند (مدل هوش مصنوعی هر جمله را می‌فهمد؛ توصیه‌شده)</option><option value="local" ${a.mode==='local'?'selected':''}>فقط محلی (بدون هزینه، آفلاین؛ محدود به عبارت‌های تعریف‌شده)</option></select></label>
   <label class="field">واحد مبلغ‌های گفتاری<select id="aunit"><option value="toman" ${a.spokenUnit!=='rial'?'selected':''}>تومان (مثلاً «۵ میلیون» = ۵ میلیون تومان)</option><option value="rial" ${a.spokenUnit==='rial'?'selected':''}>ریال</option></select></label>
   <label class="field">نوع اتصال ابری<select id="aprov"><option value="local" ${a.provider==='local'?'selected':''}>محلی / بدون API</option><option value="openai" ${a.provider==='openai'?'selected':''}>OpenAI / سازگار با OpenAI</option></select></label>
   <label class="field span3">Endpoint (ترجیحاً پراکسی امن خودتان)<input id="aend" value="${esc(a.endpoint||'https://api.openai.com/v1/responses')}"></label>
   <label class="field">Model<input id="amodel" value="${esc(a.model||'')}"></label>
-  <label class="field span3">API Key (فقط در حافظهٔ نشست؛ در پشتیبان ذخیره نمی‌شود)<input id="akey" type="password" value="${esc(a.apiKey||'')}"></label>
+  <label class="field span3">API Key (در پشتیبان ذخیره نمی‌شود)<input id="akey" type="password" value="${esc(a.apiKey||(()=>{try{return localStorage.getItem('uai_key_device')||''}catch(_){return''}})())}"></label>
+  <label class="field"><span>به‌خاطر سپردن کلید روی این دستگاه</span><select id="aremember"><option value="1" ${(()=>{try{return localStorage.getItem('uai_key_device')?'selected':''}catch(_){return''}})()}>بله (بعد از بستن صفحه هم بماند)</option><option value="0">خیر (فقط تا بستن تب)</option></select></label>
+  <label class="field"><span>تشخیص صدا</span><select id="astt"><option value="browser" ${a.sttMode!=='whisper'?'selected':''}>مرورگر (رایگان)</option><option value="whisper" ${a.sttMode==='whisper'?'selected':''}>Whisper (دقیق‌تر؛ نیاز به Endpoint پایین)</option></select></label>
+  <label class="field">مدل تبدیل صدا<input id="astm" value="${esc(a.sttModel||'whisper-1')}"></label>
   <label class="field span4">Endpoint تبدیل صدا به متن (برای مرورگرهای بدون تشخیص گفتار)<input id="atr" value="${esc(a.transcribeEndpoint||'')}"></label>
   <label class="field"><span>خواندن پاسخ با صدا</span><select id="atts"><option value="1" ${a.tts!==false?'selected':''}>روشن</option><option value="0" ${a.tts===false?'selected':''}>خاموش</option></select></label>
   <label class="field"><span>گوش‌دادن خودکار بعد از سؤال دستیار</span><select id="aauto"><option value="1" ${a.autoListen!==false?'selected':''}>روشن</option><option value="0" ${a.autoListen===false?'selected':''}>خاموش</option></select></label></div>
   <p class="muted">در حالت محلی هیچ داده‌ای به بیرون ارسال نمی‌شود. در حالت ابری فقط متن درخواست و خروجی ابزارهای لازم (بدون شماره تلفن) فرستاده می‌شود. کلید API روی مرورگر قابل مشاهده است؛ برای امنیت بیشتر Endpoint را روی پراکسی خودتان بگذارید.</p>
   <div class="modal-actions"><button class="btn primary">ذخیره</button></div></form>`);
-  document.querySelector('#aif').onsubmit=e=>{e.preventDefault();Object.assign(window.db.settings.ai,{mode:document.querySelector('#amode').value,spokenUnit:document.querySelector('#aunit').value,provider:document.querySelector('#aprov').value,endpoint:document.querySelector('#aend').value.trim(),model:document.querySelector('#amodel').value.trim(),apiKey:document.querySelector('#akey').value,transcribeEndpoint:document.querySelector('#atr').value.trim(),tts:document.querySelector('#atts').value==='1',autoListen:document.querySelector('#aauto').value==='1'});window.saveDB();window.closeModal();window.toast('تنظیمات دستیار ذخیره شد')};
+  document.querySelector('#aif').onsubmit=e=>{e.preventDefault();Object.assign(window.db.settings.ai,{mode:document.querySelector('#amode').value,spokenUnit:document.querySelector('#aunit').value,provider:document.querySelector('#aprov').value,endpoint:document.querySelector('#aend').value.trim(),model:document.querySelector('#amodel').value.trim(),apiKey:document.querySelector('#akey').value.trim(),sttMode:document.querySelector('#astt').value,sttModel:document.querySelector('#astm').value.trim()||'whisper-1',transcribeEndpoint:document.querySelector('#atr').value.trim(),tts:document.querySelector('#atts').value==='1',autoListen:document.querySelector('#aauto').value==='1'});const ai=window.db.settings.ai;try{if(ai.apiKey&&document.querySelector('#aremember').value==='1')localStorage.setItem('uai_key_device',ai.apiKey);else localStorage.removeItem('uai_key_device')}catch(_){}
+    if(ai.apiKey&&ai.provider==='local')ai.provider='openai';if(!ai.apiKey||ai.provider==='local'){try{localStorage.removeItem('uai_key_device')}catch(_){}}
+    window.saveDB();window.closeModal();window.toast(U.Provider.enabled()?'تنظیمات ذخیره شد؛ حالت هوشمند فعال است':'تنظیمات ذخیره شد (اتصال AI ناقص است؛ فقط حالت محلی کار می‌کند)',!U.Provider.enabled())};
 };
 UI.auditModal=function(){
   const rows=U.Audit.recent(60).reverse();
