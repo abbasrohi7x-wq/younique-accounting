@@ -3777,10 +3777,72 @@ window.askAI=async function(q,attachment=null){
 };
 window.voiceRecord=function(){return V.toggle()};
 window.audioFallback=function(file){UI.transcript.push({role:'ai',text:'در حال تبدیل صدا به متن…',kind:'ai'});UI.renderChat();window.transcribeAudioFile(file).then(t=>{UI.transcript.pop();if(!t){window.toast('متنی از صدا دریافت نشد',true);return UI.renderChat()}V.onFinal(t)}).catch(e=>{UI.transcript.pop();UI.renderChat();window.toast(e.message,true)})};
+/* ---- one-field quick setup: pick a service, paste the key — region, endpoint and model are found and tested automatically ---- */
+UI.quickSetup=function(){
+  const P=U.Provider;
+  window.modal(`<div class="modalhead"><h2>⚡ فعال‌سازی سریع هوش مصنوعی</h2><button class="close" data-close>×</button></div>
+  <div id="qsBody"><p class="muted">سرویس را انتخاب کنید و کلید API را بچسبانید. منطقه، آدرس و مدل مناسب خودکار پیدا و آزمایش می‌شود و حالت هوشمند روشن می‌شود.</p>
+  <div class="formgrid" style="grid-template-columns:1fr 1fr;gap:10px">
+    <button type="button" class="btn qs-card" data-qs="qwen"><b>Qwen</b><br><small>علی‌بابا</small></button>
+    <button type="button" class="btn qs-card" data-qs="openai"><b>OpenAI</b><br><small>ChatGPT API</small></button>
+  </div>
+  <label class="field" style="margin-top:12px">کلید API<input id="qsKey" type="password" dir="ltr" autocomplete="off" placeholder="sk-..."></label>
+  <div id="qsLog" class="muted" style="min-height:44px;margin:10px 0;white-space:pre-wrap"></div>
+  <div class="modal-actions"><button type="button" class="btn primary" id="qsGo">فعال‌سازی خودکار</button></div>
+  <p class="muted">کلید فقط روی همین دستگاه ذخیره می‌شود. ساختن کلید و شارژ حساب را باید خودتان در سایت سرویس انجام دهید.</p></div>`);
+  const $=id=>document.querySelector('#'+id);let sel=P.cfg().profile==='openai'?'openai':'qwen';
+  const mark=()=>document.querySelectorAll('.qs-card').forEach(b=>{const on=b.dataset.qs===sel;b.classList.toggle('primary',on)});
+  mark();document.querySelectorAll('.qs-card').forEach(b=>b.onclick=()=>{sel=b.dataset.qs;mark()});
+  const log=t=>{$('qsLog').textContent=t};
+  $('qsGo').onclick=async()=>{
+    const btn=$('qsGo');btn.disabled=true;
+    try{const r=await UI.autoSetup(sel,$('qsKey').value,log);
+      window.toast('هوش مصنوعی فعال شد: '+r.label);log('✓ فعال شد.\n'+r.label+'\nحالا در نوار هوش مصنوعی هر جمله‌ای بنویسید یا بگویید.');
+      $('qsGo').textContent='بستن';$('qsGo').disabled=false;$('qsGo').onclick=()=>window.closeModal();if(UI.mountDock)UI.mountDock();return}
+    catch(e){log('✕ '+e.message);btn.disabled=false}
+  };
+};
+UI.autoSetup=async function(provider,keyRaw,progress){
+  const P=U.Provider,key=String(keyRaw||'').trim(),say=progress||(()=>{});
+  if(!/^[A-Za-z0-9_\-\.]{16,}$/.test(key))throw Error('کلید معتبر به نظر نمی‌رسد؛ آن را دوباره کپی کنید.');
+  const isQ=provider==='qwen';
+  const plans=isQ?Object.keys(P.QWEN_REGIONS).map(r=>({region:r,url:P.QWEN_REGIONS[r]})):[{region:'',url:'https://api.openai.com/v1/chat/completions'}];
+  const models=isQ?['qwen-plus','qwen-turbo','qwen-max']:['gpt-4o-mini','gpt-4.1-mini','gpt-4o'];
+  const probe=async(url,model)=>{const ac=new AbortController(),t=setTimeout(()=>ac.abort(),15000);
+    try{const body={model,messages:[{role:'user',content:'ping'}],max_tokens:5};if(isQ)body.enable_thinking=false;
+      const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify(body),signal:ac.signal});
+      return{status:r.status}}
+    catch(e){return{status:0,timeout:e&&e.name==='AbortError'}}finally{clearTimeout(t)}};
+  let found=null,auth=0,net=0,timeouts=0;
+  for(const pl of plans){
+    for(const m of models){
+      say('در حال بررسی'+(pl.region?' منطقه '+({intl:'سنگاپور',china:'پکن',us:'آمریکا'}[pl.region]):'')+' با مدل '+m+' …');
+      const r=await probe(pl.url,m);
+      if(r.status===200||r.status===429){found={pl,model:m,quota:r.status===429};break}
+      if(r.status===401||r.status===403){auth++;break}
+      if(r.status===0){net++;if(r.timeout)timeouts++;break}
+      /* 400/404 etc.: this model is not available for the account -> try the next model */
+    }
+    if(found)break;
+  }
+  if(!found){
+    if(net===plans.length)throw Error(timeouts?'پاسخی از سرویس نرسید (مهلت تمام شد). اینترنت یا فیلترینگ را بررسی کنید.':'ارتباط با سرویس برقرار نشد (شبکه، فیلترینگ یا CORS). از پراکسی استفاده کنید: پوشه‌ی proxy، سپس «تنظیمات هوش مصنوعی ← Endpoint».');
+    if(auth)throw Error('کلید برای این سرویس معتبر نیست. مطمئن شوید سرویس درست (Qwen یا OpenAI) را انتخاب کرده‌اید و کلید کامل کپی شده است.');
+    throw Error('هیچ‌کدام از مدل‌های پیش‌فرض برای این حساب در دسترس نیست. در «تنظیمات هوش مصنوعی» نام مدل را دستی وارد کنید.');
+  }
+  const ai=window.db.settings.ai;ai.profiles=ai.profiles||{};
+  ai.profiles[provider]={endpoint:found.pl.url,model:found.model,region:found.pl.region||'intl'};
+  Object.assign(ai,{profile:provider,endpoint:found.pl.url,model:found.model,apiKey:key,provider:'openai',mode:'smart',fallback:ai.fallback!==false});
+  try{localStorage.setItem('uai_key_'+provider,key);localStorage.setItem('uai_key_device',key)}catch(_){}
+  window.saveDB();
+  const label=(P.PRESETS[provider]||{}).label+' · '+found.model+(found.pl.region?' · '+({intl:'سنگاپور',china:'پکن',us:'آمریکا'}[found.pl.region]):'')+(found.quota?' (سهمیه‌ی حساب رو به اتمام است)':'');
+  return{label,model:found.model,region:found.pl.region,endpoint:found.pl.url};
+};
 window.aiSettings=function(){
   const a=window.db.settings.ai,P=U.Provider,cur0=P.cfg().profile;
   const remembered=(()=>{try{return!!(localStorage.getItem('uai_key_'+cur0)||localStorage.getItem('uai_key_device'))}catch(_){return false}})();
   window.modal(`<div class="modalhead"><h2>هوش مصنوعی و اتصال‌ها</h2><button class="close" data-close>×</button></div><form id="aif">
+  <div style="margin:0 0 12px"><button type="button" class="btn primary" id="aquick">⚡ فعال‌سازی سریع (فقط با یک کلید)</button></div>
   <div class="formgrid">
   <label class="field">حالت<select id="amode"><option value="smart" ${(a.mode||'smart')!=='local'?'selected':''}>هوشمند (مدل هوش مصنوعی هر جمله را می‌فهمد؛ توصیه‌شده)</option><option value="local" ${a.mode==='local'?'selected':''}>فقط محلی (رایگان و آفلاین؛ محدود به عبارت‌های تعریف‌شده)</option></select></label>
   <label class="field">مدل هوش مصنوعی فعال<select id="aprofile"><option value="openai">OpenAI</option><option value="qwen">Qwen (علی‌بابا)</option><option value="custom">سازگار با OpenAI (سفارشی / پراکسی)</option></select></label>
@@ -3810,6 +3872,7 @@ window.aiSettings=function(){
   load(cur);
   $('aprofile').onchange=()=>{stash(cur);cur=$('aprofile').value;load(cur)};
   $('aregion').onchange=()=>{const e=P.QWEN_REGIONS[$('aregion').value];if(e&&(!$('aend').value||Object.values(P.QWEN_REGIONS).includes($('aend').value)))$('aend').value=e};
+  $('aquick').onclick=()=>{window.closeModal();UI.quickSetup()};
   $('aif').onsubmit=e=>{e.preventDefault();stash(cur);
     const ai=window.db.settings.ai,remember=$('aremember').value==='1';
     ai.profiles=ai.profiles||{};
@@ -3944,7 +4007,7 @@ UI.mountDock=function(){
   input.onkeydown=e=>{if(e.key==='Enter'&&!e.isComposing){e.preventDefault();go()}};
   el.querySelector('#dockSend').onclick=go;
   el.querySelector('#dockMic').onclick=()=>window.voiceRecord();
-  el.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const k=b.dataset.c;if(k==='s')return window.aiSettings();runChip(all[+k],input)});
+  el.querySelectorAll('[data-c]').forEach(b=>b.onclick=()=>{const k=b.dataset.c;if(k==='s')return UI.quickSetup();runChip(all[+k],input)});
   el.querySelector('#dockMore').addEventListener('toggle',e=>{openMap[page]=e.target.open;saveOpen()});
   el.querySelector('#dockFile').onchange=e=>{const f=e.target.files&&e.target.files[0];if(f)window.handleAIFile(f);e.target.value=''};
   if(V.listening)V.setBtn(true);
