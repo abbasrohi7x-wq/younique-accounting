@@ -60,7 +60,8 @@ function rateLimited(req, env) {
 
 async function handler(req, res, envOverride) {
   const env = envOverride || process.env;
-  const parts = [].concat(req.query && req.query.path ? req.query.path : []).join('/').replace(/^\/+|\/+$/g, '');
+  let parts = new URL(req.url || '/', 'http://x').pathname.replace(/^\/api\/ai\/?/, '').replace(/^\/+|\/+$/g, '');
+  if (!parts && req.query && req.query.path) parts = [].concat(req.query.path).join('/').replace(/^\/+|\/+$/g, '');
 
   if (parts === 'health') {
     if (req.method !== 'GET') return fail(res, 405, 'Method not allowed', { Allow: 'GET' });
