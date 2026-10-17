@@ -2,7 +2,7 @@ const CACHE='unique-46.4.0';
 const CORE=['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png','./logo.svg'];
 self.addEventListener('install',e=>e.waitUntil(caches.open(CACHE).then(c=>c.addAll(CORE)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim())));
-// Same-origin GET only (AI calls and other origins are never touched).
+// Same-origin GET only (AI calls, /api/* and other origins are never touched).
 // Pages: network first with a 3 s timeout (fixes reach users; weak networks fall back to the cached app quickly).
 // Static assets: cache first. Only successful (200) basic responses are cached; cache errors never break a response.
 self.addEventListener('fetch',e=>{
@@ -10,6 +10,7 @@ self.addEventListener('fetch',e=>{
   if(req.method!=='GET')return;
   const url=new URL(req.url);
   if(url.origin!==self.location.origin)return;
+  if(url.pathname.startsWith('/api/'))return; // server functions (AI proxy, health) are never cached
   const put=(key,res)=>{caches.open(CACHE).then(c=>c.put(key,res)).catch(()=>{})};
   const store=res=>{if(res&&res.status===200&&res.type==='basic')put(req,res.clone());return res};
   if(req.mode==='navigate'){

@@ -214,7 +214,7 @@ function saveDB(immediate=false){if(immediate){clearTimeout(_saveTimer);const ok
 let _lastPersist={s:'',t:0};
 /* PERF 46.2.0: one JSON.stringify (no deep clone); identical payloads written within 2s are not re-written to localStorage (a single transaction saved 2-3 times). API key is never persisted. */
 function _persist(){if(!_dbLoaded)return true;if(YStore.S.mode!=='ls')return YStore.persist();try{const ai=db?.settings?.ai,liveKey=ai?.apiKey||'';if(liveKey)sessionStorage.setItem(AI_SESSION_KEY,liveKey);else sessionStorage.removeItem(AI_SESSION_KEY);let s;if(ai)ai.apiKey='';try{s=JSON.stringify(db)}finally{if(ai)ai.apiKey=liveKey}const nowMs=Date.now();if(s===_lastPersist.s&&nowMs-_lastPersist.t<2000)return true;localStorage.setItem(DB.key,s);_lastPersist={s,t:nowMs};if(s.length>4000000&&!window.__quotaWarned){window.__quotaWarned=1;if(typeof toast==='function')toast('حجم داده به سقف ذخیره‌سازی مرورگر نزدیک است؛ همین حالا پشتیبان کامل بگیرید.',true)}return true}catch(e){window.__YOUNIQUE_SAVE_ERROR=String(e?.message||e);return false}}
-async function openIDB(){_idbReady=false;window.__yIDB=null;return false}
+
 function replaceDB(x){validateBackupData(x);/* v44.4: reject malformed payloads BEFORE touching live data (also protects pullCloud) */const before=cloneDB();const keepKey=db&&db.settings&&db.settings.ai?db.settings.ai.apiKey:'';replaceDBInPlace(normalize(x));if(keepKey&&db.settings&&db.settings.ai&&!db.settings.ai.apiKey)db.settings.ai.apiKey=keepKey;if(!saveDB(true)){replaceDBInPlace(normalize(before));throw Error('ذخیره نسخهٔ بازیابی‌شده ناموفق بود؛ اطلاعات قبلی حفظ شد.')}}
 
 'use strict';
@@ -226,7 +226,7 @@ const now=()=>new Date().toISOString(),today=()=>now().slice(0,10),_moneyNF={},m
 function bindMoneyInputs(root=document){root.querySelectorAll('[data-money-input]').forEach(el=>{if(el.dataset.moneyBound)return;el.dataset.moneyBound='1';el.addEventListener('focus',()=>{el.value=String(num(el.value)||'')});el.addEventListener('blur',()=>{const n=num(el.value);el.value=n.toLocaleString('fa-IR');el.dispatchEvent(new Event('change',{bubbles:true}))})})}
 const modelBy=id=>db.models.find(x=>x.id===id),variantBy=id=>db.variants.find(x=>x.id===id),activeVariants=()=>{const off=new Set();for(const m of db.models)if(m.active===false)off.add(m.id);return db.variants.filter(x=>x.active!==false&&!off.has(x.modelId))};
 function variantName(v){if(!v)return 'کالای حذف‌شده';const m=modelBy(v.modelId);return [m?.name||'کالای بدون نام',m?.brand,v.color,v.size?`سایز ${v.size}`:''].filter(Boolean).join(' · ')}
-function colorClass(c){const m={'مشکی':'#111827','سفید':'#fff','قرمز':'#ef4444','آبی':'#3b82f6','سبز':'#22c55e','زرد':'#eab308','نارنجی':'#f97316','صورتی':'#ec4899','بنفش':'#8b5cf6','قهوه‌ای':'#8b5e3c','کرم':'#f5e6c8','بژ':'#d8c3a5','طوسی':'#94a3b8','سرمه‌ای':'#172554','زرشکی':'#991b1b','طلایی':'#d4af37','نقره‌ای':'#cbd5e1'};return m[c]||'#94a3b8'}
+
 function nextNumber(type){const k=type==='sale'?'sale':'purchase',p=type==='sale'?'S':'P',n=String(db.seq[k]++).padStart(6,'0');return `U-${new Date().getFullYear()}-${p}-${n}`}
 function uniqueBarcode(){let b;do{b=String(db.settings.barcodePrefix)+String(db.seq.barcode++).padStart(num(db.settings.barcodeDigits)||8,'0')}while(db.variants.some(v=>v.barcode===b));return b}
 function uniqueSku(v){if(v.sku)return v.sku;const m=modelBy(v.modelId),base=String(m?.modelCode||m?.name||'Y').replace(/[^\p{L}\p{N}]+/gu,'').slice(0,8).toUpperCase()||'Y';let s;do{s=`${base}-${String(db.seq.sku++).padStart(5,'0')}`}while(db.variants.some(x=>x.sku===s));return s}
@@ -249,7 +249,7 @@ function saleNetTotal(cart,discount=0){return roundMoney(Math.max(0,cart.reduce(
 function yqVatCfg(){const t=db.taxProfile||{},r=Number(t.vatRate)||0;return{on:!!t.enabled&&r>0&&r<100,rate:r,mode:t.vatMode==='inclusive'?'inclusive':'exclusive'}}
 function yqSaleVat(cart,discount=0){const c=yqVatCfg(),n=saleNetTotal(cart,discount);if(!c.on)return 0;return c.mode==='inclusive'?roundMoney(n*c.rate/(100+c.rate)):roundMoney(n*c.rate/100)}
 function saleTotal(cart,discount=0){const n=saleNetTotal(cart,discount),c=yqVatCfg();return c.on&&c.mode==='exclusive'?roundMoney(n+yqSaleVat(cart,discount)):n}
-function taxAmount(base){return roundMoney(Math.max(0,num(base))*Math.max(0,num(db.settings.tax))/100)}
+
 function download(name,data,type='application/json'){const u=URL.createObjectURL(new Blob([data],{type})),a=document.createElement('a');a.href=u;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}
 function exportData(){if(!saveDB(true)&&!(window.YStore&&(YStore.S.failed||YStore.S.stale)))throw Error('ذخیره اطلاعات ناموفق بود؛ پشتیبان‌گیری متوقف شد.');const copy=JSON.parse(JSON.stringify(db));/* security: never write the AI API key into backup files */if(copy.settings&&copy.settings.ai)copy.settings.ai.apiKey='';return JSON.stringify({app:'younique',schema:13,exportedAt:now(),data:copy},null,2)}
 function validateBackupData(data){
@@ -270,7 +270,7 @@ function stockAlerts(){return activeVariants().filter(v=>num(v.stock)<=num(v.min
 function suggestedReorder(){return stockAlerts().map(v=>{const target=Math.max(num(v.minStock)*2,5),qty=Math.max(0,target-num(v.stock));return {variantId:v.id,name:variantName(v),stock:num(v.stock),min:num(v.minStock),suggestedQty:qty,buyPrice:num(v.buyPrice),estimated:qty*num(v.buyPrice)}}).filter(x=>x.suggestedQty>0)}
 function localAI(q){const t=totals(),top=Object.entries(db.saleItems.reduce((a,i)=>(a[i.variantId]=(a[i.variantId]||0)+num(i.qty),a),{})).sort((a,b)=>b[1]-a[1]).slice(0,5);q=String(q||'').toLowerCase();if(/کمبود|خرید|سفارش|انبار/.test(q)){const r=suggestedReorder();return r.length?`پیشنهاد خرید خودکار:\n${r.slice(0,10).map(x=>`• ${x.name} — ${x.suggestedQty} واحد، برآورد ${money(x.estimated)}`).join('\n')}`:'مورد مهمی برای سفارش دیده نشد.'}if(/فروش|درآمد/.test(q))return `فروش امروز: ${money(t.revenue)}\nتعداد فاکتور: ${t.invoices}`;if(/سود/.test(q))return `سود ناخالص تقریبی امروز: ${money(t.profit)}`;if(/پرفروش/.test(q))return top.length?`پرفروش‌ترین تنوع‌ها:\n${top.map(x=>`• ${variantName(variantBy(x[0]))}: ${x[1]} واحد`).join('\n')}`:'داده کافی نیست';return `امروز ${money(t.revenue)} فروش و ${money(t.profit)} سود تقریبی ثبت شده؛ ${t.low} هشدار موجودی دارید.`}
 function storeSummary(){return {shop:db.settings.shopName,totals:totals(),accounts:{cash:accountBalance('cash'),card:accountBalance('card'),bank:accountBalance('bank'),receivable:accountBalance('receivable'),payable:-accountBalance('payable')},low:stockAlerts().slice(0,30).map(v=>({id:v.id,name:variantName(v),barcode:v.barcode,stock:v.stock,min:v.minStock,buyPrice:v.buyPrice,sellPrice:v.sellPrice})),customers:db.customers.slice(0,50).map(x=>({id:x.id,name:x.name,phone:x.phone,balance:customerBalance(x.id)})),suppliers:db.suppliers.slice(0,50).map(x=>({id:x.id,name:x.name,balance:supplierBalance(x.id)}))}}
-function legacy_parseLocalCommand(q){const s=String(q||'').trim();let m=s.match(/(?:افزایش|اضافه|ورود)\s+(\d+)\s+(?:عدد|تا)?\s*(?:از)?\s*(.+)/i);if(m){const n=num(m[1]),v=productSearch(m[2])[0];if(v)return {type:'stock_adjust',variantId:v.id,qty:n,reason:'فرمان صوتی/متنی'}}m=s.match(/(?:بارکد|کد)\s*(?:بساز|تولید کن|ایجاد کن)\s*(?:برای)?\s*(.+)?/i);if(m)return {type:'generate_barcodes',query:(m[1]||'').trim()};if(/خرید|سفارش/.test(s)&&/کمبود|لازم|نیاز/.test(s))return {type:'reorder_draft',items:suggestedReorder()};return null}
+
 function ledgerReport(){const map={};for(const j of db.journal||[])for(const l of j.lines||[]){const k=l.account||'other';if(!map[k])map[k]={account:k,debit:0,credit:0,balance:0};map[k].debit+=num(l.debit);map[k].credit+=num(l.credit);map[k].balance+=num(l.debit)-num(l.credit)}return Object.values(map)}
 function validateLedger(){
  const bad=[],issues=[];let totalDebit=0,totalCredit=0;
@@ -325,7 +325,11 @@ function metricCard(label,value,sub,kind=''){return `<div class="card metric ${k
 function modal(html){const m=$('#modal');m.innerHTML=`<div class="modalbox">${html}</div>`;m.classList.add('show');$$('[data-close]',m).forEach(x=>x.onclick=closeModal);m.onclick=e=>{if(e.target===m)closeModal()}}
 function closeModal(){$('#modal')?.classList.remove('show')}
 function toast(msg,error=false){const t=$('#toast');if(!t)return;t.textContent=msg;t.className='toast show'+(error?' error':'');clearTimeout(window.__toast);window.__toast=setTimeout(()=>t.className='toast',3300)}
-function errorScreen(e){document.body.innerHTML=`<div class="error-screen"><div class="error-box"><h1>خطای برنامه</h1><p>اطلاعات ذخیره‌شده تغییر نکرده است.</p><pre>${esc(e?.stack||e)}</pre><button class="btn primary" onclick="location.reload()">تلاش دوباره</button></div></div>`}
+function errorScreen(e){
+  try{if(window.UAI&&UAI.Diag)UAI.Diag.log((e&&e.message)||String(e),'render',e&&e.stack)}catch(_){}
+  const c=document.querySelector('#app .sidebar')&&document.querySelector('#content');
+  if(c){c.innerHTML=`<div class="card error-inline"><h3>⚠ این صفحه با خطا روبه‌رو شد</h3><p class="muted">اطلاعات ذخیره‌شده تغییر نکرده است. از منو به صفحه‌ی دیگری بروید یا دوباره تلاش کنید.</p><pre style="white-space:pre-wrap;max-height:180px;overflow:auto;direction:ltr;text-align:left">${esc(e?.stack||e)}</pre><button class="btn primary" onclick="render()">تلاش دوباره</button></div>`;return}
+  document.body.innerHTML=`<div class="error-screen"><div class="error-box"><h1>خطای برنامه</h1><p>اطلاعات ذخیره‌شده تغییر نکرده است.</p><pre>${esc(e?.stack||e)}</pre><button class="btn primary" onclick="location.reload()">تلاش دوباره</button></div></div>`}
 
 'use strict';
 let page='dashboard',saleCart=[],purchaseCart=[],purchaseSupplierDraft='',purchaseDraftMode=false,selected=new Set(),searchTimer;
@@ -387,7 +391,7 @@ function purchases(){const a=[...db.purchases].reverse();$('#content').innerHTML
 function productModal(id=''){const m=id?modelBy(id):null;modal(`<div class="modalhead"><h2>${m?'ویرایش مدل کالا':'مدل کالای جدید'}</h2><button class="close" data-close>×</button></div><form id="mf"><div class="formgrid"><label class="field span2">نام کالا<input id="mn" required value="${esc(m?.name||'')}"></label><label class="field">برند<input id="mb" value="${esc(m?.brand||'')}"></label><label class="field">کد مدل<input id="mc" value="${esc(m?.modelCode||'')}"></label><label class="field">دسته<select id="mcat">${db.categories.map(c=>`<option ${c===m?.category?'selected':''}>${esc(c)}</option>`).join('')}</select></label><label class="field span3">توضیحات<textarea id="md">${esc(m?.description||'')}</textarea></label></div><div class="modal-actions"><button class="btn" type="button" data-close>انصراف</button><button class="btn primary">ادامه به ساخت تنوع</button></div></form>`);$('#mf').onsubmit=e=>{e.preventDefault();variantWizard(id)} }
 function variantWizard(modelId){const m=modelId?modelBy(modelId):{id:uid(),name:$('#mn').value.trim(),brand:$('#mb').value.trim(),modelCode:$('#mc').value.trim(),category:$('#mcat').value,description:$('#md').value.trim(),active:true};if(!m.name)return toast('نام کالا الزامی است',true);if(!modelId){db.models.push(m);modelId=m.id}else{Object.assign(modelBy(modelId),m)}const old=activeVariants().filter(v=>v.modelId===modelId);modal(`<div class="modalhead"><h2>ساخت تنوع کالا</h2><button class="close" data-close>×</button></div><div class="formgrid"><label class="field span2">رنگ‌ها<div id="colors" class="toolbar">${db.colors.map(c=>`<label class="pill"><input type="checkbox" value="${esc(c)}" class="vc"> ${esc(c)}</label>`).join('')}</div></label><label class="field">رنگ سفارشی<input id="customColor" placeholder="مثلاً مشکی/طلایی"></label><label class="field">قیمت خرید پیش‌فرض<input id="buy" type="number" value="0"></label><label class="field">قیمت فروش پیش‌فرض<input id="sell" type="number" value="0"></label><label class="field">حداقل موجودی<input id="min" type="number" value="1"></label><label class="field span4">سایزها<div id="sizes" class="toolbar">${db.sizes.map(s=>`<label class="pill"><input type="checkbox" value="${s}" class="vs"> ${s}</label>`).join('')}</div></label></div><div class="modal-actions"><button class="btn" data-close>انصراف</button><button class="btn primary" id="makeVariants">ساخت تنوع‌ها</button></div>`);$('#makeVariants').onclick=()=>{let colors=$$('.vc').filter(x=>x.checked).map(x=>x.value);const cc=$('#customColor').value.trim();if(cc&&!colors.includes(cc))colors.push(cc);const sizes=$$('.vs').filter(x=>x.checked).map(x=>x.value);if(!colors.length||!sizes.length)return toast('حداقل یک رنگ و یک سایز انتخاب کنید',true);const buy=num($('#buy').value),sell=num($('#sell').value),min=num($('#min').value)||1;let count=0;for(const c of colors)for(const s of sizes){if(db.variants.some(v=>v.modelId===modelId&&v.color===c&&v.size===s))continue;const nv={id:uid(),modelId,color:c,size:s,barcode:'',sku:'',buyPrice:buy,sellPrice:sell,minStock:min,stock:0,active:true};ensureVariantCodes(nv);db.variants.push(nv);count++}saveDB();audit('ساخت تنوع',modelId,`${count} تنوع`);closeModal();toast(`${count} تنوع ایجاد شد`);products()}}
 function products(){const q=window.__productQ||'';const models=db.models.filter(m=>`${m.name} ${m.brand} ${m.modelCode}`.toLowerCase().includes(q.toLowerCase()));const rows=[],byModel=new Map();for(const v of activeVariants()){let a=byModel.get(v.modelId);if(!a)byModel.set(v.modelId,a=[]);a.push(v)}for(const m of models){const vs=byModel.get(m.id)||[];if(!vs.length)rows.push(`<tr><td><input type="checkbox" data-model="${m.id}"></td><td><b>${esc(m.name)}</b><small class="muted">مدل: ${esc(m.modelCode||'-')}</small></td><td>${esc(m.brand||'-')}</td><td>${esc(m.category||'-')}</td><td colspan="5"><span class="pill">بدون تنوع</span></td><td><button class="btn" data-edit="${m.id}">ویرایش</button> <button class="btn danger" data-delete-model="${m.id}">حذف کالا</button></td></tr>`);else vs.forEach(v=>rows.push(`<tr class="variant-row"><td><input type="checkbox" class="pv" value="${v.id}" data-model="${m.id}"></td><td><b>${esc(m.name)}</b><small class="muted">مدل: ${esc(m.modelCode||'-')}</small></td><td>${esc(m.brand||'-')}</td><td>${esc(m.category||'-')}</td><td><span class="pill">${esc(v.color||'—')}</span></td><td><span class="pill">سایز ${esc(v.size||'—')}</span></td><td>${esc(v.barcode||'—')}</td><td>${v.stock}</td><td>${money(v.sellPrice)}</td><td><button class="btn" data-vedit="${v.id}">ویرایش</button> <button class="btn danger" data-delete-model="${m.id}">حذف کالا</button></td></tr>`))}$('#content').innerHTML=pageHead('کالاها و تنوع‌ها','تمام تنوع‌ها را در همان صفحه مشاهده و مدیریت کنید',`<button class="btn primary" id="newProduct">＋ کالای جدید</button>`)+`<div class="card"><div class="toolbar"><div class="searchbox"><span>⌕</span><input id="pq" value="${esc(q)}" placeholder="نام، برند یا کد مدل"></div><button class="btn" id="selectAllVariants">انتخاب همه تنوع‌ها</button><button class="btn" id="bulkBar">ایجاد بارکد برای انتخاب‌شده‌ها</button></div><div class="small muted" style="margin-bottom:10px">هر ترکیب رنگ × سایز یک ردیف مستقل است.</div><div class="tablewrap"><table><thead><tr><th><input type="checkbox" id="allModels"></th><th>کالا / مدل</th><th>برند</th><th>دسته</th><th>رنگ</th><th>سایز</th><th>بارکد</th><th>موجودی</th><th>قیمت فروش</th><th></th></tr></thead><tbody>${rows.join('')||'<tr><td colspan="10"><div class="empty">کالایی ثبت نشده است.</div></td></tr>'}</tbody></table></div></div>`;$('#newProduct').onclick=()=>productModal();$('#pq').oninput=e=>{window.__productQ=e.target.value;clearTimeout(searchTimer);searchTimer=setTimeout(products,120)};$('#selectAllVariants').onclick=()=>{$$('.pv').forEach(x=>x.checked=true);toast(`${$$('.pv').length} تنوع انتخاب شد`)};$('#allModels').onclick=e=>{$$('.pv').forEach(x=>x.checked=e.target.checked)};$$('[data-edit]').forEach(b=>b.onclick=()=>productModal(b.dataset.edit));$$('[data-vedit]').forEach(b=>b.onclick=()=>variantEdit(b.dataset.vedit));$$('[data-delete-model]').forEach(b=>b.onclick=()=>deleteProductModel(b.dataset.deleteModel));$('#bulkBar').onclick=()=>{const vs=$$('.pv:checked').map(x=>variantBy(x.value)).filter(Boolean);if(!vs.length)return toast('حداقل یک تنوع را انتخاب کنید',true);let n=0;vs.forEach(v=>{if(!v.barcode){v.barcode=uniqueBarcode();n++}});saveDB(true);audit('ایجاد گروهی بارکد','',`${n} بارکد جدید`);toast(n?`${n} بارکد جدید ایجاد شد؛ بارکدهای قبلی تغییر نکردند`:'همه تنوع‌های انتخاب‌شده بارکد داشتند');products()}}
-function variantList(modelId){const m=modelBy(modelId);modal(`<div class="modalhead"><h2>${esc(m.name)} · تنوع‌ها</h2><button class="close" data-close>×</button></div><div class="tablewrap"><table><thead><tr><th>رنگ</th><th>سایز</th><th>بارکد</th><th>خرید</th><th>فروش</th><th>موجودی</th><th></th></tr></thead><tbody>${activeVariants().filter(v=>v.modelId===modelId).map(v=>`<tr><td>${esc(v.color)}</td><td>${esc(v.size)}</td><td>${esc(v.barcode||'—')}</td><td>${money(v.buyPrice)}</td><td>${money(v.sellPrice)}</td><td>${v.stock}</td><td><button class="btn" data-vedit="${v.id}">ویرایش</button></td></tr>`).join('')}</tbody></table></div>`);$$('[data-vedit]').forEach(b=>b.onclick=()=>variantEdit(b.dataset.vedit))}
+
 function variantEdit(id){const v=variantBy(id);modal(`<div class="modalhead"><h2>ویرایش تنوع</h2><button class="close" data-close>×</button></div><form id="vf"><div class="formgrid"><label class="field">رنگ<input id="vc" value="${esc(v.color)}"></label><label class="field">سایز<input id="vs" value="${esc(v.size)}"></label><label class="field span2">بارکد<input id="vb" value="${esc(v.barcode)}"></label><label class="field">SKU<input id="sku" value="${esc(v.sku)}"></label><label class="field">خرید<input id="vbuy" type="number" value="${v.buyPrice}"></label><label class="field">فروش<input id="vsell" type="number" value="${v.sellPrice}"></label><label class="field">حداقل موجودی<input id="vmin" type="number" value="${v.minStock}"></label></div><div class="modal-actions"><button class="btn" data-close type="button">انصراف</button><button class="btn primary">ذخیره</button></div></form>`);$('#vf').onsubmit=e=>{e.preventDefault();const code=$('#vb').value.trim();if(code&&db.variants.some(x=>x.id!==id&&x.barcode===code))return toast('بارکد تکراری است',true);Object.assign(v,{color:$('#vc').value.trim(),size:$('#vs').value.trim(),barcode:code,sku:$('#sku').value.trim(),buyPrice:num($('#vbuy').value),sellPrice:num($('#vsell').value),minStock:num($('#vmin').value)});saveDB();closeModal();toast('تنوع با موفقیت ذخیره شد');products()}}
 function inventory(){const q=window.__invQ||'',vs=activeVariants().filter(v=>`${variantName(v)} ${v.barcode}`.toLowerCase().includes(q.toLowerCase()));$('#content').innerHTML=pageHead('انبار','موجودی لحظه‌ای، هشدارها و تعدیلات',`<button class="btn primary" id="adjust">＋ تعدیل موجودی</button>`)+`<div class="grid">${metricCard('واحد موجود',activeVariants().reduce((a,v)=>a+num(v.stock),0),'همه تنوع‌ها')}${metricCard('ارزش خرید',money(activeVariants().reduce((a,v)=>a+num(v.stock)*num(v.buyPrice),0)),'ارزش تقریبی','green')}${metricCard('کم‌موجود',activeVariants().filter(v=>num(v.stock)<=num(v.minStock)).length,'تنوع نیازمند خرید','amber')}${metricCard('بدون موجودی',activeVariants().filter(v=>num(v.stock)<=0).length,'تنوع خالی','red')}</div><div class="card section"><div class="toolbar"><div class="searchbox"><span>⌕</span><input id="iq" value="${esc(q)}" placeholder="جستجوی کالا یا بارکد"></div></div><div class="tablewrap"><table><thead><tr><th>کالا</th><th>بارکد</th><th>موجودی</th><th>حداقل</th><th>وضعیت</th><th>عملیات</th></tr></thead><tbody>${vs.map(v=>`<tr><td>${esc(variantName(v))}</td><td>${esc(v.barcode||'—')}</td><td>${v.stock}</td><td>${v.minStock}</td><td><span class="pill ${v.stock<=0?'red':v.stock<=v.minStock?'amber':'green'}">${v.stock<=0?'تمام‌شده':v.stock<=v.minStock?'کم‌موجود':'مناسب'}</span></td><td><button class="btn" data-adj="${v.id}">تعدیل</button></td></tr>`).join('')||'<tr><td colspan="6"><div class="empty">نتیجه‌ای نیست.</div></td></tr>'}</tbody></table></div></div>`;$('#iq').oninput=e=>{window.__invQ=e.target.value;inventory()};$('#adjust').onclick=()=>adjustModal();$$('[data-adj]').forEach(b=>b.onclick=()=>adjustModal(b.dataset.adj))}
 function adjustModal(id=''){modal(`<div class="modalhead"><h2>تعدیل موجودی</h2><button class="close" data-close>×</button></div><form id="af"><label class="field">کالا<select id="av">${activeVariants().map(v=>`<option value="${v.id}" ${v.id===id?'selected':''}>${esc(variantName(v))} · موجودی ${v.stock}</option>`).join('')}</select></label><label class="field" style="margin-top:10px">مقدار تغییر<input id="aq" type="number" value="0"></label><label class="field" style="margin-top:10px">دلیل<input id="an" required placeholder="مثلاً شمارش انبار"></label><div class="modal-actions"><button class="btn primary">ثبت</button></div></form>`);$('#af').onsubmit=e=>{e.preventDefault();const v=$('#av').value,q=num($('#aq').value);if(!q)return toast('مقدار تغییر صفر است',true);try{stockMove(v,q,'adjustment','manual');audit('تعدیل موجودی',v,$('#an').value.trim());saveDB();closeModal();toast('موجودی اصلاح شد');inventory()}catch(err){toast(err.message,true)}}}
@@ -437,7 +441,7 @@ function finance(){$('#content').innerHTML=pageHead('مالی و صندوق','گ
 function cashModal(type){modal(`<div class="modalhead"><h2>ثبت ${type==='in'?'دریافت':type==='out'?'پرداخت':type==='expense'?'هزینه':'درآمد'}</h2><button class="close" data-close>×</button></div><form id="cf"><div class="formgrid"><label class="field">مبلغ<input id="ca" type="number" min="0.01" step="0.01" required></label><label class="field span3">شرح<input id="cn" required></label><label class="field">حساب<input id="cc" value="صندوق"></label></div><div class="modal-actions"><button class="btn primary">ثبت</button></div></form>`);$('#cf').onsubmit=e=>{e.preventDefault();const amount=roundMoney($('#ca').value),note=$('#cn').value.trim();if(!(amount>0)||!note)return toast('اطلاعات ناقص است',true);const account=paymentAccount($('#cc').value);if(account==='cash'&&!activeCashSession())return toast('برای تراکنش نقدی ابتدا صندوق را باز کنید',true);if(type==='expense'){db.expenses.push({id:uid(),date:now(),amount,note,account});postJournal('EXP-'+uid(),'هزینه',[{account:'expense',debit:amount,credit:0},{account,debit:0,credit:amount}]);if(account==='cash')cashMove(activeCashSession().id,-amount,'expense','EXP','پرداخت هزینه')}else if(type==='income'){db.incomes.push({id:uid(),date:now(),amount,note,account});postJournal('INC-'+uid(),'درآمد',[{account,debit:amount,credit:0},{account:'income',debit:0,credit:amount}]);if(account==='cash')cashMove(activeCashSession().id,amount,'income','INC','دریافت درآمد')}else addPayment({direction:type,partyType:'other',amount,account,note});audit('ثبت تراکنش مالی','',note);saveDB(true);closeModal();toast('تراکنش ثبت شد');render()}}
 function returns(){const r=[...db.returns].reverse();$('#content').innerHTML=pageHead('برگشت‌ها','ثبت و مشاهده برگشت فروش و خرید',`<button class="btn primary" id="newReturn">＋ برگشت جدید</button>`)+`<div class="card tablewrap"><table><thead><tr><th>نوع</th><th>سند</th><th>تاریخ</th><th>مبلغ</th><th>شرح</th></tr></thead><tbody>${r.map(x=>`<tr><td>${x.type==='sale'?'برگشت فروش':'برگشت خرید'}</td><td>${esc(x.ref||'-')}</td><td>${x.date.slice(0,10)}</td><td>${money(x.total)}</td><td>${esc(x.note||'')}</td></tr>`).join('')||'<tr><td colspan="5"><div class="empty">برگشتی ثبت نشده است.</div></td></tr>'}</tbody></table></div>`;$('#newReturn').onclick=returnModal}
 function reports(){const sales=db.sales.filter(x=>x.status==='confirmed'),purchases=db.purchases.filter(x=>x.status==='confirmed'),rev=sales.reduce((a,x)=>a+x.total,0),buy=purchases.reduce((a,x)=>a+x.total,0),profit=sales.reduce((a,x)=>a+x.profit,0);$('#content').innerHTML=pageHead('گزارش‌ها','گزارش مدیریتی فروش، خرید، سود و موجودی',`<button class="btn" id="csv">خروجی CSV فروش</button>`)+`<div class="grid">${metricCard('فروش کل',money(rev),`${sales.length} فاکتور`)}${metricCard('خرید کل',money(buy),`${purchases.length} فاکتور`)}${metricCard('سود ناخالص',money(profit),'بر اساس بهای ثبت‌شده','green')}${metricCard('ارزش موجودی',money(activeVariants().reduce((a,v)=>a+v.stock*v.buyPrice,0)),'قیمت خرید','amber')}</div><div class="card section"><div class="tablewrap"><table><thead><tr><th>نوع</th><th>شماره</th><th>تاریخ</th><th>مبلغ</th><th>مانده</th></tr></thead><tbody>${[...sales.map(x=>({...x,type:'فروش'})),...purchases.map(x=>({...x,type:'خرید'}))].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,100).map(x=>`<tr><td>${x.type}</td><td>${esc(x.number)}</td><td>${x.date.slice(0,10)}</td><td>${money(x.total)}</td><td>${money(x.due)}</td></tr>`).join('')}</tbody></table></div></div>`;$('#csv').onclick=()=>{const rows=[['نوع','شماره','تاریخ','مبلغ','مانده'],...sales.map(x=>['فروش',x.number,x.date.slice(0,10),x.total,x.due]),...purchases.map(x=>['خرید',x.number,x.date.slice(0,10),x.total,x.due])];download(`گزارش-یونیک-${today()}.csv`,rows.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),'text/csv;charset=utf-8') }}
-function legacy_ai(){const t=totals();$('#content').innerHTML=pageHead('دستیار هوشمند','تحلیل محلی + ورودی تصویر و صدا + اتصال اختیاری به مدل هوش مصنوعی')+`<div class="ai-layout"><div class="card chat"><div id="chatlog" class="chatlog"><div class="bubble ai"><b>دستیار یونیک</b><br>می‌توانم درباره فروش، سود، موجودی، کالاهای پرفروش و کارهای مدیریتی تحلیل بدهم. برای تصویر و صدا، فایل را اضافه کنید؛ برای تحلیل مدل، اتصال AI در تنظیمات قابل فعال‌سازی است.</div></div><div class="ai-tools"><button id="imgBtn">تصویر</button><button id="fileBtn">فایل</button><button id="voiceBtn">فرمان صوتی</button><button id="suggest">پیشنهاد خرید</button><input id="imgInput" type="file" accept="image/*" hidden><input id="fileInput" type="file" accept="audio/*,image/*,.pdf" hidden></div><div class="composer"><input id="prompt" placeholder="مثلاً کدام کالاها را این هفته دوباره سفارش بدهم؟"><button class="btn primary" id="ask">ارسال</button></div></div><div class="card"><div class="section-title"><h3>وضعیت هوشمند</h3></div><div class="rowlist"><div class="listrow"><span class="rank">↗</span><div class="grow"><b>فروش امروز</b><small>${t.invoices} فاکتور</small></div><em>${money(t.revenue)}</em></div><div class="listrow"><span class="rank">!</span><div class="grow"><b>کم‌موجودی</b><small>نیازمند بررسی</small></div><em>${t.low}</em></div><div class="listrow"><span class="rank">◆</span><div class="grow"><b>مطالبات</b><small>مشتریان</small></div><em>${money(t.receivable)}</em></div></div><div class="section"><button class="btn" id="aiSettings">تنظیم اتصال AI</button></div></div></div>`;$('#ask').onclick=()=>askAI($('#prompt').value.trim());$('#suggest').onclick=()=>askAI('کدام کالاها نیاز به خرید دارند و اولویت سفارش را پیشنهاد بده؟');$('#imgBtn').onclick=()=>$('#imgInput').click();$('#fileBtn').onclick=()=>$('#fileInput').click();$('#imgInput').onchange=e=>handleAIFile(e.target.files?.[0]);$('#fileInput').onchange=e=>handleAIFile(e.target.files?.[0]);$('#voiceBtn').onclick=voiceRecord;$('#aiSettings').onclick=aiSettings}
+
 function extractAIJson(text){
   const raw=String(text||'').trim();
   const candidates=[raw,...Array.from(raw.matchAll(/```(?:json)?\s*([\s\S]*?)```/gi)).map(m=>m[1])];
@@ -453,7 +457,7 @@ function fuzzyScore(a,b){a=normAIText(a);b=normAIText(b);if(!a||!b)return 0;if(a
 function matchInvoiceItem(item){const barcode=aiText(item.barcode||item.ean||item.upc||item.sku);if(barcode){const exact=activeVariants().find(v=>String(v.barcode||'')===barcode||String(v.sku||'')===barcode);if(exact)return {...exact,matchScore:1}}const name=aiText(item.name||item.productName||item.title),color=aiText(item.color),size=aiText(item.size);let best=null,score=0;for(const v of activeVariants()){const ns=fuzzyScore(name,variantName(v)),cs=color&&(fuzzyScore(color,v.color||'')>=.7?0.18:0),ss=size&&String(v.size)==String(size)?0.15:0,total=ns+cs+ss;if(total>score){score=total;best=v}}return best&&score>=.62?{...best,matchScore:Math.min(1,score)}:null}
 async function prepareInvoiceImage(file){const max=2400;const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});try{const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=data});const scale=Math.min(1,max/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height)),w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',.94)}catch(_){return data}}
 let localOCRScriptPromise=null,localOCRWorker=null,localOCRBusy=false;
-function localOCRCapability(){return {tesseract:!!window.Tesseract,barcodeDetector:typeof BarcodeDetector!=='undefined',local:true,apiKeyRequired:false}}
+
 async function ensureLocalOCR(){
  if(window.Tesseract?.createWorker)return window.Tesseract;
  if(localOCRScriptPromise)return localOCRScriptPromise;
@@ -550,8 +554,8 @@ function showInvoiceResult(x,imageData){
  $('#invoiceConfirm').onclick=()=>{if(!recalc())return toast('جمع فاکتور با اقلام منطبق نیست؛ ابتدا اصلاح و دوباره بررسی کنید.',true);const bad=x.items.some(i=>!i.matchedVariantId||num(i.confidence)<.55);if(bad&&!confirm('برخی اقلام با اطمینان کافی به کالاهای یونیک تطبیق داده نشده‌اند. ادامه می‌دهید؟'))return;const action={type:'create_purchase',supplierName:$('#invSupplier').value.trim(),invoiceNumber:$('#invNumber').value.trim(),date:$('#invDate').value.trim(),items:x.items.map(i=>({variantId:i.matchedVariantId,qty:i.qty,unitPrice:i.unitPrice})).filter(i=>i.variantId&&i.qty>0)};if(!action.items.length)return toast('هیچ قلمی به کالای یونیک تطبیق داده نشده است.',true);closeModal();showAIAction(action)};
 }
 async function analyzeInvoiceImage(file){const local=await analyzeInvoiceLocally(file);if(local.text.trim()){const parsed=parseLocalInvoiceText(local.text,local.barcodes,local.confidence);if(parsed){db.aiHistory.push({id:uid(),date:now(),role:'assistant',type:'invoice-local',text:JSON.stringify(parsed)});saveDB(true);showInvoiceResult(parsed,null);return parsed}}const a=db.settings.ai||{};if(a.provider!=='openai'||!a.apiKey){const found=local.barcodes.length?' بارکدهای پیدا شده: '+local.barcodes.join('، '):'';throw Error('OCR محلی متن کافی از تصویر استخراج نکرد. تصویر را صاف، روشن و با وضوح بالاتر بگیرید.'+found)}addBubble('در حال خواندن فاکتور ردیف‌به‌ردیف…','ai');const imageData=await prepareInvoiceImage(file);let result=normalizeInvoiceResult(await callVisionJSON(imageData,invoicePrompt(),false));if(result.confidence<.82||result.warnings.length||result.items.some(i=>i.confidence<.75)||result.totalDifference>Math.max(1,(result.total||1)*.02)){addBubble('برای کاهش خطا، نتیجه یک‌بار دیگر ممیزی می‌شود…','ai');result=normalizeInvoiceResult(await callVisionJSON(imageData,invoicePrompt(),true))}db.aiHistory.push({id:uid(),date:now(),role:'assistant',type:'invoice',text:JSON.stringify(result)});saveDB();showInvoiceResult(result,imageData);return result}
-function legacy_showAIAction(action){if(!action||typeof action!=='object'||!action.type)return false;const labels={stock_adjust:'اصلاح موجودی',generate_barcodes:'تولید بارکد',create_purchase:'پیش‌نویس خرید',create_product:'ایجاد کالا'};const title=labels[action.type]||'عملیات پیشنهادی';let detail='';if(action.type==='stock_adjust'){const v=variantBy(action.variantId);if(!v)return false;detail=`${variantName(v)}\nتغییر موجودی: ${num(action.qty)>0?'+':''}${num(action.qty)}`}else if(action.type==='generate_barcodes'){const ids=(action.variantIds||[]).map(x=>variantBy(x)).filter(Boolean);detail=ids.length?ids.map(v=>`${variantName(v)} → ${v.barcode||'بارکد جدید'}`).join('\n'):'تنوع معتبری پیدا نشد.'}else if(action.type==='create_purchase'){const items=Array.isArray(action.items)?action.items:[];detail=items.map(i=>`${variantName(variantBy(i.variantId)||{})} × ${num(i.qty)} · ${money(num(i.unitPrice))}`).join('\n')||'قلم خریدی مشخص نشده است.'}else if(action.type==='create_product'){detail=[action.name,action.brand,action.color,action.size].filter(Boolean).join(' · ')}modal(`<div class="modalhead"><h2>${esc(title)}</h2><button class="close" data-close>×</button></div><div class="successbox"><b>پیشنهاد AI</b><p class="muted" style="white-space:pre-line">${esc(detail)}</p></div><div class="modal-actions"><button class="btn" data-close>انصراف</button><button class="btn primary" id="aiExec">تأیید و اجرا</button></div>`);$('#aiExec').onclick=()=>{try{executeAIAction(action);closeModal()}catch(e){toast(e.message||'اجرای عملیات ناموفق بود',true)}};return true}
-function legacy_executeAIAction(a){if(a.type==='stock_adjust'){const v=variantBy(a.variantId);if(!v)throw Error('کالا پیدا نشد');stockMove(v.id,num(a.qty),'ai','AI');audit('اجرای فرمان AI',v.id,`تغییر موجودی ${a.qty}`);toast('موجودی با موفقیت اصلاح شد');return}if(a.type==='generate_barcodes'){const ids=(a.variantIds||[]).map(String);let n=0;ids.forEach(id=>{const v=variantBy(id);if(v&&!v.barcode){ensureVariantCodes(v);n++}});saveDB(true);toast(`${n} بارکد جدید ایجاد شد`);return}if(a.type==='create_purchase'){const items=(a.items||[]).map(i=>({id:i.variantId,qty:num(i.qty),price:num(i.unitPrice)||num(variantBy(i.variantId)?.buyPrice)})).filter(i=>variantBy(i.id)&&i.qty>0);if(!items.length)throw Error('اقلام خرید معتبر نیستند');purchaseCart=items;purchaseSupplierDraft=String(a.supplierName||'');purchaseDraftMode=true;page='purchase';render();toast('پیش‌نویس خرید آماده شد؛ قبل از ثبت بررسی کنید');return}if(a.type==='create_product'){const m={id:uid(),name:String(a.name||'کالای جدید'),brand:String(a.brand||''),modelCode:String(a.modelCode||''),category:String(a.category||'سایر'),description:String(a.description||''),active:true};db.models.push(m);const v={id:uid(),modelId:m.id,color:String(a.color||''),size:String(a.size||''),barcode:String(a.barcode||''),sku:String(a.sku||''),buyPrice:num(a.buyPrice),sellPrice:num(a.sellPrice),minStock:num(a.minStock)||1,stock:0,active:true};ensureVariantCodes(v);db.variants.push(v);saveDB(true);audit('ایجاد کالا با AI',m.id,m.name);toast('کالا ایجاد شد');return}throw Error('نوع عملیات AI پشتیبانی نمی‌شود')}
+
+
 async function askAI(q,attachment=null){if(!q&&!attachment)return;addBubble(q||'تحلیل فایل','user');const local=localAI(q||'فایل دریافت شد'),a=db.settings.ai||{};if(a.provider==='openai'&&a.apiKey){try{if(attachment&&attachment.startsWith('data:image/')&&/فاکتور|خرید|فروشنده|اقلام|ردیف/.test(q||''))return await analyzeInvoiceImage(await dataURLToFile(attachment,'invoice.jpg'));const endpoint=(a.endpoint||'').trim()||'https://api.openai.com/v1/responses',model=(a.model||'gpt-6-luna').trim(),content=[{type:'input_text',text:q||'این فایل را تحلیل کن.'}];if(attachment&&attachment.startsWith('data:image/'))content.push({type:'input_image',image_url:attachment,detail:'high'});content.push({type:'input_text',text:'داده فروشگاه برای تحلیل:\n'+JSON.stringify(storeSummary())});const r=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+a.apiKey},body:JSON.stringify({model,input:[{role:'user',content}],max_output_tokens:5000})});if(!r.ok)throw Error('AI '+r.status);const j=await r.json(),text=j.output_text||j.output?.flatMap(x=>x.content||[]).filter(x=>x.type==='output_text').map(x=>x.text).join('\n')||local;addBubble(text,'ai');db.aiHistory.push({id:uid(),date:now(),role:'assistant',text});saveDB();const action=extractAIJson(text);if(action)showAIAction(action);return text}catch(e){addBubble(local+'\n\n(تحلیل ابری ناموفق بود: '+e.message+')','ai');return local}}addBubble(local,'ai');return local}
 async function dataURLToFile(data,name){const [meta,b64]=String(data).split(',');const bin=atob(b64||''),arr=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)arr[i]=bin.charCodeAt(i);return new File([arr],name,{type:(meta.match(/data:([^;]+)/)||[])[1]||'image/jpeg'})}
 function addBubble(text,type){const box=$('#chatlog');if(!box)return;const d=document.createElement('div');d.className='bubble '+type;d.textContent=text;box.appendChild(d);box.scrollTop=box.scrollHeight}
@@ -565,7 +569,13 @@ function backup(){$('#content').innerHTML=pageHead('پشتیبان‌گیری','
 function settings(){$('#content').innerHTML=pageHead('تنظیمات','تنظیمات فروشگاه، بارکد و هوش مصنوعی')+`<div class="card"><form id="sf" class="formgrid"><label class="field span2">نام فروشگاه<input id="shop" value="${esc(db.settings.shopName)}"></label><label class="field">واحد پول<input id="cur" value="ریال" readonly><small class="muted">واحد مالی نرم‌افزار به‌صورت استاندارد ریال است.</small></label><label class="field">مالیات %<input id="tax" type="number" value="${db.settings.tax}"></label><label class="field">پیشوند بارکد<input id="pre" value="${esc(db.settings.barcodePrefix)}"></label><label class="field">تعداد رقم<input id="dig" type="number" min="4" max="12" value="${db.settings.barcodeDigits}"></label><label class="field span2">پاورقی فاکتور<input id="foot" value="${esc(db.settings.invoiceFooter)}"></label><div class="modal-actions span4"><button class="btn primary">ذخیره تنظیمات</button><button type="button" class="btn" id="openAI">تنظیم AI</button></div></form></div>`;$('#sf').onsubmit=e=>{e.preventDefault();Object.assign(db.settings,{shopName:$('#shop').value.trim()||'فروشگاه یونیک',currency:'ریال',tax:Math.max(0,num($('#tax').value)),barcodePrefix:$('#pre').value.trim()||'200',barcodeDigits:Math.min(12,Math.max(4,Math.trunc(num($('#dig').value)||8))),invoiceFooter:$('#foot').value.trim()});saveDB();toast('تنظیمات ذخیره شد');render()};$('#openAI').onclick=aiSettings}
 function globalSearch(){modal(`<div class="modalhead"><h2>جستجوی سریع</h2><button class="close" data-close>×</button></div><div class="searchbox"><span>⌕</span><input id="gq" autofocus placeholder="کالا، بارکد، مشتری یا فاکتور"></div><div id="gr" class="rowlist section"></div>`);$('#gq').oninput=e=>{const q=e.target.value.toLowerCase();const a=activeVariants().filter(v=>`${variantName(v)} ${v.barcode} ${v.sku}`.toLowerCase().includes(q)).slice(0,8);$('#gr').innerHTML=a.map(v=>`<button class="listrow" data-goto="products"><span class="rank">▣</span><div class="grow"><b>${esc(variantName(v))}</b><small>${esc(v.barcode||'بدون بارکد')} · موجودی ${v.stock}</small></div></button>`).join('')||'<div class="empty">نتیجه‌ای پیدا نشد.</div>';$$('[data-goto]').forEach(b=>b.onclick=()=>{page='products';closeModal();render()})};$('#gq').focus()}
 function scanBarcode(type){modal(`<div class="modalhead"><h2>اسکن بارکد</h2><button class="close" data-close>×</button></div><p class="muted">اگر دوربین در مرورگر پشتیبانی نشود، بارکد را دستی وارد کنید.</p><input id="scan" autofocus placeholder="بارکد را وارد کنید"><div class="modal-actions"><button class="btn primary" id="scanOk">افزودن</button></div>`);$('#scanOk').onclick=()=>{const code=$('#scan').value.trim(),v=activeVariants().find(x=>x.barcode===code);if(!v)return toast('بارکد پیدا نشد',true);closeModal();if(type==='sale')addSale(v.id)};$('#scan').onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();$('#scanOk').click()}}}
-window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();globalSearch()}if(e.key==='Escape')closeModal()});window.addEventListener('error',e=>{if(!document.querySelector('.error-screen'))errorScreen(e.error||e.message)});
+window.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();globalSearch()}if(e.key==='Escape')closeModal()});window.addEventListener('error',e=>{
+  /* a stray exception (a button handler, an extension, another origin) must not destroy the screen — and the unsaved cart with it */
+  if(e&&e.target&&e.target!==window&&e.target.tagName)return;          /* failed <img>/<script> loads */
+  if(e&&!e.error&&(!e.filename||/^Script error/i.test(e.message||'')))return;
+  if(document.querySelector('.error-screen'))return;
+  if(document.querySelector('#app .sidebar')){const t=Date.now();if(!window.__errToast||t-window.__errToast>8000){window.__errToast=t;try{toast('خطایی رخ داد؛ اطلاعات سالم است. جزئیات در «گزارش خطاها» (نوار هوش مصنوعی ← امکانات بیشتر).',true)}catch(_){}}return}
+  errorScreen(e.error||e.message)});
 if(typeof initDB!=='function'&&typeof loadDB==='function')window.initDB=async()=>loadDB();
 if('serviceWorker' in navigator&&location.protocol!=='file:')navigator.serviceWorker.register('./service-worker.js').catch(()=>{});
 
@@ -3786,7 +3796,8 @@ UI.quickSetup=function(){
     <button type="button" class="btn qs-card" data-qs="qwen"><b>Qwen</b><br><small>علی‌بابا</small></button>
     <button type="button" class="btn qs-card" data-qs="openai"><b>OpenAI</b><br><small>ChatGPT API</small></button>
   </div>
-  <label class="field" style="margin-top:12px">کلید API<input id="qsKey" type="password" dir="ltr" autocomplete="off" placeholder="sk-..."></label>
+  <label id="qsProxyRow" class="field" style="display:none;margin-top:12px;flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="qsProxy" style="width:auto;flex:none"><span>سرور پراکسی شما پیدا شد؛ کلید واقعی روی سرور می‌ماند و اینجا فقط «توکن دسترسی» را وارد کنید.</span></label>
+  <label class="field" style="margin-top:12px"><span id="qsKeyTxt">کلید API</span><input id="qsKey" type="password" dir="ltr" autocomplete="off" placeholder="sk-..."></label>
   <div id="qsLog" class="muted" style="min-height:44px;margin:10px 0;white-space:pre-wrap"></div>
   <div class="modal-actions"><button type="button" class="btn primary" id="qsGo">فعال‌سازی خودکار</button></div>
   <p class="muted">کلید فقط روی همین دستگاه ذخیره می‌شود. ساختن کلید و شارژ حساب را باید خودتان در سایت سرویس انجام دهید.</p></div>`);
@@ -3794,38 +3805,46 @@ UI.quickSetup=function(){
   const mark=()=>document.querySelectorAll('.qs-card').forEach(b=>{const on=b.dataset.qs===sel;b.classList.toggle('primary',on)});
   mark();document.querySelectorAll('.qs-card').forEach(b=>b.onclick=()=>{sel=b.dataset.qs;mark()});
   const log=t=>{$('qsLog').textContent=t};
+  let proxy=null;
+  const syncProxy=()=>{const on=proxy&&$('qsProxy').checked;$('qsKeyTxt').textContent=on?'توکن دسترسی (APP_TOKEN)':'کلید API';$('qsKey').placeholder=on?'توکنی که در Vercel گذاشتید':'sk-...'};
+  try{if(/^https?:$/.test(location.protocol))fetch('/api/ai/health',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(j=>{if(!j||!j.ok||!j.configured||!document.querySelector('#qsProxyRow'))return;proxy=j;$('qsProxyRow').style.display='flex';$('qsProxy').checked=true;$('qsProxy').onchange=syncProxy;syncProxy()}).catch(()=>{})}catch(_){}
   $('qsGo').onclick=async()=>{
     const btn=$('qsGo');btn.disabled=true;
-    try{const r=await UI.autoSetup(sel,$('qsKey').value,log);
+    try{const useProxy=!!(proxy&&$('qsProxy').checked);
+      if(useProxy&&!proxy.providers[sel])throw Error('این سرویس روی سرور تنظیم نشده است؛ کلید '+(sel==='qwen'?'QWEN_API_KEY':'OPENAI_API_KEY')+' را در Vercel اضافه کنید.');
+      const r=await UI.autoSetup(sel,$('qsKey').value,log,{proxy:useProxy});
       window.toast('هوش مصنوعی فعال شد: '+r.label);log('✓ فعال شد.\n'+r.label+'\nحالا در نوار هوش مصنوعی هر جمله‌ای بنویسید یا بگویید.');
       $('qsGo').textContent='بستن';$('qsGo').disabled=false;$('qsGo').onclick=()=>window.closeModal();if(UI.mountDock)UI.mountDock();return}
     catch(e){log('✕ '+e.message);btn.disabled=false}
   };
 };
-UI.autoSetup=async function(provider,keyRaw,progress){
-  const P=U.Provider,key=String(keyRaw||'').trim(),say=progress||(()=>{});
+UI.autoSetup=async function(provider,keyRaw,progress,opts){
+  opts=opts||{};const P=U.Provider,key=String(keyRaw||'').trim(),say=progress||(()=>{});
   if(!/^[A-Za-z0-9_\-\.]{16,}$/.test(key))throw Error('کلید معتبر به نظر نمی‌رسد؛ آن را دوباره کپی کنید.');
   const isQ=provider==='qwen';
-  const plans=isQ?Object.keys(P.QWEN_REGIONS).map(r=>({region:r,url:P.QWEN_REGIONS[r]})):[{region:'',url:'https://api.openai.com/v1/chat/completions'}];
+  const plans=opts.proxy?[{region:'',url:location.origin+'/api/ai/'+provider+'/chat/completions'}]:isQ?Object.keys(P.QWEN_REGIONS).map(r=>({region:r,url:P.QWEN_REGIONS[r]})):[{region:'',url:'https://api.openai.com/v1/chat/completions'}];
   const models=isQ?['qwen-plus','qwen-turbo','qwen-max']:['gpt-4o-mini','gpt-4.1-mini','gpt-4o'];
   const probe=async(url,model)=>{const ac=new AbortController(),t=setTimeout(()=>ac.abort(),15000);
     try{const body={model,messages:[{role:'user',content:'ping'}],max_tokens:5};if(isQ)body.enable_thinking=false;
       const r=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+key},body:JSON.stringify(body),signal:ac.signal});
       return{status:r.status}}
     catch(e){return{status:0,timeout:e&&e.name==='AbortError'}}finally{clearTimeout(t)}};
-  let found=null,auth=0,net=0,timeouts=0;
+  let found=null,auth=0,net=0,timeouts=0,notCfg=false;
   for(const pl of plans){
     for(const m of models){
       say('در حال بررسی'+(pl.region?' منطقه '+({intl:'سنگاپور',china:'پکن',us:'آمریکا'}[pl.region]):'')+' با مدل '+m+' …');
       const r=await probe(pl.url,m);
       if(r.status===200||r.status===429){found={pl,model:m,quota:r.status===429};break}
       if(r.status===401||r.status===403){auth++;break}
+      if(r.status===503&&opts.proxy){notCfg=true;break}
       if(r.status===0){net++;if(r.timeout)timeouts++;break}
       /* 400/404 etc.: this model is not available for the account -> try the next model */
     }
     if(found)break;
   }
   if(!found){
+    if(notCfg)throw Error('پراکسی کامل تنظیم نشده است: APP_TOKEN و کلید سرویس را در Vercel (Environment Variables) بگذارید و دوباره Deploy کنید.');
+    if(opts.proxy&&auth)throw Error('توکن دسترسی (APP_TOKEN) اشتباه است یا کلید واقعی روی سرور معتبر نیست.');
     if(net===plans.length)throw Error(timeouts?'پاسخی از سرویس نرسید (مهلت تمام شد). اینترنت یا فیلترینگ را بررسی کنید.':'ارتباط با سرویس برقرار نشد (شبکه، فیلترینگ یا CORS). از پراکسی استفاده کنید: پوشه‌ی proxy، سپس «تنظیمات هوش مصنوعی ← Endpoint».');
     if(auth)throw Error('کلید برای این سرویس معتبر نیست. مطمئن شوید سرویس درست (Qwen یا OpenAI) را انتخاب کرده‌اید و کلید کامل کپی شده است.');
     throw Error('هیچ‌کدام از مدل‌های پیش‌فرض برای این حساب در دسترس نیست. در «تنظیمات هوش مصنوعی» نام مدل را دستی وارد کنید.');
@@ -3835,7 +3854,7 @@ UI.autoSetup=async function(provider,keyRaw,progress){
   Object.assign(ai,{profile:provider,endpoint:found.pl.url,model:found.model,apiKey:key,provider:'openai',mode:'smart',fallback:ai.fallback!==false});
   try{localStorage.setItem('uai_key_'+provider,key);localStorage.setItem('uai_key_device',key)}catch(_){}
   window.saveDB();
-  const label=(P.PRESETS[provider]||{}).label+' · '+found.model+(found.pl.region?' · '+({intl:'سنگاپور',china:'پکن',us:'آمریکا'}[found.pl.region]):'')+(found.quota?' (سهمیه‌ی حساب رو به اتمام است)':'');
+  const label=(opts.proxy?'سرور شما · ':'')+(P.PRESETS[provider]||{}).label+' · '+found.model+(found.pl.region?' · '+({intl:'سنگاپور',china:'پکن',us:'آمریکا'}[found.pl.region]):'')+(found.quota?' (سهمیه‌ی حساب رو به اتمام است)':'');
   return{label,model:found.model,region:found.pl.region,endpoint:found.pl.url};
 };
 window.aiSettings=function(){
@@ -3897,7 +3916,7 @@ UI.auditModal=function(){
 (function(){'use strict';
 const U=window.UAI,UI=U.ui,V=U.Voice,esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const C=(l,q,fill)=>[l,q,!!fill];
-const SET=C('⚙ تنظیمات هوش مصنوعی','__settings'),AUD=C('🧾 گزارش عملیات دستیار','__audit'),CHAT=C('💬 گفتگوی کامل','__chat');
+const SET=C('⚙ تنظیمات هوش مصنوعی','__settings'),AUD=C('🧾 گزارش عملیات دستیار','__audit'),CHAT=C('💬 گفتگوی کامل','__chat'),DIAG=C('🐞 گزارش خطاها','__diag');
 
 const BASE_MORE=[
   {g:'گزارش‌ها',items:[C('سود این ماه','سود این ماه'),C('مقایسه فروش با ماه قبل','فروش این ماه رو با ماه قبل مقایسه کن'),C('پرفروش‌ها','پرفروش‌ترین کالاها این ماه'),C('هزینه‌های ماه','هزینه‌های این ماه رو نشون بده')]},
@@ -3976,6 +3995,7 @@ function runChip(ch,input){
   const[,q,fill]=ch;
   if(q==='__settings')return window.aiSettings();
   if(q==='__audit')return UI.auditModal();
+  if(q==='__diag')return UI.diagModal();
   if(q==='__chat'){window.page='ai';return window.render()}
   if(q==='__newProduct')return window.aiProductCreateModal();
   if(q==='__file'){const f=document.querySelector('#dockFile');return f&&f.click()}
@@ -3994,7 +4014,7 @@ UI.mountDock=function(){
   const all=[];const reg=ch=>{all.push(ch);return all.length-1};
   const mainHTML=cfg.main.map(ch=>chipHTML(ch,reg(ch),'')).join('');
   const groups=more.filter(g=>g.items&&g.items.length).map(g=>`<div class="aidock-grp"><b>${esc(g.g)}</b><div class="wrap">${g.items.map(ch=>chipHTML(ch,reg(ch),'')).join('')}</div></div>`).join('');
-  const tools=[SET,AUD,CHAT].map(ch=>chipHTML(ch,reg(ch),'')).join('');
+  const tools=[SET,AUD,DIAG,CHAT].map(ch=>chipHTML(ch,reg(ch),'')).join('');
   const warn=(!U.Provider.enabled()&&U.Provider.cfg().mode!=='local')?`<small class="aidock-warn">اتصال هوش مصنوعی فعال نیست؛ فعلاً فقط عبارت‌های تعریف‌شده را می‌فهمم. <button type="button" data-c="s">فعال‌سازی</button></small>`:'';
   const el=document.createElement('section');el.id='aidock';el.className='card aidock';
   el.innerHTML=`<div class="aidock-row"><span class="aidock-badge" aria-hidden="true">✦</span><input id="dockPrompt" placeholder="${esc(cfg.ph||'')}" autocomplete="off" enterkeyhint="send"><button type="button" class="aidock-icon" id="dockMic" title="فرمان صوتی">🎤</button><button type="button" class="btn primary" id="dockSend">ارسال</button></div>
@@ -4086,6 +4106,275 @@ if(typeof _render==='function'&&!_render._uaiPager){
 /* pages that rewrite their own #content (search boxes etc.) */
 let sched=false;const app=document.getElementById('app');
 if(app&&typeof MutationObserver!=='undefined')new MutationObserver(()=>{if(sched)return;sched=true;setTimeout(()=>{sched=false;try{paginate()}catch(e){}},30)}).observe(app,{childList:true,subtree:true});
+})();
+
+/* ===== Unique — 80 backup: automatic restore points + file-backup reminder =====
+   Two different protections (the UI says so honestly):
+   1) restore points: compressed snapshots kept in this browser (IndexedDB) — protect against mistakes / bad imports / corrupted data;
+   2) file backups: a file the user keeps OUTSIDE the device — the only protection against a wiped browser or a lost phone; we remind about it.
+   The older "پشتیبان خودکار" switch in settings had no effect at all; it now drives restore points. */
+(function(){'use strict';
+const U=window.UAI,UI=U.ui,DAY=864e5;
+const fa=n=>U.fa?U.fa(n):String(n);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const say=(text,kind)=>({text,kind:kind||'ai'});
+
+/* ---------- settings (migrates the old dead switch once) ---------- */
+function cfg(){
+  const s=window.db.settings,b=(s.backup=s.backup||{});
+  if(!b.v464){b.v464=1;b.auto=true;if(!(+b.intervalHours>0))b.intervalHours=24}
+  if(b.reminderDays===undefined)b.reminderDays=3;
+  if(!(+b.keep>0))b.keep=10;
+  return b;
+}
+const hasData=()=>{const d=window.db;return(d.sales||[]).length+(d.purchases||[]).length+(d.models||[]).length+(d.customers||[]).length>0};
+const iso=()=>new Date().toISOString();
+
+/* ---------- IndexedDB store ---------- */
+const DBN='unique_restore_points',ST='pts';
+const open=()=>new Promise((res,rej)=>{const r=indexedDB.open(DBN,1);r.onupgradeneeded=()=>r.result.createObjectStore(ST,{keyPath:'id'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+async function run(mode,fn){const d=await open();return new Promise((res,rej)=>{const t=d.transaction(ST,mode),r=fn(t.objectStore(ST));t.oncomplete=()=>{d.close();res(r&&r.result)};t.onerror=t.onabort=()=>{d.close();rej(t.error)}})}
+async function pack(str){
+  if(typeof CompressionStream==='undefined')return{gz:false,data:str};
+  const buf=await new Response(new Blob([str]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+  return{gz:true,data:buf};
+}
+async function unpack(rec){
+  if(!rec.gz)return rec.data;
+  return new Response(new Blob([rec.data]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+}
+/* fingerprint of the user's DATA only (the export timestamp and our own bookkeeping would otherwise make every snapshot look new) */
+function sig(str){
+  let t=str;
+  try{const o=JSON.parse(str);delete o.exportedAt;if(o.data&&o.data.settings)delete o.data.settings.backup;t=JSON.stringify(o)}catch(_){}
+  let h=2166136261;for(let i=0;i<t.length;i++){h^=t.charCodeAt(i);h=Math.imul(h,16777619)}
+  return (h>>>0).toString(36)+':'+t.length;
+}
+const counts=()=>{const d=window.db;return{sales:(d.sales||[]).length,purchases:(d.purchases||[]).length,products:(d.models||[]).length,customers:(d.customers||[]).length}};
+const KIND={auto:'خودکار',manual:'دستی','pre-restore':'قبل از بازیابی'};
+
+const Backup=U.Backup={
+  KIND,
+  /* create a restore point; returns meta, or null when nothing changed since the last automatic one */
+  async snapshot(kind,label){
+    const text=window.exportData();                      /* already strips the AI key */
+    const b=cfg(),sg=sig(text);
+    if(kind==='auto'&&b.lastSnapSig===sg){b.lastSnap=iso();return null}
+    const p=await pack(text);
+    const rec={id:'rp'+Date.now().toString(36)+Math.random().toString(36).slice(2,6),at:iso(),kind:kind||'manual',label:label||'',size:text.length,gz:p.gz,data:p.data,zsize:p.gz?p.data.byteLength:text.length,counts:counts(),sig:sg};
+    await run('readwrite',s=>s.put(rec));
+    b.lastSnap=rec.at;b.lastSnapSig=sg;
+    await Backup.prune();
+    try{window.saveDB()}catch(_){}
+    const{data,...meta}=rec;return meta;
+  },
+  async list(){const all=await run('readonly',s=>s.getAll());return(all||[]).map(({data,...m})=>m).sort((a,b)=>b.at.localeCompare(a.at))},
+  async prune(){
+    const keep=cfg().keep,all=await Backup.list();
+    if(all.length<=keep)return;
+    /* oldest automatic points go first, then the oldest of the others */
+    const rank=x=>x.kind==='auto'?0:1;
+    const victims=[...all].sort((a,b)=>rank(a)-rank(b)||a.at.localeCompare(b.at));
+    for(let n=all.length-keep,i=0;n>0&&i<victims.length;n--,i++)await run('readwrite',s=>s.delete(victims[i].id));
+  },
+  async remove(id){await run('readwrite',s=>s.delete(id))},
+  async restore(id){
+    const rec=await run('readonly',s=>s.get(id));if(!rec)throw Error('نقطه‌ی بازیابی پیدا نشد');
+    const obj=JSON.parse(await unpack(rec));
+    await Backup.snapshot('pre-restore','قبل از بازیابی');   /* so the restore itself can be undone */
+    window.replaceDB(obj.data||obj);                          /* validates first and rolls back on failure */
+    return rec;
+  },
+  /* the file backup (the one that protects against losing the device) */
+  fileName(){let d;try{d=today()}catch(_){d=new Date().toISOString().slice(0,10)}return 'younique-backup-'+d+'.json'},
+  downloadFile(){const txt=window.exportData();window.download(Backup.fileName(),txt);return txt.length},
+  async shareFile(){
+    const txt=window.exportData(),file=new File([txt],Backup.fileName(),{type:'application/json'});
+    if(navigator.canShare&&navigator.canShare({files:[file]})){await navigator.share({files:[file],title:'پشتیبان یونیک'});Backup.markFile('share');return true}
+    window.download(Backup.fileName(),txt);return false;
+  },
+  markFile(kind){const b=cfg();b.last=iso();b.lastKind=kind||'file';b.snoozeUntil=0;try{window.saveDB()}catch(_){}},
+  status(){
+    const b=cfg(),last=b.last?new Date(b.last).getTime():0,t=Date.now();
+    const days=last?Math.floor((t-last)/DAY):null;
+    const after=x=>{const v=new Date(x.date||x.createdAt||0).getTime();return v>last};
+    const d=window.db,newDocs=last?(d.sales||[]).filter(after).length+(d.purchases||[]).filter(after).length:(d.sales||[]).length+(d.purchases||[]).length;
+    const due=+b.reminderDays>0&&hasData()&&(!last||days>=+b.reminderDays)&&t>(+b.snoozeUntil||0);
+    return{last:b.last||null,days,newDocs,due,auto:b.auto!==false,intervalHours:+b.intervalHours||24,reminderDays:+b.reminderDays,lastSnap:b.lastSnap||null};
+  },
+  /* scheduler: one automatic restore point per interval, only when data changed */
+  async tick(force){
+    if(Backup._busy)return null;
+    const b=cfg();if(!force&&b.auto===false)return null;
+    if(!hasData())return null;
+    const last=b.lastSnap?new Date(b.lastSnap).getTime():0;
+    if(!force&&Date.now()-last<(+b.intervalHours||24)*36e5)return null;
+    Backup._busy=true;
+    try{return await Backup.snapshot('auto')}catch(e){console.warn('restore point failed',e);return null}finally{Backup._busy=false}
+  }
+};
+
+/* a downloaded/shared full backup resets the reminder */
+const _dl=window.download;
+if(typeof _dl==='function'&&!_dl._uaiBk){
+  const w=function(name){const r=_dl.apply(this,arguments);try{if(/^younique-(backup|transfer|sync|full|auto)[-_.]/i.test(String(name))){Backup.markFile(/\.enc\./.test(name)?'enc':'file');if(UI.mountBackupBanner)UI.mountBackupBanner()}}catch(e){console.warn(e)}return r};
+  w._uaiBk=true;window.download=w;
+}
+
+/* ---------- dashboard reminder banner ---------- */
+UI.mountBackupBanner=function(){
+  const old=document.getElementById('bkBanner');if(old)old.remove();
+  if(window.page!=='dashboard')return;
+  const host=document.querySelector('#content');if(!host)return;
+  const st=Backup.status();if(!st.due)return;
+  const el=document.createElement('section');el.id='bkBanner';el.className='card bk-banner';
+  const when=st.days===null?'تا حالا فایل پشتیبان نگرفته‌اید':'آخرین پشتیبان فایلی '+fa(st.days)+' روز پیش بوده';
+  el.innerHTML=`<div class="bk-ico" aria-hidden="true">🛡</div><div class="bk-txt"><b>${esc(when)}${st.newDocs?'؛ '+fa(st.newDocs)+' سند ثبت‌شده در پشتیبان نیست':''}</b><small>اطلاعات فقط داخل همین مرورگر است. یک فایل پشتیبان را بیرون از دستگاه (ایمیل، تلگرام، فضای ابری) نگه دارید.</small></div>
+  <div class="bk-btns"><button type="button" class="btn primary" data-bk="dl">📥 دریافت پشتیبان</button>${typeof navigator.share==='function'?'<button type="button" class="btn" data-bk="share">📤 ارسال…</button>':''}<button type="button" class="btn ghost" data-bk="later">بعداً</button></div>`;
+  const head=host.querySelector(':scope > .pagehead');if(head)head.after(el);else host.prepend(el);
+  el.querySelector('[data-bk=dl]').onclick=()=>{try{Backup.downloadFile();window.toast('پشتیبان دریافت شد. فایل را جای امنی نگه دارید.')}catch(e){window.toast(e.message,true)}};
+  const sh=el.querySelector('[data-bk=share]');if(sh)sh.onclick=async()=>{try{await Backup.shareFile()}catch(e){if(e&&e.name!=='AbortError')window.toast('ارسال ممکن نشد: '+e.message,true)}};
+  el.querySelector('[data-bk=later]').onclick=()=>{cfg().snoozeUntil=Date.now()+DAY;try{window.saveDB()}catch(_){}el.remove()};
+};
+
+/* ---------- backup page card ---------- */
+const fmt=iso=>{try{return new Date(iso).toLocaleString('fa-IR',{dateStyle:'medium',timeStyle:'short'})}catch(_){return iso}};
+const kb=n=>fa(Math.max(1,Math.round(n/1024)))+' KB';
+UI.mountBackupCard=async function(){
+  const old=document.getElementById('bkCard');if(old)old.remove();
+  if(window.page!=='backup')return;
+  const host=document.querySelector('#content');if(!host)return;
+  const b=cfg(),st=Backup.status();
+  const lastTxt=st.last?fmt(st.last)+' ('+(st.days===0?'امروز':fa(st.days)+' روز پیش')+')':'هنوز گرفته نشده';
+  const bad=st.due||!st.last;
+  const el=document.createElement('section');el.id='bkCard';el.className='card bk-card';
+  el.innerHTML=`<div class="section-title"><h3>🛡 وضعیت پشتیبان‌گیری</h3><span class="pill ${bad?'amber':'green'}">${bad?'نیاز به پشتیبان':'به‌روز'}</span></div>
+  <p class="bk-line"><b>آخرین پشتیبان فایل:</b> ${esc(lastTxt)}${st.newDocs?` · <span class="muted">${fa(st.newDocs)} سند جدید از آن زمان</span>`:''}</p>
+  <div class="bk-btns"><button type="button" class="btn primary" data-bk="dl">📥 دریافت فایل پشتیبان</button>${typeof navigator.share==='function'?'<button type="button" class="btn" data-bk="share">📤 ارسال…</button>':''}<button type="button" class="btn" data-bk="snap">➕ ساخت نقطه‌ی بازیابی</button></div>
+  <div class="formgrid bk-set">
+    <label class="field">نقاط بازیابی خودکار<select id="bkAuto"><option value="1" ${b.auto!==false?'selected':''}>روشن</option><option value="0" ${b.auto===false?'selected':''}>خاموش</option></select></label>
+    <label class="field">فاصله‌ی ساخت<select id="bkInt">${[6,12,24,72].map(h=>`<option value="${h}" ${(+b.intervalHours||24)===h?'selected':''}>هر ${fa(h)} ساعت</option>`).join('')}</select></label>
+    <label class="field">یادآوری فایل پشتیبان<select id="bkRem">${[[0,'خاموش'],[1,'هر ۱ روز'],[3,'هر ۳ روز'],[7,'هر ۷ روز'],[14,'هر ۱۴ روز']].map(([v,t])=>`<option value="${v}" ${(+b.reminderDays)===v?'selected':''}>${t}</option>`).join('')}</select></label>
+  </div>
+  <h4 style="margin:14px 0 6px">نقاط بازیابی روی این دستگاه</h4>
+  <div id="bkList" class="muted">در حال خواندن…</div>
+  <p class="muted" style="margin-top:10px">نقاط بازیابی فقط داخل همین مرورگر ذخیره می‌شوند و برای برگشت از اشتباه (مثلاً حذف یا ورود فایل خراب) عالی‌اند؛ اگر مرورگر پاک شود یا گوشی گم شود از بین می‌روند. برای آن حالت «فایل پشتیبان» را بیرون از دستگاه نگه دارید.</p>`;
+  const head=host.querySelector(':scope > .pagehead');if(head)head.after(el);else host.prepend(el);
+  const $=sel=>el.querySelector(sel);
+  const save=()=>{try{window.saveDB()}catch(_){}};
+  $('#bkAuto').onchange=e=>{cfg().auto=e.target.value==='1';save()};
+  $('#bkInt').onchange=e=>{cfg().intervalHours=+e.target.value;save()};
+  $('#bkRem').onchange=e=>{cfg().reminderDays=+e.target.value;save();UI.mountBackupBanner()};
+  $('[data-bk=dl]').onclick=()=>{try{Backup.downloadFile();window.toast('پشتیبان دریافت شد');UI.mountBackupCard()}catch(e){window.toast(e.message,true)}};
+  const sh=$('[data-bk=share]');if(sh)sh.onclick=async()=>{try{await Backup.shareFile();UI.mountBackupCard()}catch(e){if(e&&e.name!=='AbortError')window.toast('ارسال ممکن نشد: '+e.message,true)}};
+  $('[data-bk=snap]').onclick=async()=>{try{await Backup.snapshot('manual','دستی');window.toast('نقطه‌ی بازیابی ساخته شد');UI.mountBackupCard()}catch(e){window.toast(e.message,true)}};
+  let pts=[];try{pts=await Backup.list()}catch(e){}
+  const box=el.querySelector('#bkList');if(!box)return;
+  if(!pts.length){box.textContent='هنوز نقطه‌ای ساخته نشده است.';return}
+  box.innerHTML=pts.map(p=>`<div class="listrow bk-pt" data-id="${esc(p.id)}"><div class="grow"><b>${esc(fmt(p.at))}</b><small>${esc(KIND[p.kind]||p.kind)} · ${kb(p.zsize||p.size)} · ${fa(p.counts?p.counts.sales:0)} فاکتور · ${fa(p.counts?p.counts.products:0)} کالا · ${fa(p.counts?p.counts.customers:0)} مشتری</small></div><button type="button" class="btn" data-act="restore">بازیابی</button><button type="button" class="btn danger" data-act="del">حذف</button></div>`).join('');
+  box.onclick=async e=>{
+    const btn=e.target.closest('button[data-act]');if(!btn)return;
+    const id=btn.closest('.bk-pt').dataset.id;
+    if(btn.dataset.act==='del'){await Backup.remove(id);UI.mountBackupCard();return}
+    if(!window.confirm('اطلاعات فعلی با این نقطه‌ی بازیابی جایگزین می‌شود. (قبل از آن یک نقطه‌ی «قبل از بازیابی» ساخته می‌شود تا بتوانید برگردید.) ادامه می‌دهید؟'))return;
+    try{await Backup.restore(id);window.toast('بازیابی انجام شد');window.render()}catch(err){window.toast('بازیابی ناموفق بود: '+err.message,true)}
+  };
+};
+
+/* ---------- styles ---------- */
+if(!document.getElementById('bk-css')){const st=document.createElement('style');st.id='bk-css';st.textContent=`
+.bk-banner{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:14px 16px;margin:0 0 16px;border:1px solid color-mix(in srgb,var(--amber,#f4a21f) 45%,var(--line,#e1e8f2));background:linear-gradient(135deg,color-mix(in srgb,var(--amber,#f4a21f) 12%,var(--surface,#fff)),var(--surface,#fff))}
+.bk-ico{flex:none;width:42px;height:42px;border-radius:13px;display:grid;place-items:center;font-size:20px;background:color-mix(in srgb,var(--amber,#f4a21f) 22%,transparent)}
+.bk-txt{flex:1;min-width:200px}.bk-txt b{display:block}.bk-txt small{color:var(--muted,#667085)}
+.bk-btns{display:flex;gap:8px;flex-wrap:wrap}
+.bk-card{margin:0 0 16px}.bk-line{margin:6px 0 12px}
+.bk-set{margin-top:14px}
+.bk-pt{display:flex;gap:8px;align-items:center;margin-bottom:8px}.bk-pt .grow small{display:block;color:var(--muted,#667085)}
+`;document.head.appendChild(st)}
+
+/* ---------- hooks: pages, scheduler ---------- */
+const _render=window.render;
+if(typeof _render==='function'&&!_render._uaiBkr){
+  const w=function(){const r=_render.apply(this,arguments);try{UI.mountBackupBanner();if(window.page==='backup')UI.mountBackupCard()}catch(e){console.warn('backup ui',e)}return r};w._uaiBkr=true;window.render=w;
+}
+setTimeout(()=>{try{cfg();Backup.tick()}catch(e){}},4000);
+setInterval(()=>{try{Backup.tick()}catch(e){}},15*60*1000);
+document.addEventListener('visibilitychange',()=>{if(!document.hidden){try{Backup.tick()}catch(e){}}});
+
+/* ---------- assistant: tools (LLM) + deterministic quick answers (works offline / without AI) ---------- */
+function statusText(){
+  const st=Backup.status();
+  const f=st.last?`آخرین پشتیبان فایل: ${st.days===0?'امروز':fa(st.days)+' روز پیش'}${st.newDocs?` (${fa(st.newDocs)} سند جدید از آن زمان)`:''}.`:'هنوز فایل پشتیبان نگرفته‌اید.';
+  const r=st.lastSnap?`آخرین نقطه‌ی بازیابی روی این دستگاه: ${fmt(st.lastSnap)}.`:'نقطه‌ی بازیابی هنوز ساخته نشده است.';
+  return f+'\n'+r+(st.due?'\nپیشنهاد: همین حالا بگویید «پشتیبان بگیر» یا از صفحه‌ی پشتیبان‌گیری فایل را دریافت کنید.':'');
+}
+async function nowAction(){
+  const meta=await Backup.snapshot('manual','دستی');
+  let file=true;try{Backup.downloadFile()}catch(e){file=false}
+  return `نقطه‌ی بازیابی ساخته شد${meta?` (${kb(meta.zsize||meta.size)})`:''}${file?' و فایل پشتیبان دریافت شد؛ آن را جای امنی بیرون از دستگاه نگه دارید.':'، ولی دریافت فایل ممکن نشد؛ از صفحه‌ی پشتیبان‌گیری آن را بگیرید.'}`;
+}
+if(U.Tools&&!U.Tools.get?.('backup_status')){
+  const base={mode:'read',risk:'low',confirm:false,errors:[],perm:'system.backup',params:{type:'object',properties:{},required:[]},prepare:p=>({status:'ready',params:p,needsConfirm:false})};
+  U.Tools.register(Object.assign({},base,{name:'backup_status',desc:'وضعیت پشتیبان‌گیری: آخرین فایل پشتیبان و نقاط بازیابی',run(){return Backup.status()},render(){return statusText()}}));
+  U.Tools.register(Object.assign({},base,{name:'backup_now',desc:'ساخت نقطه‌ی بازیابی و دریافت فایل پشتیبان همین حالا',async run(){return{text:await nowAction()}},render(d){return d.text}}));
+}
+const RX_NOW=/(بک\s*[‌ـ]?\s*آپ|بکاپ|پشتیبان)\s*(بگیر|بزن|بساز|تهیه\s*کن|بده|رو\s*بگیر|را\s*بگیر)|(یه|یک)\s*(بک\s*[‌ـ]?\s*آپ|بکاپ|پشتیبان)/;
+const RX_ST=/((وضعیت|آخرین|کی|چه\s*موقع|چند\s*روز).*(بک\s*[‌ـ]?\s*آپ|بکاپ|پشتیبان))|((بک\s*[‌ـ]?\s*آپ|بکاپ|پشتیبان).*(وضعیت|آخرین|کی\s|چه\s*موقع|چند\s*روز))/;
+const chat=U.chat;
+if(chat&&typeof chat._route==='function'&&!chat._route._uaiBk){
+  const r0=chat._route;
+  chat._route=async function(text,src,alts){
+    const t=String(text||'');
+    if(RX_NOW.test(t)||RX_ST.test(t)){
+      if(!U.Perm.can('system.backup'))return[say('اجازه‌ی پشتیبان‌گیری برای نقش شما فعال نیست.','error')];
+      try{return[say(RX_NOW.test(t)?await nowAction():statusText(),'success')]}catch(e){return[say('پشتیبان‌گیری ناموفق بود: '+e.message,'error')]}
+    }
+    return r0.call(this,text,src,alts);
+  };
+  chat._route._uaiBk=true;
+}
+})();
+
+/* ===== Unique — 85 diagnostics: local error log =====
+   49 places in the app swallow errors silently. A shop owner with a problem needs something to send us, so uncaught errors and
+   rejected promises are kept (last 50, in this browser only) and can be copied as a plain-text report: version, browser, page, messages.
+   The report never contains business data or API keys. */
+(function(){'use strict';
+const U=window.UAI,UI=U.ui,KEY='uai_errlog',MAX=50;
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const read=()=>{try{return JSON.parse(localStorage.getItem(KEY)||'[]')||[]}catch(_){return[]}};
+const write=a=>{try{localStorage.setItem(KEY,JSON.stringify(a.slice(-MAX)))}catch(_){}};
+const NOISE=/ResizeObserver loop|Script error\.?$|Non-Error promise rejection captured with value: undefined/i;
+function add(msg,src,stack){
+  msg=String(msg||'').slice(0,300);if(!msg||NOISE.test(msg))return;
+  const a=read(),last=a[a.length-1],now=Date.now();
+  const entry={t:new Date().toISOString(),page:window.page||'',v:window.YOUNIQUE_VERSION||'',msg,src:String(src||'').slice(0,120),stack:String(stack||'').split('\n').slice(0,4).join('\n').slice(0,400)};
+  if(last&&last.msg===msg&&last.src===entry.src&&now-new Date(last.t).getTime()<1000){last.n=(last.n||1)+1}
+  else a.push(entry);
+  write(a);
+}
+window.addEventListener('error',e=>{if(e&&e.target&&e.target!==window&&e.target.tagName)return;add(e.message,(e.filename||'').split('/').pop()+':'+e.lineno+':'+e.colno,e.error&&e.error.stack)});
+window.addEventListener('unhandledrejection',e=>{const r=e&&e.reason;add(r&&r.message?r.message:String(r),'promise',r&&r.stack)});
+const Diag=U.Diag={
+  log:add,
+  list:read,
+  clear(){write([]);},
+  report(){
+    const a=read();
+    return ['گزارش خطای یونیک','نسخه: '+(window.YOUNIQUE_VERSION||'?'),'مرورگر: '+navigator.userAgent,'زمان گزارش: '+new Date().toISOString(),'تعداد خطا: '+a.length,'']
+      .concat(a.map((x,i)=>`#${i+1} ${x.t} · صفحه: ${x.page} · ${x.msg}${x.n>1?' (×'+x.n+')':''}\n   ${x.src}${x.stack?'\n   '+x.stack.replace(/\n/g,'\n   '):''}`)).join('\n');
+  }
+};
+UI.diagModal=function(){
+  const a=Diag.list().slice().reverse();
+  window.modal(`<div class="modalhead"><h2>🐞 گزارش خطاها</h2><button class="close" data-close>×</button></div>
+  <p class="muted">خطاهای برنامه فقط داخل همین مرورگر نگه‌داری می‌شوند (حداکثر ${MAX} مورد) و شامل اطلاعات فروشگاه یا کلید هوش مصنوعی نیستند. اگر مشکلی دارید، «کپی گزارش» را بزنید و برای پشتیبان بفرستید.</p>
+  <div id="dgList" style="max-height:46vh;overflow:auto">${a.length?a.map(x=>`<div class="listrow"><div class="grow"><b>${esc(x.msg)}${x.n>1?' <span class="pill">×'+x.n+'</span>':''}</b><small>${esc(new Date(x.t).toLocaleString('fa-IR'))} · صفحه: ${esc(x.page||'-')} · ${esc(x.src)}</small></div></div>`).join(''):'<div class="empty">خطایی ثبت نشده است 🎉</div>'}</div>
+  <div class="modal-actions"><button type="button" class="btn primary" id="dgCopy">📋 کپی گزارش</button><button type="button" class="btn danger" id="dgClear">پاک کردن</button></div>`);
+  const $=id=>document.querySelector('#'+id);
+  $('dgCopy').onclick=async()=>{const t=Diag.report();try{await navigator.clipboard.writeText(t);window.toast('گزارش کپی شد')}catch(_){const ta=document.createElement('textarea');ta.value=t;document.body.appendChild(ta);ta.select();try{document.execCommand('copy');window.toast('گزارش کپی شد')}catch(e){window.toast('کپی ممکن نشد',true)}ta.remove()}};
+  $('dgClear').onclick=()=>{Diag.clear();UI.diagModal()};
+};
 })();
 
 /*UAI-END*/</script>
@@ -4296,6 +4585,25 @@ html body .sidebar .nav-toggle[aria-expanded=true]{color:#fff!important}
 .uni-pager td{text-align:center;padding:14px;color:var(--muted,#667085)}
 .uni-pager .btn{margin:0 6px}
 @media print{tr[hidden]{display:table-row!important}.uni-pager{display:none!important}}
+
+/* ---------- accessibility fixes found by the contrast audit (WCAG AA 4.5:1) ---------- */
+@media screen{
+:root{--grad-btn:linear-gradient(135deg,#2689cc 0%,#1a73c8 52%,#114b86 100%)}
+html[data-theme=dark]{--grad-btn:linear-gradient(135deg,#2478c0 0%,#1a63b4 55%,#123f7a 100%)}
+html body .metric small,html body .listrow small,html body .bar span,html body .empty,html body td.empty,html body .searchbox span,html body .mobile-nav button{color:var(--muted)}
+html body .pill{color:#135a9e}
+html body .pill.green{color:#067550}
+html body .pill.amber{color:#8f5200}
+html body .pill.red{color:#b92341}
+html body .btn.danger{color:#b92341}
+html body .btn.primary,html[data-theme=dark] body .btn.primary,html body .sidebar .nav button.active,html[data-theme=dark] body .sidebar .nav button.active,html body .hub-tabs button.active{background:var(--grad-btn)!important;color:#fff!important}
+html[data-theme=dark] body .pill{color:#8cc9fa}
+html[data-theme=dark] body .pill.green{color:#6ee7b7}
+html[data-theme=dark] body .pill.amber{color:#fcd34d}
+html[data-theme=dark] body .pill.red{color:#fda4af}
+html[data-theme=dark] body .btn.danger{color:#fda4af}
+html body :focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 70%,transparent);outline-offset:2px;border-radius:8px}
+}
 
 </style>
 </body></html>
