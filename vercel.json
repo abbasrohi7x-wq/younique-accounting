@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/ai/[...path].js": {
+    "api/aiproxy.js": {
       "maxDuration": 60
     }
   },
@@ -48,6 +48,12 @@
           "value": "public, max-age=86400"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/ai/:path*",
+      "destination": "/api/aiproxy?p=:path*"
     }
   ]
 }
