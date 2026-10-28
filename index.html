@@ -554,7 +554,7 @@ async function makeOCRCanvases(file){
  const skew=bin=>{const step=Math.max(1,Math.floor(Math.sqrt(N/300000))),pts=[];for(let y=0;y<h;y+=step)for(let x=0;x<w;x+=step)if(!bin[y*w+x])pts.push(x,y);if(pts.length<800)return 0;
   const H=Math.ceil(Math.hypot(w,h)/step)+4,hist=new Float64Array(H);
   const sc=a=>{const t=a*Math.PI/180,sn=Math.sin(t),cs=Math.cos(t);hist.fill(0);for(let i=0;i<pts.length;i+=2){const yy=Math.floor((-pts[i]*sn+pts[i+1]*cs)/step+H/2);if(yy>=0&&yy<H)hist[yy]++}let s=0;for(let i=0;i<H;i++)s+=hist[i]*hist[i];return s};
-  let best=0,bs=-1;const T=[];for(let a=-6;a<=6.001;a+=.5){const s=sc(a);T.push([a,Math.round(s/1e3)]);if(s>bs){bs=s;best=a}}window.__skewT=T;window.__skewPts=pts.length;
+  let best=0,bs=-1;for(let a=-6;a<=6.001;a+=.5){const s=sc(a);if(s>bs){bs=s;best=a}}
   const c0=best;for(let a=c0-.4;a<=c0+.401;a+=.1){const s=sc(a);if(s>bs){bs=s;best=a}}
   return sc(0)>=bs*.995?0:best};
  let base=draw(0),gray=grayOf(base),bin=binarize(gray);
@@ -565,20 +565,86 @@ async function makeOCRCanvases(file){
  const inkV=new Uint8Array(N),inkH=new Uint8Array(N);
  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(!bin[i]){inkV[i]=1;inkH[i]=1;if(y>0)inkV[i-w]=1;if(y<h-1)inkV[i+w]=1;if(x>0)inkH[i-1]=1;if(x<w-1)inkH[i+1]=1}}
  const scan=(len,isInk,min,cb)=>{let i=0;while(i<len){if(!isInk(i)){i++;continue}let s=i,last=i,g=0;i++;while(i<len){if(isInk(i)){last=i;g=0}else if(++g>gap)break;i++}if(last-s+1>=min)cb(s,last)}};
- for(let y=off;y<h-off;y++)scan(w,x=>inkV[y*w+x],hMin,(s,e)=>{let ok=0;for(let x=s;x<=e;x++)if(bin[(y-off)*w+x]&&bin[(y+off)*w+x])ok++;if(ok>=(e-s+1)*.75)for(let x=s;x<=e;x++)mask[y*w+x]=1});
- for(let x=off;x<w-off;x++)scan(h,y=>inkH[y*w+x],vMin,(s,e)=>{for(let y=s;y<=e;y++)mask[y*w+x]=1});
+ const hRuns=[],vRuns=[];
+ for(let y=off;y<h-off;y++)scan(w,x=>inkV[y*w+x],hMin,(s,e)=>{let ok=0;for(let x=s;x<=e;x++)if(bin[(y-off)*w+x]&&bin[(y+off)*w+x])ok++;if(ok>=(e-s+1)*.75){for(let x=s;x<=e;x++)mask[y*w+x]=1;hRuns.push([y,s,e])}});
+ for(let x=off;x<w-off;x++)scan(h,y=>inkH[y*w+x],vMin,(s,e)=>{for(let y=s;y<=e;y++)mask[y*w+x]=1;vRuns.push([x,s,e])});
  const m2=new Uint8Array(mask);for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){const i=y*w+x;if(mask[i]){m2[i-1]=m2[i+1]=m2[i-w]=m2[i+w]=1}}
  const outBin=mk(),ob=outBin.getContext('2d'),oi=ob.createImageData(w,h),od=oi.data;
  for(let j=0,i=0;j<N;j++,i+=4){const v=m2[j]?255:bin[j];od[i]=od[i+1]=od[i+2]=v;od[i+3]=255}ob.putImageData(oi,0,0);
  const outGray=mk(),og=outGray.getContext('2d'),gi=og.createImageData(w,h),gd=gi.data;
  for(let j=0,i=0;j<N;j++,i+=4){const v=m2[j]?255:gray[j];gd[i]=gd[i+1]=gd[i+2]=v;gd[i+3]=255}og.putImageData(gi,0,0);
  const contrast=mk(),cc=contrast.getContext('2d');cc.filter='contrast(1.3) brightness(1.06)';cc.drawImage(outGray,0,0);
- return [{n:'adaptive',c:outBin},{n:'gray',c:outGray},{n:'contrast',c:contrast},{n:'base',c:base}];
+ /* ruled-table grid: vertical lines define the table, horizontal lines inside it define the rows */
+ const clusterRuns=(runs,tol)=>{runs.sort((a,b)=>a[0]-b[0]);const cl=[];for(const r of runs){const c=cl[cl.length-1];if(c&&r[0]-c.last<=tol){c.last=r[0];c.sum+=r[0];c.n++;c.s=Math.min(c.s,r[1]);c.e=Math.max(c.e,r[2])}else cl.push({last:r[0],sum:r[0],n:1,s:r[1],e:r[2]})}return cl.map(c=>({pos:Math.round(c.sum/c.n),s:c.s,e:c.e}))};
+ let grid=null;const vc=clusterRuns(vRuns,4);
+ if(vc.length>=3){const big=vc.reduce((a,b)=>(b.e-b.s)>(a.e-a.s)?b:a),same=vc.filter(c=>Math.min(c.e,big.e)-Math.max(c.s,big.s)>=.7*(big.e-big.s));
+  if(same.length>=3){const ymin=Math.min(...same.map(c=>c.s)),ymax=Math.max(...same.map(c=>c.e)),xs=same.map(c=>c.pos).sort((a,b)=>a-b),xmin=xs[0],xmax=xs[xs.length-1];
+   const hc=clusterRuns(hRuns.filter(r=>r[0]>=ymin-10&&r[0]<=ymax+10),6).filter(c=>c.e-c.s>=(xmax-xmin)*.6&&c.s<=xmin+30&&c.e>=xmax-30);
+   const ys=hc.map(c=>c.pos);if(ys.length>=3)grid={xs,ys}}}
+ const out=[{n:'adaptive',c:outBin},{n:'gray',c:outGray},{n:'contrast',c:contrast},{n:'base',c:base}];out.grid=grid;out.W=w;out.H=h;return out;
+}
+/* read a ruled invoice table cell by cell; numeric columns are identified by qty x price = total */
+async function extractInvoiceTable(worker,imgs){
+ const g=imgs.grid;if(!g)return null;const src=imgs.find(x=>x.n==='gray').c;
+ const cols=[],rows=[];for(let i=0;i+1<g.xs.length;i++)if(g.xs[i+1]-g.xs[i]>40)cols.push([g.xs[i],g.xs[i+1]]);for(let j=0;j+1<g.ys.length;j++)if(g.ys[j+1]-g.ys[j]>30)rows.push([g.ys[j],g.ys[j+1]]);
+ if(cols.length<3||rows.length<2)return null;
+ const NUMWL='0123456789۰۱۲۳۴۵۶۷۸۹٠١٢٣٤٥٦٧٨٩,.٬،',SKUWL='ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_/.';
+ const cell=(r,c,sc)=>{sc=sc||src;const m=7,pad=18,x0=cols[c][0]+m,y0=rows[r][0]+m,cw=Math.max(8,cols[c][1]-cols[c][0]-2*m),ch=Math.max(8,rows[r][1]-rows[r][0]-2*m),cv=document.createElement('canvas');cv.width=cw+pad*2;cv.height=ch+pad*2;const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(sc,x0,y0,cw,ch,pad,pad,cw,ch);return cv};
+ let confSum=0,confN=0;
+ const adp=imgs.find(x=>x.n==='adaptive').c;
+ const rdc=async(r,c,psm,wl,sc)=>{await worker.setParameters({tessedit_pageseg_mode:psm,tessedit_char_whitelist:wl||'',preserve_interword_spaces:'1',user_defined_dpi:'300'});const res=await worker.recognize(cell(r,c,sc)),d=res?.data||{};return {t:normalizeOCRLine(String(d.text||'')).trim(),c:Number(d.confidence||0)}};
+ const rd=async(r,c,psm,wl)=>{const o=await rdc(r,c,psm,wl,src);if(o.t){confSum+=o.c/100;confN++}return o.t};
+ /* free-text cells (product names, often two lines): retry on the binarised image when the first read looks weak, keep the best */
+ const rdText=async(r,c)=>{const cands=[];for(const [sc,psm] of [[src,'7'],[src,'6'],[adp,'7'],[adp,'6'],[src,'4']]){const o=await rdc(r,c,psm,'',sc);if(o.t)cands.push(o);if(cands.length>=2&&Math.max(...cands.map(x=>x.c))>=86)break}if(!cands.length)return '';const mx=Math.max(...cands.map(o=>o.t.length)),f=o=>o.c*Math.sqrt(Math.min(1,o.t.length/mx));cands.sort((a,b)=>f(b)-f(a));confSum+=cands[0].c/100;confN++;return cands[0].t};
+ const hasFa=t=>/[\u0600-\u06FF]/.test(String(t).replace(/[۰-۹٠-٩]/g,''));
+ /* header row? (cells with words rather than numbers) */
+ let faCells=0;for(let c=0;c<cols.length;c++){const t=await rd(0,c,'7','');if(hasFa(t)||/^(?:sku|qty|price|total|code|item|name)$/i.test(t.replace(/\s/g,'')))faCells++}
+ const first=faCells>=Math.ceil(cols.length/2)?1:0;if(rows.length-first<1)return null;
+ /* classify each column from its first data cells */
+ const types=[];
+ for(let c=0;c<cols.length;c++){const votes={};const samp=[];for(let r=first;r<Math.min(rows.length,first+2);r++){const t=await rd(r,c,'7','');samp.push(t);const tt=t.replace(/\s/g,'');const ty=!tt?'empty':hasFa(tt)?'text':(/[A-Za-z]/.test(tt)&&/\d/.test(tt))?'sku':/^[0-9,.\-]+$/.test(tt)?'num':'text';votes[ty]=(votes[ty]||0)+1}
+  let ty=Object.entries(votes).filter(([k])=>k!=='empty').sort((a,b)=>b[1]-a[1])[0]?.[0]||'text';
+  if(ty==='num'&&(c===0||c===cols.length-1)){const n=samp.map(t=>parseInt(String(t).replace(/\D/g,''),10));if(n.length>=2&&n[1]===n[0]+1&&n[0]<=3)ty='index';else if(n.length===1&&n[0]===1)ty='index'}
+  types.push(ty)}
+ /* full pass per column, with a recogniser suited to the column type */
+ const cells=rows.map(()=>cols.map(()=>''));
+ for(let c=0;c<cols.length;c++){if(types[c]==='index')continue;for(let r=first;r<rows.length;r++){cells[r][c]=types[c]==='num'?await rd(r,c,'7',NUMWL):types[c]==='sku'?await rd(r,c,'7',SKUWL):await rdText(r,c)}}
+ const toNum=t=>{const s=String(t||'').replace(/[oO]/g,'0').match(/\d[\d,.]*/);if(!s)return null;const v=s[0];if(/^\d+\.\d{1,2}$/.test(v))return Number(v);const n=Number(v.replace(/[,.]/g,''));return Number.isFinite(n)?n:null};
+ const numCols=types.map((t,i)=>t==='num'?i:-1).filter(i=>i>=0),dataRows=[];for(let r=first;r<rows.length;r++)dataRows.push(r);
+ const val=(r,c)=>toNum(cells[r][c]);
+ /* choose (qty, price, total) columns by arithmetic consistency */
+ let map=null,bestScore=-1;
+ for(const q of numCols)for(const p of numCols)for(const t of numCols){if(q===p||q===t||p===t)continue;let sc=0;for(const r of dataRows){const a=val(r,q),b=val(r,p),d=val(r,t);if(a>0&&b>0&&d>0&&Math.abs(a*b-d)<=Math.max(1,d*.005))sc++}if(sc>bestScore){bestScore=sc;map={q,p,t}}}
+ const med=c=>{const a=dataRows.map(r=>val(r,c)).filter(v=>v>0).sort((x,y)=>x-y);return a.length?a[a.length>>1]:0};
+ if(map&&bestScore>0&&med(map.q)>med(map.p))map={q:map.p,p:map.q,t:map.t};
+ const need=Math.max(1,Math.ceil(dataRows.length*.5));
+ if(!map||bestScore<need){const o=numCols.slice().sort((a,b)=>med(a)-med(b));if(o.length>=3)map={q:o[0],p:o[1],t:o[o.length-1]};else if(o.length===2)map={q:-1,p:o[0],t:o[1]};else if(o.length===1)map={q:-1,p:-1,t:o[0]};else return null;bestScore=0}
+ const nameCol=types.indexOf('text'),skuCol=types.indexOf('sku'),out=[];
+ for(const r of dataRows){let name=nameCol>=0?cells[r][nameCol].replace(/\s*\n\s*/g,' ').replace(/\s+/g,' ').trim():'',sku=skuCol>=0?cells[r][skuCol].replace(/\s/g,''):'';
+  let q=map.q>=0?val(r,map.q):null,p=map.p>=0?val(r,map.p):null,t=val(r,map.t),repaired=false;
+  if(!name&&!sku&&!t&&!p)continue;if(/^(?:جمع|مجموع|total|subtotal|تخفیف|مالیات)/i.test(name))continue;
+  if(q>0&&p>0&&!(t>0)){t=q*p;repaired=true}else if(q>0&&t>0&&!(p>0)){p=t/q;repaired=true}else if(p>0&&t>0&&!(q>0)){const k=t/p;if(Math.abs(k-Math.round(k))<.02){q=Math.round(k);repaired=true}}
+  if(map.q<0&&p>0&&t>0){const k=t/p;q=Math.abs(k-Math.round(k))<.02&&k>=1?Math.round(k):1;if(q===1)p=t}
+  if(!(t>0)||!(q>0)||!(p>0))continue;
+  out.push({name:name||sku,sku,qty:q,unitPrice:p,lineTotal:t,ok:!repaired&&Math.abs(q*p-t)<=Math.max(1,t*.01),repaired})}
+ if(!out.length)return null;
+ return {rows:out,types,consistency:dataRows.length?bestScore/dataRows.length:0,conf:confN?confSum/confN:0,top:g.ys[0],bottom:g.ys[g.ys.length-1]};
+}
+async function ocrOutsideTable(worker,imgs,table){
+ const W=imgs.W,H=imgs.H,parts=[],kw=t=>(t.match(/جمع|کل|تومان|ریال|فاکتور|تاریخ|مشتری|پرداخت|invoice|total|date/gi)||[]).length*10+(t.match(/\d/g)||[]).length;
+ for(const [y0,y1] of [[0,table.top-8],[table.bottom+8,H]]){const ch=Math.round(y1-y0);if(ch<30)continue;let best='';
+  for(const n of ['gray','adaptive']){const src=imgs.find(x=>x.n===n).c,pad=16,cv=document.createElement('canvas');cv.width=W+pad*2;cv.height=ch+pad*2;const x=cv.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,cv.width,cv.height);x.drawImage(src,0,Math.round(y0),W,ch,pad,pad,W,ch);
+   for(const psm of ['6','4']){await worker.setParameters({tessedit_pageseg_mode:psm,tessedit_char_whitelist:'',preserve_interword_spaces:'1',user_defined_dpi:'300'});const r=await worker.recognize(cv),t=String(r?.data?.text||'').trim();if(kw(t)>kw(best))best=t}}
+  parts.push(best)}
+ return parts.filter(Boolean).join('\n')
 }
 function ocrScore(data){const conf=Number(data?.confidence||0)/100,text=String(data?.text||'').replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/[٬،]/g,',');const nonEmpty=text.split(/\r?\n/).filter(x=>x.trim()).length;const nums=(text.match(/[0-9]{2,}/g)||[]).length;const money=(text.match(/\d{1,3}(?:,\d{3})+/g)||[]).length;const kw=(text.match(/فاکتور|تاریخ|مبلغ|جمع|تعداد|قیمت|پرداخت|کالا|invoice|total|date|qty/gi)||[]).length;const chars=text.replace(/\s/g,''),good=(chars.match(/[0-9A-Za-z\u0600-\u06FF.,:\/\-]/g)||[]).length,clean=chars.length?good/chars.length:0;return conf*0.45+Math.min(1,nonEmpty/18)*0.15+Math.min(1,nums/12)*0.1+Math.min(1,money/8)*0.15+Math.min(1,kw/5)*0.05+clean*0.1}
 async function analyzeInvoiceLocally(file){
  if(localOCRBusy)throw Error('OCR دیگری در حال اجراست؛ لطفاً صبر کنید.');localOCRBusy=true;
  try{const worker=await getLocalOCRWorker(),imgs=await makeOCRCanvases(file),by={};for(const x of imgs)by[x.n]=x.c;
+  if(imgs.grid){let table=null;try{table=await extractInvoiceTable(worker,imgs)}catch(e){console.warn('table OCR failed',e);table=null}
+   if(table&&table.rows.length){const text=await ocrOutsideTable(worker,imgs,table),barcodes=await localBarcodeScan(file);window.__ocrTable=table;await worker.setParameters({tessedit_char_whitelist:''});return {text:text||'',barcodes,engine:'Tesseract.js (جدول)',confidence:Math.max(.3,Math.min(1,table.conf)),table,raw:{}}}}
+  await worker.setParameters({tessedit_char_whitelist:''});
   const plan=[['adaptive','6'],['gray','6'],['adaptive','4'],['contrast','6'],['base','6']],results=[],dbg=[];
   for(const [n,psm] of plan){await worker.setParameters({tessedit_pageseg_mode:psm,preserve_interword_spaces:'1',user_defined_dpi:'300'});const r=await worker.recognize(by[n]),d=r?.data||{};d._score=ocrScore(d);d._pass=n+'/'+psm;results.push(d);dbg.push({pass:d._pass,score:+d._score.toFixed(3),conf:d.confidence,text:d.text});if(results.length>=2&&Math.max(...results.map(x=>x._score))>=.88)break}
   window.__ocrDebug=dbg;
@@ -589,7 +655,7 @@ function normalizeOCRDigits(s){return String(s||'').replace(/[۰-۹]/g,d=>String
 function normalizeOCRLine(s){return normalizeOCRDigits(s).replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/[‌‏]/g,' ').replace(/[٬،]/g,',').replace(/\s+/g,' ').trim()}
 function ocrNumbers(s){const t=normalizeOCRLine(s).replace(/(?<=\d)[oO](?=\d)/g,'0').replace(/(?<=\d)[lI](?=\d)/g,'1');return (t.match(/\d+(?:[.,]\d+)*(?:\.\d+)?/g)||[]).map(x=>Number(x.replace(/,/g,''))).filter(Number.isFinite)}
 function stripOCRNumbers(s){return normalizeOCRLine(s).replace(/\d+(?:[.,]\d+)*/g,' ').replace(/[|:؛;]+/g,' ').replace(/\s+/g,' ').trim()}
-function parseLocalInvoiceText(text,barcodes=[],ocrConfidence=.55){
+function parseLocalInvoiceTextBase(text,barcodes=[],ocrConfidence=.55){
  const rawLines=String(text||'').split(/\r?\n/).map(normalizeOCRLine).filter(Boolean),lines=rawLines.filter(l=>l.length>=2);
  const label=(rx)=>{const l=lines.find(x=>rx.test(x));if(!l)return null;const m=l.match(rx);return m?.[1]?.trim()||null};
  const invoiceNumber=label(/(?:شماره(?:\s+فاکتور)?|فاکتور(?:\s+شماره)?|invoice\s*(?:no|number)?)[\s:#-]*([A-Za-z0-9۰-۹٠-٩\/-]{3,})/i);
@@ -639,7 +705,29 @@ function showInvoiceResult(x,imageData){
  $('#invoiceRecalc').onclick=recalc;$$('[data-inv-qty],[data-inv-price],[data-inv-total],[data-inv-name]').forEach(e=>e.oninput=recalc);recalc();
  $('#invoiceConfirm').onclick=()=>{if(!recalc())return toast('جمع فاکتور با اقلام منطبق نیست؛ ابتدا اصلاح و دوباره بررسی کنید.',true);const bad=x.items.some(i=>!i.matchedVariantId||num(i.confidence)<.55);if(bad&&!confirm('برخی اقلام با اطمینان کافی به کالاهای یونیک تطبیق داده نشده‌اند. ادامه می‌دهید؟'))return;const action={type:'create_purchase',supplierName:$('#invSupplier').value.trim(),invoiceNumber:$('#invNumber').value.trim(),date:$('#invDate').value.trim(),items:x.items.map(i=>({variantId:i.matchedVariantId,qty:i.qty,unitPrice:i.unitPrice})).filter(i=>i.variantId&&i.qty>0)};if(!action.items.length)return toast('هیچ قلمی به کالای یونیک تطبیق داده نشده است.',true);closeModal();showAIAction(action)};
 }
-async function analyzeInvoiceImage(file){const local=await analyzeInvoiceLocally(file);if(local.text.trim()){const parsed=parseLocalInvoiceText(local.text,local.barcodes,local.confidence);if(parsed){db.aiHistory.push({id:uid(),date:now(),role:'assistant',type:'invoice-local',text:JSON.stringify(parsed)});saveDB(true);showInvoiceResult(parsed,null);return parsed}}const found=local.barcodes.length?' بارکدهای پیدا شده: '+local.barcodes.join('، '):'';throw Error('OCR محلی متن کافی از تصویر استخراج نکرد. تصویر را صاف، روشن و با وضوح بالاتر بگیرید.'+found)}
+function parseLocalInvoiceText(text,barcodes=[],ocrConfidence=.55,table=null){
+ const base=parseLocalInvoiceTextBase(text,barcodes,ocrConfidence);
+ if(!table||!Array.isArray(table.rows)||!table.rows.length)return base;
+ /* ruled table read cell by cell: items come straight from the columns, header fields from the text outside the table */
+ const lines=String(text||'').split(/\r?\n/).map(normalizeOCRLine).filter(Boolean);
+ const scale=/تومان|ومان|toman|irt/i.test(text)?10:1;
+ const tl=lines.find(l=>/(?:مبلغ (?:قابل\s+)?(?:پرداخت|برداخت)|قابل\s+(?:پرداخت|برداخت)|خالص\s+پرداخت|amount due)/i.test(l))||lines.find(l=>/(?:جمع کل|grand total|total)/i.test(l))||lines.find(l=>/جمع|مجموع/.test(l)&&ocrNumbers(l).length);
+ const total=tl?((ocrNumbers(tl).at(-1)||0)*scale):0;
+ let date=base.date;if(!date){const m=lines.join(' ').match(/(?<!\d)(1[34]\d{2}[\/-]\d{1,2}[\/-]\d{1,2})(?!\d)/);if(m)date=m[1]}
+ const colors=(db.colors||[]).slice().sort((a,b)=>String(b).length-String(a).length);
+ const clean=x=>String(x||'').replace(/[\u200e\u200f\u202a-\u202e]/g,' ').replace(/\s+/g,' ').trim();
+ const items=table.rows.map(r=>{const raw=clean(r.name),sm=raw.match(/(?:سایز|size)\s*(1[7-9]|[2-4][0-9])\b/i),name=raw.replace(/(?:سایز|size)\s*(?:1[7-9]|[2-4][0-9])\b/i,' ').replace(/\s+/g,' ').trim()||String(r.sku||''),color=colors.find(c=>smartNormalize(name).includes(smartNormalize(c)))||null,c=r.ok?Math.min(1,.62+(table.conf||0)*.3):.45;
+  return {line:0,name,modelCode:null,barcode:null,sku:clean(r.sku).replace(/\s/g,'')||null,color,size:sm?sm[1]:null,qty:r.qty,unitPrice:Math.round(r.unitPrice*scale),discount:0,lineTotal:Math.round(r.lineTotal*scale),confidence:c,notes:r.ok?'استخراج محلی از جدول':'نیازمند بررسی کاربر'}});
+ const subtotal=items.reduce((a,x)=>a+x.lineTotal,0),discount=base.discount||0,tax=base.tax||0,warnings=[];
+ if(!/تومان|ومان|toman|ریال|irt|irr/i.test(text))warnings.push('واحد پول فاکتور از تصویر با اطمینان کافی مشخص نشد؛ مبالغ به‌صورت ریال در نظر گرفته شدند.');
+ if(!total)warnings.push('جمع کل فاکتور از تصویر با اطمینان کافی پیدا نشد.');
+ if(items.some(x=>x.confidence<.6))warnings.push('برخی ردیف‌ها با ضرب «تعداد × قیمت = مجموع» نمی‌خوانند؛ قبل از ثبت بررسی کنید.');
+ if(barcodes&&barcodes.length)warnings.push('بارکدهای تصویر نیز شناسایی شدند: '+barcodes.join('، '));
+ const out={documentType:'purchase_invoice',confidence:Math.min(1,Math.max(0,(table.conf||.5)*.5+.25+(total?.15:0)+(table.consistency||0)*.1)),supplier:base.supplier,invoiceNumber:base.invoiceNumber,date,currency:'IRR',subtotal,discount,tax,shipping:0,total:total||(subtotal-discount+tax),items,warnings,rawText:text};
+ return normalizeInvoiceResult(out)
+}
+
+async function analyzeInvoiceImage(file){const local=await analyzeInvoiceLocally(file);if(local.text.trim()||local.table){const parsed=parseLocalInvoiceText(local.text,local.barcodes,local.confidence,local.table);if(parsed){db.aiHistory.push({id:uid(),date:now(),role:'assistant',type:'invoice-local',text:JSON.stringify(parsed)});saveDB(true);showInvoiceResult(parsed,null);return parsed}}const found=local.barcodes.length?' بارکدهای پیدا شده: '+local.barcodes.join('، '):'';throw Error('OCR محلی متن کافی از تصویر استخراج نکرد. تصویر را صاف، روشن و با وضوح بالاتر بگیرید.'+found)}
 
 
 async function askAI(q,attachment=null){if(!q&&!attachment)return;addBubble(q||'تحلیل فایل','user');if(attachment&&attachment.startsWith('data:image/')){try{return await analyzeInvoiceImage(await dataURLToFile(attachment,'invoice.jpg'))}catch(e){addBubble(e.message,'ai');return e.message}}const local=localAI(q||'فایل دریافت شد');addBubble(local,'ai');return local}
