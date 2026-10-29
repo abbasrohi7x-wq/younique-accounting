@@ -620,8 +620,19 @@ async function extractInvoiceTable(worker,imgs){
  const rdc=async(r,c,psm,wl,sc)=>{await worker.setParameters({tessedit_pageseg_mode:psm,tessedit_char_whitelist:wl||'',preserve_interword_spaces:'1',user_defined_dpi:'300'});const res=await worker.recognize(cell(r,c,sc)),d=res?.data||{};return {t:normalizeOCRLine(String(d.text||'')).trim(),c:Number(d.confidence||0)}};
  const rd=async(r,c,psm,wl)=>{const o=await rdc(r,c,psm,wl,src);if(o.t){confSum+=o.c/100;confN++}return o.t};
  /* free-text cells (product names, often two lines): retry on the binarised image when the first read looks weak, keep the best */
- const rdText=async(r,c)=>{const cands=[];for(const [sc,psm] of [[src,'7'],[src,'6'],[adp,'7'],[adp,'6'],[src,'4']]){const o=await rdc(r,c,psm,'',sc);if(o.t)cands.push(o);if(cands.length>=2&&Math.max(...cands.map(x=>x.c))>=86)break}if(!cands.length)return '';const mx=Math.max(...cands.map(o=>o.t.length)),f=o=>o.c*Math.sqrt(Math.min(1,o.t.length/mx));cands.sort((a,b)=>f(b)-f(a));confSum+=cands[0].c/100;confN++;return cands[0].t};
- const hasFa=t=>/[\u0600-\u06FF]/.test(String(t).replace(/[۰-۹٠-٩]/g,''));
+ const rdTextOld=async(r,c)=>{const cands=[];for(const [sc,psm] of [[src,'7'],[src,'6'],[adp,'7'],[adp,'6'],[src,'4']]){const o=await rdc(r,c,psm,'',sc);if(o.t)cands.push(o);if(cands.length>=2&&Math.max(...cands.map(x=>x.c))>=86)break}if(!cands.length)return '';const mx=Math.max(...cands.map(o=>o.t.length)),f=o=>o.c*Math.sqrt(Math.min(1,o.t.length/mx));cands.sort((a,b)=>f(b)-f(a));confSum+=cands[0].c/100;confN++;return cands[0].t};
+ const lineSplit=(r,c,sc)=>{const cv=cell(r,c,sc),w=cv.width,h=cv.height,id=cv.getContext('2d').getImageData(0,0,w,h).data,prof=new Array(h).fill(0);
+for(let y=0;y<h;y++){let n=0;for(let x=0;x<w;x++){if(id[(y*w+x)*4]<140)n++}prof[y]=n}
+const runs=[];let cur=null;for(let y=0;y<h;y++){if(prof[y]>=2){if(!cur)cur=[y,y];else cur[1]=y}else if(cur){runs.push(cur);cur=null}}if(cur)runs.push(cur);
+const L=[];for(const rn of runs){const p=L[L.length-1];if(p&&rn[0]-p[1]<7)p[1]=rn[1];else L.push([rn[0],rn[1]])}
+return{cv:cv,lines:L.filter(function(l){return l[1]-l[0]>=10})}};
+const rdLine=async(cv,l)=>{let best={t:'',c:0};for(const k of [1,1.6]){const pad=12,hh=l[1]-l[0]+1,c2=document.createElement('canvas');c2.width=Math.round(cv.width*k)+pad*2;c2.height=Math.round(hh*k)+pad*2;const x=c2.getContext('2d');x.fillStyle='#fff';x.fillRect(0,0,c2.width,c2.height);x.imageSmoothingQuality='high';x.drawImage(cv,0,l[0],cv.width,hh,pad,pad,Math.round(cv.width*k),Math.round(hh*k));
+await worker.setParameters({tessedit_pageseg_mode:'7',tessedit_char_whitelist:'',preserve_interword_spaces:'1',user_defined_dpi:'300'});
+const res=await worker.recognize(c2),d=res&&res.data||{},t=normalizeOCRLine(String(d.text||'')).replace(/\s+/g,' ').trim(),cf=Number(d.confidence||0);
+if(t&&cf>best.c)best={t:t,c:cf};if(best.t&&best.c>=60)break}return best};
+const rdText=async(r,c)=>{try{const sp=lineSplit(r,c,src);if(sp.lines.length&&sp.lines.length<=4){const parts=[];let cs=0;for(const l of sp.lines){const o=await rdLine(sp.cv,l);if(o.t){parts.push(o.t);cs+=o.c}}
+if(parts.length){confSum+=cs/parts.length/100;confN++;return parts.join(' ')}}}catch(e){console.warn('line OCR',e)}return rdTextOld(r,c)};
+const hasFa=t=>/[\u0600-\u06FF]/.test(String(t).replace(/[۰-۹٠-٩]/g,''));
  /* header row? (cells with words rather than numbers) */
  let faCells=0;for(let c=0;c<cols.length;c++){const t=await rd(0,c,'7','');if(hasFa(t)||/^(?:sku|qty|price|total|code|item|name)$/i.test(t.replace(/\s/g,'')))faCells++}
  const first=faCells>=Math.ceil(cols.length/2)?1:0;if(rows.length-first<1)return null;
@@ -1206,7 +1217,7 @@ function syncSig(v){let h=2166136261;const s=syncStable(v);for(let i=0;i<s.lengt
 function syncDeviceId(){proInit();db.pro.sync=db.pro.sync||{};if(!db.pro.sync.deviceId)db.pro.sync.deviceId='DEV-'+uid().replace(/[^a-zA-Z0-9]/g,'').slice(-16);return db.pro.sync.deviceId}
 function syncEnvelope(){const data=syncCloneData();const env={app:'unique-pro-sync',schema:38,version:window.YOUNIQUE_VERSION||'1.0',deviceId:syncDeviceId(),createdAt:now(),data};env.checksum=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});return env}
 function syncIsArrayRecord(v){return Array.isArray(v)&&v.every(x=>x&&typeof x==='object'&&typeof x.id==='string')}
-function syncMerge(base,incoming){const result=JSON.parse(JSON.stringify(base||{})),conflicts=[],added=[],same=[];for(const key of Object.keys(incoming||{})){if(key==='pro')continue;const iv=incoming[key],bv=result[key];if(syncIsArrayRecord(iv)){if(!Array.isArray(result[key]))result[key]=[];const map=new Map(result[key].map(x=>[x.id,x]));for(const item of iv){const old=map.get(item.id);if(!old){result[key].push(item);map.set(item.id,item);added.push({table:key,id:item.id});continue}if(syncSig(old)===syncSig(item)){same.push({table:key,id:item.id});continue}const oldTime=Date.parse(old.updatedAt||old.modifiedAt||old.date||'')||0,newTime=Date.parse(item.updatedAt||item.modifiedAt||item.date||'')||0;if(newTime>oldTime&&newTime>0){const idx=result[key].findIndex(x=>x.id===item.id);if(idx>=0)result[key][idx]=item;conflicts.push({table:key,id:item.id,resolution:'incoming-newer'});}else{conflicts.push({table:key,id:item.id,resolution:'local-kept'});}}}else if(iv&&typeof iv==='object'&&bv&&typeof bv==='object'&&!Array.isArray(iv)){const sub=syncMerge(bv,iv);result[key]=sub.data;conflicts.push(...sub.conflicts.map(c=>({...c,table:key+'.'+c.table})));}else if(bv===undefined||bv===null||bv===''){result[key]=iv;added.push({table:key,id:null})}else if(syncSig(bv)!==syncSig(iv)){conflicts.push({table:key,id:null,resolution:'local-kept'})}}return{data:result,added,conflicts,same}}
+function syncMerge(base,incoming){const result=JSON.parse(JSON.stringify(base||{})),conflicts=[],added=[],same=[];for(const key of Object.keys(incoming||{})){if(key==='pro'||key==='__proto__'||key==='constructor'||key==='prototype')continue;const iv=incoming[key],bv=result[key];if(syncIsArrayRecord(iv)){if(!Array.isArray(result[key]))result[key]=[];const map=new Map(result[key].map(x=>[x.id,x]));for(const item of iv){const old=map.get(item.id);if(!old){result[key].push(item);map.set(item.id,item);added.push({table:key,id:item.id});continue}if(syncSig(old)===syncSig(item)){same.push({table:key,id:item.id});continue}const oldTime=Date.parse(old.updatedAt||old.modifiedAt||old.date||'')||0,newTime=Date.parse(item.updatedAt||item.modifiedAt||item.date||'')||0;if(newTime>oldTime&&newTime>0){const idx=result[key].findIndex(x=>x.id===item.id);if(idx>=0)result[key][idx]=item;conflicts.push({table:key,id:item.id,resolution:'incoming-newer'});}else{conflicts.push({table:key,id:item.id,resolution:'local-kept'});}}}else if(iv&&typeof iv==='object'&&bv&&typeof bv==='object'&&!Array.isArray(iv)){const sub=syncMerge(bv,iv);result[key]=sub.data;conflicts.push(...sub.conflicts.map(c=>({...c,table:key+'.'+c.table})));}else if(bv===undefined||bv===null||bv===''){result[key]=iv;added.push({table:key,id:null})}else if(syncSig(bv)!==syncSig(iv)){conflicts.push({table:key,id:null,resolution:'local-kept'})}}return{data:result,added,conflicts,same}}
 function proSync(){proInit();syncDeviceId();const s=db.pro.sync||{};$('#content').innerHTML=pageHead('انتقال و همگام‌سازی','ادغام امن اطلاعات بین دستگاه‌ها بدون سرور',`<button class="btn primary" id="sx">ساخت بسته انتقال</button><button class="btn" id="si">دریافت و ادغام بسته</button><input id="sif" type="file" accept="application/json,.json,.unique" hidden>`)+`<div class="grid"><div class="card"><b>فروش</b><div>${db.sales.length}</div></div><div class="card"><b>خرید</b><div>${db.purchases.length}</div></div><div class="card"><b>کالا</b><div>${db.products.length}</div></div><div class="card"><b>دستگاه</b><div style="direction:ltr;font-size:11px">${esc(syncDeviceId())}</div></div></div><div class="card section"><h3>روش همگام‌سازی</h3><p class="muted">همگام‌سازی فقط فایل‌محور است. رکوردهای جدید اضافه می‌شوند؛ رکوردهای هم‌شناسه و متفاوت با احتیاط بررسی می‌شوند و در حالت عادی داده محلی حفظ می‌شود. هیچ اطلاعاتی به سرور ارسال نمی‌شود.</p><div id="syncResult"></div></div><div class="card section"><small>آخرین انتقال: ${s.lastSync?esc(s.lastSync):'هنوز انجام نشده'} · آخرین ادغام: ${s.importedAt?esc(s.importedAt):'هنوز انجام نشده'}</small></div>`;
 $('#sx').onclick=()=>{try{const env=syncEnvelope();db.pro.sync.lastSync=env.createdAt;saveDB(true);download('unique-pro-transfer-'+today()+'.unique.json',JSON.stringify(env,null,2));toast('بسته انتقال ساخته شد؛ فایل را به دستگاه دیگر منتقل کنید')}catch(e){toast('ساخت بسته ناموفق بود: '+e.message,true)}};
 $('#si').onclick=()=>$('#sif').click();
@@ -4943,6 +4954,40 @@ html body :focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 70%,tr
 <script>/* FIX: register the service worker (it was shipped but never registered) */if('serviceWorker' in navigator&&location.protocol!=='file:'){window.addEventListener('load',function(){navigator.serviceWorker.register('./service-worker.js').catch(function(){})})}</script><script id="yq-guard-v1">(function(){'use strict';
 function guard(name,sel){var f=window[name];if(typeof f!=='function'||f.__yqGuard)return;var g=function(){if(!document.querySelector(sel))return;return f.apply(this,arguments)};g.__yqGuard=true;window[name]=g}
 try{guard('saveSale','#saleCustomer');guard('savePurchase','#purSup')}catch(_){}
+try{(function(){var P=window.parseLocalInvoiceText;
+if(typeof P==='function'&&!P.__yqCust){var p2=function(text){var r=P.apply(this,arguments);try{var t=String(text||'').replace(/[\u200e\u200f\u202a-\u202e]/g,''),d=(typeof normalizeOCRDigits==='function')?normalizeOCRDigits(t):t,
+ph=(d.match(/0?9\d{9}/)||[''])[0],nm=(t.match(/\u0645\u0634\u062a\u0631\u06cc\s*[:：]?\s*([^\n\r:]{2,40})/)||[])[1]||'';
+nm=nm.replace(/[0-9\u06f0-\u06f9\-_|]+/g,' ').replace(/\s+/g,' ').trim();window.__yqInvoiceCustomer={name:nm,phone:ph.length===10?'0'+ph:ph}}catch(_){window.__yqInvoiceCustomer=null}return r};p2.__yqCust=true;window.parseLocalInvoiceText=p2}
+var S=window.showInvoiceResult;if(typeof S!=='function'||S.__yqOrd)return;
+var s2=function(x,img){var r=S.apply(this,arguments);try{var n=normalizeInvoiceResult(x),cust=window.__yqInvoiceCustomer||{},box=document.querySelector('.modal-actions');
+if(box&&!document.querySelector('#invoiceAsOrder')){var b=document.createElement('button');b.className='btn';b.id='invoiceAsOrder';b.type='button';b.textContent='ثبت به‌عنوان سفارش مشتری';
+var ref=document.querySelector('#invoiceConfirm');box.insertBefore(b,ref||null);
+b.onclick=function(){var made=0,skipped=[];try{var rows=n.items;if(!rows.some(function(i){return i.matchedVariantId}))return toast('هیچ ردیفی با کالای انبار تطبیق نیافت؛ ابتدا کالاها را تعریف کنید',true);
+var cid='';var ph=cust.phone||'',nm=(cust.name||'').trim();
+atomic('سفارش از فاکتور OCR',function(){
+db.orders=db.orders||[];db.reservations=db.reservations||[];db.customers=db.customers||[];
+var c=ph?(db.customers||[]).find(function(x){return String(x.phone||'').replace(/\D/g,'').slice(-10)===ph.replace(/\D/g,'').slice(-10)}):null;
+if(!c&&nm)c=(db.customers||[]).find(function(x){return x.name===nm});
+if(!c&&(nm||ph)){c={id:uid(),name:nm||ph,phone:ph,note:'ایجادشده از فاکتور OCR'};db.customers.push(c)}
+cid=c?c.id:'';
+rows.forEach(function(i,k){var q=Math.max(0,Number(num((document.querySelector('[data-inv-qty="'+k+'"]')||{}).value))),pr=Math.max(0,Number(num((document.querySelector('[data-inv-price="'+k+'"]')||{}).value)));
+var v=i.matchedVariantId?variantBy(i.matchedVariantId):null;
+if(!v){skipped.push((k+1)+': بدون کالا');return}
+if(!Number.isInteger(q)||q<=0||pr<=0){skipped.push((k+1)+': تعداد/قیمت نامعتبر');return}
+if(num(v.stock)<q){skipped.push((k+1)+': موجودی کم');return}
+var o={id:uid(),number:'ORD-'+String(db.orders.length+1).padStart(6,'0'),date:now(),customerId:cid,variantId:v.id,qty:q,unitPrice:pr,total:q*pr,deposit:0,status:'pending',source:'ocr'};
+db.orders.push(o);db.reservations.push({id:uid(),orderId:o.id,variantId:v.id,qty:q,status:'reserved',date:now()});made++});
+if(!made)throw Error('هیچ سفارشی ساخته نشد: '+skipped.join('، '))});
+closeModal();window.page='customerOrders';render();toast(made+' سفارش ساخته شد'+(skipped.length?' | ردشده: '+skipped.join('، '):''))}catch(e){toast(e.message||'خطا',true)}}}}catch(e){console.warn('invoice order',e)}return r};
+s2.__yqOrd=true;window.showInvoiceResult=s2})()}catch(_){}
+try{(function(){var R=window.render;if(typeof R!=='function'||R.__yqRole)return;
+var BLOCK={cashier:['purchase','purchases','purchaseOrders','suppliers','finance','checks','loans','accounting','tax','reports','automation','documents','users','settings','backup'],
+accountant:['users','settings','backup','automation']};
+function role(){var us=db.users||[];if(!us.length)return'owner';var u=us.find(function(x){return x.id===db.currentUserId})||us[0];return String(u&&u.role||'cashier')}
+var h=function(){var b=BLOCK[role()];
+if(b&&b.indexOf(window.page)>-1){var p=window.page;window.page='dashboard';var r=R.apply(this,arguments);try{toast('این بخش برای نقش «'+role()+'» مجاز نیست',true)}catch(_){}return r}
+return R.apply(this,arguments)};
+h.__yqRole=true;window.render=h})()}catch(_){}
 try{(function(){var o=window.parseLocalInvoiceText;if(typeof o!=='function'||o.__yq)return;
 var BASE='کتونی مردانه زنانه بچگانه اسکیچرز نیوبالانس نایکی آدیداس پوما ریبوک جردن ترویس ساقدار ساکانی سایز ویژه سفید مشکی نقره سرمه ای طوسی قهوه ناب پرو مکس کد میانه قرمز آبی سبز زرد صورتی بنفش نارنجی کرمی خاکستری طلایی کفش صندل نیم‌بوت بوت اسپرت'.split(' ');
 function lev(a,b){var m=a.length,n=b.length,d=[],i,j;for(i=0;i<=m;i++){d[i]=[i]}for(j=1;j<=n;j++)d[0][j]=j;for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
@@ -4952,8 +4997,8 @@ function fixWord(w,V){if(!FA.test(w)||V.has(w))return w;
 for(var k=1;k<w.length;k++){var a=w.slice(0,k),b=w.slice(k);if(V.has(a)&&V.has(b)&&a.length>=2&&b.length>=2)return a+' '+b}
 var best=null,bd=9,lim=w.length>=6?2:w.length>=4?1:0;if(lim){V.forEach(function(c){if(Math.abs(c.length-w.length)>lim)return;var d=lev(w,c);if(d<bd){bd=d;best=c}});if(best&&bd<=lim)return best}
 return w}
-function fixName(n){var V=vocab();n=String(n||'').replace(/[\u200e\u200f\u202a-\u202e]/g,'').replace(/([\u0600-\u06FF])(?=[A-Za-z0-9])/g,'$1 ').replace(/([A-Za-z0-9])(?=[\u0600-\u06FF])/g,'$1 ');
-var out=[];n.split(/\s+/).forEach(function(t){if(!t)return;if(/^[a-z]{1,4}$/.test(t))return;if(t.length===1&&FA.test(t)&&t!=='و')return;out.push(fixWord(t,V))});
+function fixName(n){var V=vocab();n=String(n||'').replace(/[\u200e\u200f\u202a-\u202e]/g,'').replace(/\u200c/g,' ').replace(/([\u0600-\u06FF])(?=[A-Za-z0-9])/g,'$1 ').replace(/([A-Za-z0-9])(?=[\u0600-\u06FF])/g,'$1 ');
+var out=[];n.split(/\s+/).forEach(function(t){if(!t)return;if(/^[:;,.\-_|\/\\]+$/.test(t))return;if(/^[a-z]{1,4}$/.test(t))return;if(t.length===1&&FA.test(t)&&t!=='و')return;out.push(fixWord(t,V))});
 return out.join(' ').replace(/\s+/g,' ').trim()}
 var CONF={O:'0',I:'1',l:'1',S:'5',B:'8',Z:'2'};
 function fixSku(list){var shape=function(x){return x.replace(/[0-9]/g,'9').replace(/[A-Za-z]/g,'A')},cnt={};list.forEach(function(x){var k=shape(x);cnt[k]=(cnt[k]||0)+1});
