@@ -1,4 +1,4 @@
-const CACHE='unique-pro-1.0.13';
+const CACHE='unique-pro-1.0.14';
 const CORE=['./','./index.html','./manifest.json','./icon-192.png','./icon-512.png','./logo.svg'];
 const OPTIONAL_LOCAL_OCR=[
   './vendor/tesseract/tesseract.min.js',
