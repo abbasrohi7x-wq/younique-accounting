@@ -1,0 +1,54 @@
+{
+ "about": "Third-party OCR engine files shipped unmodified (except gzip of language data). Verify with: sha256sum <file>.",
+ "components": {
+  "tesseract.js (wrapper: tesseract.min.js, worker.min.js)": "5.1.1 — Apache-2.0",
+  "tesseract.js-core (WebAssembly engine)": "7.0.0 — Apache-2.0",
+  "language data": "eng, fas traineddata (gzip, byte-identical after decompression to the supplied files)"
+ },
+ "decompressed_sha256": {
+  "lang/eng.traineddata.gz": "daa0c97d651c19fba3b25e81317cd697e9908c8208090c94c3905381c23fc047",
+  "lang/fas.traineddata.gz": "0b3b15e9ccbe435825187fa7a2bb227f555dd37cf85126c6cf459ca4a69b929f"
+ },
+ "files": [
+  {
+   "file": "LICENSE-tesseract.js-core.txt",
+   "bytes": 11358,
+   "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08"
+  },
+  {
+   "file": "LICENSE-tesseract.js.md",
+   "bytes": 11357,
+   "sha256": "b40930bbcf80744c86c46a12bc9da056641d722716c378f5659b9e555ef833e1"
+  },
+  {
+   "file": "core/tesseract-core-lstm.wasm.js",
+   "bytes": 3896484,
+   "sha256": "eef5f8b2f8e20e150680b20adaec4a60babafee3adbe8a94583c81fee46e8680"
+  },
+  {
+   "file": "core/tesseract-core-simd-lstm.wasm.js",
+   "bytes": 3899472,
+   "sha256": "c58b46a4c796c0b8afccf77591d5b875b6896b45d402bbce8caa6f5362447b38"
+  },
+  {
+   "file": "lang/eng.traineddata.gz",
+   "bytes": 10863619,
+   "sha256": "aa3636aa5a1c5ce041277f48dbff5de56459a6fb506688055879a5c00a5aa2e0"
+  },
+  {
+   "file": "lang/fas.traineddata.gz",
+   "bytes": 430555,
+   "sha256": "92d15da028a8c985a20a1566c1701f0dab43c00b1aaeb8d674a4b7f558b0307f"
+  },
+  {
+   "file": "tesseract.min.js",
+   "bytes": 66695,
+   "sha256": "e109ca7f12b1ee5427f639625c155763a731d803e41b3dcc69a25e0d24c2a7e9"
+  },
+  {
+   "file": "worker.min.js",
+   "bytes": 123722,
+   "sha256": "bf2defa76921417cc228d5902d1a3df34139c372e01fb4bbdf292078ac027168"
+  }
+ ]
+}
