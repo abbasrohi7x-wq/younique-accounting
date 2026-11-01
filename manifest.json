@@ -1,0 +1,28 @@
+{
+  "id": "./",
+  "name": "Unique Pro — یونیک",
+  "short_name": "یونیک",
+  "description": "مدیریت فروشگاه، انبار و حسابداری به‌صورت کاملاً آفلاین، با هوش مصنوعی و OCR محلی",
+  "lang": "fa",
+  "dir": "rtl",
+  "start_url": "./index.html?source=pwa",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "any",
+  "background_color": "#0b1020",
+  "theme_color": "#5b5ce2",
+  "categories": ["business", "finance", "productivity"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "logo.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ],
+  "shortcuts": [
+    { "name": "فروش جدید", "short_name": "فروش", "url": "./index.html?go=sale&source=shortcut", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "خرید جدید", "short_name": "خرید", "url": "./index.html?go=purchase&source=shortcut", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "کالاها و موجودی", "short_name": "کالاها", "url": "./index.html?go=products&source=shortcut", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] },
+    { "name": "دستیار هوشمند", "short_name": "دستیار", "url": "./index.html?go=ai&source=shortcut", "icons": [{ "src": "icon-192.png", "sizes": "192x192" }] }
+  ]
+}
