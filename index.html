@@ -145,6 +145,13 @@ input:hover,select:hover,textarea:hover{border-color:#c5cbd8}
 [data-theme=dark] .yq-k{background:#141a30;border-color:#232b47}
 @media print{#yqDock{display:none!important}#content{padding-bottom:0!important}}
 </style>
+<style id="yq-atelier-v4-css">
+.yq-th{width:34px;height:34px;border-radius:10px;object-fit:cover;vertical-align:middle;margin-inline-end:8px;border:1px solid var(--line)}
+button[data-add-sale] .yq-th{width:26px;height:26px;border-radius:8px;margin-inline-end:6px}
+.yq-tr{cursor:pointer}.yq-tr:hover td{background:#5b5ce212}
+.yq-refbtn{border:0;background:#5b5ce212;color:var(--primary);border-radius:10px;padding:3px 9px;font:inherit;cursor:pointer}.yq-refbtn:hover{background:#5b5ce222}
+.yq-hint{display:block;margin:6px 2px;color:var(--muted);font-size:12px}
+</style>
 </head><body>
 <div id="app"><div class="boot"><div class="boot-logo"><svg class="umark" aria-label="Unique" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 135" fill="none" stroke="#fff" stroke-linejoin="round"><path d="M5.5 22Q5.5 5.5 22 5.5H78Q94.5 5.5 94.5 22V76C94.5 108 75 129.5 50 129.5C25 129.5 5.5 108 5.5 76Z" stroke-width="11"/><path d="M18 33Q18 20.5 30.5 20.5H69.5Q82 20.5 82 33V76C82 100 68 115.5 50 115.5C32 115.5 18 100 18 76Z" stroke-width="3.4" opacity=".95"/><path d="M32 46V74A18 18 0 0 0 68 74V46" stroke-width="12" stroke-linecap="butt"/></svg></div><strong>یونیک</strong><span>در حال آماده‌سازی برنامه</span></div></div>
 <script>'use strict';
@@ -5472,5 +5479,23 @@ T=[['accounting','دفاتر'],['finance','مالی'],['tax','مالیات'],['r
 var w=document.createElement('div');w.className='yq-at';w.id='yqAt';w.innerHTML='<div class="yq-card"><h3>دفاتر — وضعیت حسابداری</h3><div class="yq-led">'+R.map(function(r){return '<div class="r"><span>'+r[0]+'</span><b>'+r[1]+'</b></div>'}).join('')+'</div></div><div class="yq-tiles">'+T.map(function(t){return '<button class="yq-t" data-yq-go="'+t[0]+'"><b></b>'+t[1]+'</button>'}).join('')+'</div>';
 if(old)old.replaceWith(w);else c.insertBefore(w,c.firstChild);Array.prototype.forEach.call(c.children,function(k){if(k!==w)k.style.display='none'});w.querySelectorAll('[data-yq-go]').forEach(function(b){b.onclick=function(){window.page=b.getAttribute('data-yq-go');render()}})}
 var Rn=window.render;if(typeof Rn==='function'&&!Rn.__yq3){var h=function(){var r=Rn.apply(this,arguments);try{var c=document.querySelector('#content');if(c&&window.page==='dashboard'){var ro=role();if(ro==='accountant')acct(c);else if(ro==='owner'||ro==='manager')owner(c)}if(c){var q1=c.querySelector('#yqMx');if(q1)q1.onclick=function(){window.yqMatrix('view')};var q2=c.querySelector('#yqMxSale');if(q2)q2.onclick=function(){window.yqMatrix('sale')};var q3=c.querySelector('#yqMxCnt');if(q3)q3.onclick=function(){window.yqMatrix('count')}}icons()}catch(e){console.warn('atelier v3',e)}return r};h.__yq3=true;window.render=h}
+})();</script>
+<script id="yq-atelier-v4">(function(){'use strict';
+var PH={},ready=false,busy=false;
+function loadPh(cb){if(ready)return cb();try{var q=indexedDB.open('yq_photos',1);q.onupgradeneeded=function(){q.result.createObjectStore('p',{keyPath:'id'})};q.onsuccess=function(){var g=q.result.transaction('p').objectStore('p').getAll();g.onsuccess=function(){(g.result||[]).forEach(function(r){PH[r.id]=r.url});ready=true;cb()};g.onerror=function(){ready=true;cb()}};q.onerror=function(){ready=true;cb()}}catch(e){ready=true;cb()}}
+function img(u){var i=document.createElement('img');i.className='yq-th';i.src=u;i.alt='';return i}
+function thumbs(){var c=document.querySelector('#content');if(!c)return;
+if(window.page==='products')c.querySelectorAll('tr.variant-row').forEach(function(tr){var p=tr.querySelector('input.pv'),td=tr.children[1];if(!p||!td||td.querySelector('.yq-th'))return;var u=PH[p.getAttribute('data-model')];if(u)td.insertBefore(img(u),td.firstChild)});
+if(window.page==='sale')c.querySelectorAll('button[data-add-sale]').forEach(function(b){if(b.querySelector('.yq-th'))return;var v=variantBy(b.getAttribute('data-add-sale')),u=v&&PH[v.modelId];if(u)b.insertBefore(img(u),b.firstChild)});if(window.page==='warehouse'){var mp={};(db.variants||[]).forEach(function(v){try{mp[variantName(v)]=v.modelId}catch(_){}});c.querySelectorAll('table tbody tr').forEach(function(tr){var td=tr.children[0];if(!td||td.querySelector('.yq-th'))return;var u=PH[mp[td.textContent.trim()]];if(u)td.insertBefore(img(u),td.firstChild)})}}
+function acct(){var c=document.querySelector('#content');if(!c||window.page!=='accounting')return;
+c.querySelectorAll('table').forEach(function(t){var th=[].map.call(t.querySelectorAll('thead th'),function(x){return x.textContent.trim()});
+if(th[0]==='حساب'&&th.indexOf('مانده')>-1&&!t.__yq4){t.__yq4=1;var inv={};Object.keys(ACCOUNT_NAMES).forEach(function(k){inv[ACCOUNT_NAMES[k]]=k});
+t.querySelectorAll('tbody tr').forEach(function(tr){var nm=(tr.children[0].querySelector('b')||tr.children[0]).textContent.trim(),k=inv[nm];if(!k)return;tr.classList.add('yq-tr');tr.title='ردیابی تا سند';tr.onclick=function(){yqTrace([k],nm)}});
+var h=document.createElement('small');h.className='yq-hint';h.textContent='برای ردیابی تا سند و فاکتور، روی هر حساب بزنید.';t.parentNode.insertBefore(h,t)}
+var ri=th.indexOf('مرجع');if(ri>-1&&th.indexOf('شرح')>-1&&!t.__yq4){t.__yq4=1;t.querySelectorAll('tbody tr').forEach(function(tr){var td=tr.children[ri];if(!td||td.querySelector('.yq-refbtn'))return;var ref=td.textContent.trim();if(!ref)return;td.innerHTML='';var b=document.createElement('button');b.type='button';b.className='yq-refbtn';b.textContent=ref;b.onclick=function(){yqDocView(ref)};td.appendChild(b)})}})}
+function run(){if(busy)return;busy=true;requestAnimationFrame(function(){busy=false;loadPh(function(){try{thumbs();acct()}catch(e){console.warn('atelier v4',e)}})})}
+var PP=window.yqPhotoPut;if(typeof PP==='function'&&!PP.__yq4){var pp=function(id,u){PH[id]=u;return PP.apply(this,arguments)};pp.__yq4=1;window.yqPhotoPut=pp}
+var R=window.render;if(typeof R==='function'&&!R.__yq4){var h=function(){var r=R.apply(this,arguments);run();return r};h.__yq4=1;window.render=h}
+try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true})}catch(_){}
 })();</script>
 </body></html>
