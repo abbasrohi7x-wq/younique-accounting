@@ -14,12 +14,13 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = '1.1.3';
+const VERSION = '1.3.0';
 const SHELL_CACHE = 'unique-shell-' + VERSION;
 const OCR_CACHE = 'unique-ocr-v1';
 
 const SHELL_FILES = [
-  './', './index.html', './manifest.json', './logo.svg', './icon-192.png', './icon-512.png'
+  './', './index.html', './manifest.json', './logo.svg', './icon-192.png', './icon-512.png',
+  './src/engine/core.js', './src/engine/fin.js', './src/sync/supabase-sync.js'
 ];
 /* Everything OCR needs. core/tesseract-core-lstm is the no-SIMD fallback. */
 const OCR_FILES = [

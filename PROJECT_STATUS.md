@@ -1,27 +1,21 @@
 # PROJECT_STATUS — UNIQUE
 
-## تست رگرسیون
-| حالت | نتیجه |
-|------|--------|
-| Flag خاموش (مسیر اصلی) | **13/13 PASS** |
-| Flag روشن (موتور استخراج‌شده) | **13/13 PASS** |
+## انتشار
+- https://younique-accounting.vercel.app/
+- موتور جدید: پیش‌فرض فعال
+- صفحه موتور: سیستم → موتور برنامه
 
-## موتور v1.3 + Fin v0.4
-- createSale / createPurchase + VAT
-- FIFO و میانگین موزون
-- warehouseStocks همگام
-- void با reverseJournal
-- cashMove صندوق روی فروش نقدی
-- Bridge opt-in در index.html
+## همگام‌سازی چند دستگاه
+- فایل‌محور: سیستم → همگام‌سازی (مثل قبل)
+- **Supabase Free**: همان صفحه، بخش ابر
+- اسکیما: `supabase/schema.sql`
+- کلاینت: `src/sync/supabase-sync.js`
+- راهنما: `docs/SUPABASE_SYNC.md`
 
-## GitHub Pages
-آماده — README و workflow موجود است.
+## تست موتور
+13/13 PASS (موتور جدید و قدیمی)
 
-## سرور رایگان
-1. GitHub Pages برای PWA
-2. بعداً Supabase Free برای sync
-
-## فعال‌سازی موتور جدید
-```js
-localStorage.setItem('yq_use_new_engine','1'); location.reload();
-```
+## نسخه
+- SW 1.3.0
+- Engine core 1.3 / Fin 0.4
+- Supabase sync 1.0

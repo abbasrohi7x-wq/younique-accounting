@@ -20,14 +20,16 @@ npx serve .
 
 ## انتشار روی GitHub Pages (رایگان)
 
-1. این مخزن را باز کنید.
-2. در GitHub: **Settings → Pages → Deploy from a branch → `main` → `/ (root)`**.
-3. بعد از یک دقیقه آدرس شبیه این فعال می‌شود:
-   `https://abbasrohi7x-wq.github.io/younique-accounting/`
+1. یک مخزن GitHub بسازید (مثلاً `unique-pro`).
+2. محتویات همین پوشه را در **ریشه** مخزن بگذارید (نه داخل زیرپوشه).
+3. در GitHub: **Settings → Pages → Deploy from a branch → `main` → `/ (root)`**.
+4. بعد از یک دقیقه آدرس شبیه این فعال می‌شود:
+   `https://<username>.github.io/<repo>/`
 
 ### نکات Pages
 - Service Worker و مسیرهای نسبی (`src/engine/...`) روی Pages درست کار می‌کنند.
 - برای به‌روزرسانی: push جدید روی `main`.
+- اگر نام مخزن با یوزرنیم یکی باشد، سایت روی `https://<username>.github.io/` هم در دسترس است.
 
 ## موتور استخراج‌شده (آزمایشی)
 
@@ -42,8 +44,6 @@ location.reload();
 ```
 
 فایل‌ها: `src/engine/core.js`, `src/engine/fin.js`
-
-تست رگرسیون: **13/13** هم با مسیر اصلی و هم با موتور جدید.
 
 ## تست
 
@@ -61,12 +61,13 @@ python3 tests/run_tests.py
 | سرویس | طرح رایگان | کاربرد |
 |--------|------------|--------|
 | **GitHub Pages** | بله | میزبانی همین PWA |
-| **Supabase** | بله | PostgreSQL + Auth + API |
+| **Supabase** | بله (پروژه pause بعد از بی‌فعالیتی) | PostgreSQL + Auth + API |
 | **Cloudflare Pages** | بله | جایگزین Pages |
+| **Railway / Render** | محدود | اگر Node API جدا بخواهید |
 
 پیشنهاد مسیر:
 1. الان → GitHub Pages (استاتیک)
-2. بعد → Supabase فقط برای sync اختیاری
+2. بعد → Supabase فقط برای sync اختیاری (طبق تصمیم پروژه)
 
 ## ساختار
 
@@ -77,3 +78,11 @@ src/engine/         # موتور خالص (فاز ۱)
 tests/              # آزمون رگرسیون
 vendor/tesseract/   # OCR آفلاین
 ```
+
+## مجوز
+
+استفاده شخصی / تجاری مطابق تصمیم مالک پروژه.
+
+
+## موتور
+پیش‌فرض فعال. صفحه: سیستم → موتور برنامه.

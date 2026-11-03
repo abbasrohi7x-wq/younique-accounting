@@ -406,7 +406,7 @@ function reconcileAccounts(){
 window.reconcileAccounts=reconcileAccounts;
 
 'use strict';
-const groups=[['مدیریت',[['dashboard','داشبورد','▦'],['sale','فروش جدید','＋'],['sales','فروش‌ها','◉'],['returns','برگشت‌ها','↩'],['purchase','خرید جدید','↙'],['purchases','خریدها','▰']]],['کالا و انبار',[['products','کالاها و تنوع‌ها','▣'],['inventory','انبار','▤'],['warehouse','انبار حرفه‌ای','⌂'],['barcode','بارکد و چاپ','▥']]],['اشخاص',[['customers','مشتریان','♙'],['suppliers','تأمین‌کنندگان','♧'],['crm','باشگاه مشتریان','★']]],['مالی و حسابداری',[['finance','خزانه و صندوق','﷼'],['checks','مدیریت چک‌ها','▤'],['loans','وام و قرض','↔'],['reports','گزارش‌ها','◒'],['accounting','مرکز حسابداری','▤'],['automation','اتوماسیون','⚡']]],['هوشمند',[['ai','دستیار هوشمند','✦'],['documents','اسناد و OCR','▧'],['insights','تحلیل هوشمند','✧']]],['سیستم',[['backup','پشتیبان‌گیری','↥'],['security','کاربران و امنیت','♙'],['tax','مالیات و اتصال','▤'],['sync','همگام‌سازی','↻'],['settings','تنظیمات','⚙']]]];
+const groups=[['مدیریت',[['dashboard','داشبورد','▦'],['sale','فروش جدید','＋'],['sales','فروش‌ها','◉'],['returns','برگشت‌ها','↩'],['purchase','خرید جدید','↙'],['purchases','خریدها','▰']]],['کالا و انبار',[['products','کالاها و تنوع‌ها','▣'],['inventory','انبار','▤'],['warehouse','انبار حرفه‌ای','⌂'],['barcode','بارکد و چاپ','▥']]],['اشخاص',[['customers','مشتریان','♙'],['suppliers','تأمین‌کنندگان','♧'],['crm','باشگاه مشتریان','★']]],['مالی و حسابداری',[['finance','خزانه و صندوق','﷼'],['checks','مدیریت چک‌ها','▤'],['loans','وام و قرض','↔'],['reports','گزارش‌ها','◒'],['accounting','مرکز حسابداری','▤'],['automation','اتوماسیون','⚡']]],['هوشمند',[['ai','دستیار هوشمند','✦'],['documents','اسناد و OCR','▧'],['insights','تحلیل هوشمند','✧']]],['سیستم',[['backup','پشتیبان‌گیری','↥'],['security','کاربران و امنیت','♙'],['tax','مالیات و اتصال','▤'],['sync','همگام‌سازی','↻'],['engine','موتور برنامه','⚙'],['settings','تنظیمات','⚙']]]];
 const pageNames=Object.fromEntries(groups.flatMap(g=>g[1]).map(x=>[x[0],x[1]]));
 function shell(page){return `<div class="app"><div class="sidebar-backdrop" id="sidebarBackdrop"></div><aside class="sidebar" id="sidebar"><button class="sidebar-close" id="sidebarClose" aria-label="بستن">×</button><div class="brand"><div class="logo"><svg class="umark" aria-label="Unique" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 135" fill="none" stroke="#fff" stroke-linejoin="round"><path d="M5.5 22Q5.5 5.5 22 5.5H78Q94.5 5.5 94.5 22V76C94.5 108 75 129.5 50 129.5C25 129.5 5.5 108 5.5 76Z" stroke-width="11"/><path d="M18 33Q18 20.5 30.5 20.5H69.5Q82 20.5 82 33V76C82 100 68 115.5 50 115.5C32 115.5 18 100 18 76Z" stroke-width="3.4" opacity=".95"/><path d="M32 46V74A18 18 0 0 0 68 74V46" stroke-width="12" stroke-linecap="butt"/></svg></div><div><b>Unique Pro</b><small>نسخه ${window.YOUNIQUE_VERSION||''} · مدیریت هوشمند فروشگاه</small></div></div><div class="storebox"><b>${esc(db.settings.shopName)}</b><small>● ذخیره محلی · خودکار</small><div class="statusline"><span class="statusdot"></span><span id="saveStatus">همگام‌سازی محلی</span></div></div><nav class="nav">${groups.map(g=>`<div class="nav-group"><div class="nav-title">${g[0]}</div>${g[1].map(x=>`<button class="${page===x[0]?'active':''}" data-page="${x[0]}"><span class="ico">${x[2]}</span>${x[1]}</button>`).join('')}</div>`).join('')}</nav><div class="side-ai" data-page="ai"><b>✦ دستیار یونیک</b><small>تحلیل، پیشنهاد و اتوماسیون</small></div></aside><main class="main"><header class="topbar"><div><button class="iconbtn" id="menu">☰</button> <span class="crumb">یونیک / <b>${pageNames[page]||'داشبورد'}</b></span></div><div class="top-actions"><button class="searchbtn" id="global">⌕ <span>جستجوی سریع · Ctrl K</span></button><button class="iconbtn" id="quickAI" title="دستیار">✦</button><button class="iconbtn avatar">ی</button></div></header><section class="content" id="content"></section></main><nav class="mobile-nav">${[['dashboard','⌂','خانه'],['sale','＋','فروش'],['products','▣','کالا'],['ai','✦','AI'],['finance','﷼','مالی']].map(x=>`<button class="${page===x[0]?'active':''}" data-page="${x[0]}"><b>${x[1]}</b>${x[2]}</button>`).join('')}</nav><div id="modal" class="modal"></div><div id="toast" class="toast"></div></div>`}
 function pageHead(title,desc,actions=''){return `<div class="pagehead"><div><h1>${title}</h1><p>${desc}</p></div><div class="actions">${actions}</div></div>`}
@@ -453,7 +453,7 @@ function parseSizeListAI(v){
   for(const part of s.split(/\s*(?:و|،|,|\/)\s*/)){const m=part.match(/^(\d+)\s*-\s*(\d+)$/);if(m){let a=+m[1],b=+m[2];if(a>b)[a,b]=[b,a];if(b-a>31)throw Error('بازه سایز بیش از حد بزرگ است');for(let n=a;n<=b;n++)out.push(String(n));}else if(/^\d+$/.test(part))out.push(part)}
   return [...new Set(out)];
 }
-function render(){try{document.getElementById('app').innerHTML=shell(page);bindShell();const fn={dashboard,sale,sales,returns,purchase,purchases,products,inventory,barcode,automation,customers:()=>people('customer'),suppliers:()=>people('supplier'),finance,reports,ai,documents,backup,settings,accounting:window.proAccounting,warehouse:window.proWarehouse,crm:window.proCRM,insights:window.proInsights,security:window.proSecurity,tax:window.proTax,sync:window.proSync,checks:window.proChecks,loans:window.proLoans}[page]||dashboard;fn();bindShell()}catch(e){errorScreen(e)}}
+function render(){try{document.getElementById('app').innerHTML=shell(page);bindShell();const fn={dashboard,sale,sales,returns,purchase,purchases,products,inventory,barcode,automation,customers:()=>people('customer'),suppliers:()=>people('supplier'),finance,reports,ai,documents,backup,settings,accounting:window.proAccounting,warehouse:window.proWarehouse,crm:window.proCRM,insights:window.proInsights,security:window.proSecurity,tax:window.proTax,sync:window.proSync,checks:window.proChecks,loans:window.proLoans,engine:engineAdmin}[page]||dashboard;fn();bindShell()}catch(e){errorScreen(e)}}
 function closeSidebar(){const s=$('#sidebar'),b=$('#sidebarBackdrop');s?.classList.remove('open');b?.classList.remove('show')}
 function bindShell(){$$('[data-page]').forEach(b=>b.onclick=()=>{page=b.dataset.page;selected.clear();closeSidebar();render()});if($('#menu')) $('#menu').onclick=()=>{const s=$('#sidebar'),b=$('#sidebarBackdrop');s?.classList.toggle('open');b?.classList.toggle('show')};$('#sidebarClose')?.addEventListener('click',closeSidebar);$('#sidebarBackdrop')?.addEventListener('click',closeSidebar);if($('#global')) $('#global').onclick=globalSearch;if($('#quickAI')) $('#quickAI').onclick=()=>{page='ai';closeSidebar();render()};if($('.avatar')) $('.avatar').onclick=()=>{page='security';closeSidebar();render()};if($('#saveStatus')){$('#saveStatus').textContent='ذخیره محلی آماده';setTimeout(()=>{if($('#saveStatus'))$('#saveStatus').textContent='ذخیره خودکار فعال'},600)}}
 function dashboard(){const t=totals(),days=[];for(let i=6;i>=0;i--){const d=new Date(Date.now()-i*86400000).toISOString().slice(0,10);days.push({d,v:db.sales.filter(s=>s.status==='confirmed'&&s.date.slice(0,10)===d).reduce((a,s)=>a+num(s.total),0)})}const mx=Math.max(1,...days.map(x=>x.v)),low=activeVariants().filter(v=>num(v.stock)<=num(v.minStock)).slice(0,6);$('#content').innerHTML=pageHead('داشبورد','کنترل سریع فروشگاه، فروش، موجودی و وضعیت مالی',`<button class="btn primary" data-page="sale">＋ فروش جدید</button><button class="btn" data-page="products">مدیریت کالا</button>`)+`<div class="grid">${metricCard('فروش امروز',money(t.revenue),`${t.invoices} فاکتور`)}${metricCard('سود ناخالص',money(t.profit),'برآورد امروز','green')}${metricCard('تعداد موجودی',t.stock.toLocaleString('fa-IR'),'واحد کالا')}${metricCard('هشدار موجودی',t.low,'نیازمند بررسی','amber')}</div><div class="grid2 section"><div class="card"><div class="section-title"><h3>روند فروش ۷ روز اخیر</h3><span class="pill">روزانه</span></div><div class="chart">${days.map(x=>`<div class="bar"><i style="height:${Math.max(4,x.v/mx*100)}%"></i><span>${x.d.slice(5)}</span></div>`).join('')}</div></div><div class="card"><div class="section-title"><h3>دسترسی سریع</h3></div><div class="quick"><button data-page="sale"><b>فروش جدید</b><small>ثبت سریع فاکتور</small></button><button data-page="purchase"><b>خرید جدید</b><small>ورود موجودی</small></button><button data-page="inventory"><b>انبار</b><small>کنترل موجودی</small></button><button data-page="finance"><b>صندوق</b><small>دریافت و پرداخت</small></button></div></div></div><div class="grid2 section"><div class="card"><div class="section-title"><h3>هشدارهای موجودی</h3><button class="btn" data-page="inventory">مشاهده همه</button></div><div class="rowlist">${low.map(v=>`<div class="listrow"><span class="rank">!</span><div class="grow"><b>${esc(variantName(v))}</b><small>حداقل ${v.minStock} · موجودی ${v.stock}</small></div><em>${money(v.sellPrice)}</em></div>`).join('')||'<div class="empty">هشداری وجود ندارد.</div>'}</div></div><div class="card"><div class="section-title"><h3>وضعیت مالی</h3></div><div class="rowlist"><div class="listrow"><div class="grow"><b>مطالبات مشتریان</b><small>مانده دریافتنی</small></div><em>${money(t.receivable)}</em></div><div class="listrow"><div class="grow"><b>بدهی تأمین‌کنندگان</b><small>مانده پرداختنی</small></div><em>${money(t.payable)}</em></div></div></div></div>`;bindShell()}
@@ -894,6 +894,48 @@ async function transcribeAudioFile(){throw Error('تبدیل فایل صوتی �
 function audioFallback(file){addBubble('در حال تبدیل صدا به متن…','ai');transcribeAudioFile(file).then(text=>{if(!text)return addBubble('متنی از صدا دریافت نشد.','ai');addBubble(text,'user');askAI(text)}).catch(e=>toast(e.message,true))}
 function documents(){const docs=db.documents||[];$('#content').innerHTML=pageHead('اسناد و OCR','مرکز اسناد برای دریافت فاکتور، تصویر و PDF و آماده‌سازی تحلیل هوشمند')+`<div class="card"><div id="drop" class="uploadzone"><div style="font-size:44px">▧</div><h2>فایل را اینجا رها کنید</h2><p class="muted">تصویر، PDF یا سند فروش را انتخاب کنید.</p><label class="btn primary">انتخاب فایل<input id="docInput" type="file" accept="image/*,.pdf,.csv,.txt" hidden></label><div id="docInfo"></div></div></div><div class="card section"><div class="section-title"><h3>اسناد اخیر</h3></div><div class="rowlist">${docs.slice().reverse().slice(0,20).map(d=>`<div class="listrow"><span class="rank">▧</span><div class="grow"><b>${esc(d.name)}</b><small>${d.type} · ${d.date.slice(0,16).replace('T',' ')}</small></div><em>${Math.round(d.size/1024)} KB</em></div>`).join('')||'<div class="empty">سندی ثبت نشده است.</div>'}</div></div>`;const handle=f=>{if(!f)return;db.documents.push({id:uid(),date:now(),name:f.name,type:f.type||'file',size:f.size});saveDB();$('#docInfo').innerHTML=`<p class="pill green">${esc(f.name)} دریافت شد و در سوابق محلی ثبت شد.</p>`;documents()};$('#docInput').onchange=e=>handle(e.target.files?.[0]);const d=$('#drop');d.ondragover=e=>{e.preventDefault();d.classList.add('drag')};d.ondragleave=()=>d.classList.remove('drag');d.ondrop=e=>{e.preventDefault();d.classList.remove('drag');handle(e.dataTransfer.files?.[0])}}
 function backup(){$('#content').innerHTML=pageHead('پشتیبان‌گیری','نسخه کامل اطلاعات را ذخیره یا بازیابی کنید')+`<div class="card"><div class="successbox"><b>ذخیره محلی فعال است.</b><p class="muted">برای امنیت، نسخه JSON را مرتباً در فضای دیگری نگهداری کنید. پیش از بازیابی، ساختار فایل بررسی می‌شود تا فایل ناقص جایگزین اطلاعات فعلی نشود.</p></div><div class="actions"><button class="btn primary" id="exp">دانلود پشتیبان کامل</button><label class="btn">بازیابی پشتیبان<input id="imp" type="file" accept="application/json,.json" hidden></label></div></div>`;$('#exp').onclick=()=>{try{download(`unique-pro-backup-${today()}.json`,exportData());toast('پشتیبان ساخته شد')}catch(err){toast(err.message||'ساخت پشتیبان ناموفق بود',true)}};$('#imp').onchange=async e=>{const file=e.target.files?.[0];if(!file)return;try{const x=JSON.parse(await file.text());if(x&&x.enc)throw Error('این پشتیبان رمزگذاری شده است؛ از «بازیابی پشتیبان رمزگذاری‌شده» استفاده کنید.');if(x?.app&&x.app!=='younique')throw Error('این فایل متعلق به برنامه یونیک نیست.');const data=x?.data||x,summary=validateBackupData(data);const detail=`کالا: ${summary.products} · تنوع: ${summary.variants} · فروش: ${summary.sales} · خرید: ${summary.purchases} · مشتری: ${summary.customers} · تأمین‌کننده: ${summary.suppliers}`;if(!confirm('اطلاعات فعلی به‌طور کامل جایگزین می‌شود.\n\n'+detail+'\n\nابتدا مطمئن شوید از اطلاعات فعلی پشتیبان دارید. ادامه می‌دهید؟'))return;replaceDB(data);render();toast('بازیابی انجام شد')}catch(err){toast(err?.message||'فایل پشتیبان معتبر نیست؛ اطلاعات فعلی تغییر نکرد.',true)}finally{e.target.value=''}}}
+
+function engineAdmin(){
+  const st=(window.__YQ_ENGINE_BRIDGE&&window.__YQ_ENGINE_BRIDGE.status)?window.__YQ_ENGINE_BRIDGE.status():{};
+  const on=!!st.enabled;
+  const role=(db.users&&db.users[0]&&db.users[0].role)||'owner';
+  const canEdit=role==='owner'||role==='admin';
+  $('#content').innerHTML=pageHead('موتور برنامه','مدیریت موتور حسابداری و وضعیت ماژول‌ها')+`
+  <div class="grid2">
+    <div class="card">
+      <div class="section-title"><h3>وضعیت فعلی</h3>
+        <span class="pill ${on?'green':'amber'}">${on?'موتور جدید فعال':'مسیر قدیمی'}</span>
+      </div>
+      <table><tbody>
+        <tr><td>Bridge</td><td>${esc(st.bridgeVersion||'—')}</td></tr>
+        <tr><td>موتور (core)</td><td>${st.hasEngine?esc(st.engineVersion||'آماده'):'بارگذاری نشده'}</td></tr>
+        <tr><td>مالی (fin)</td><td>${st.hasFin?esc(st.finVersion||'آماده'):'بارگذاری نشده'}</td></tr>
+        <tr><td>اتصال saveSale</td><td>${st.wired?'متصل':'قطع'}</td></tr>
+        <tr><td>پیش‌فرض</td><td>موتور جدید</td></tr>
+      </tbody></table>
+      <p class="muted" style="margin-top:12px;font-size:12px">موتور جدید منطق فروش، خرید، انبار، VAT، FIFO و ابطال را جدا از رابط کاربری اجرا می‌کند. مسیر قدیمی فقط برای بازگشت اضطراری نگه داشته شده است.</p>
+    </div>
+    <div class="card">
+      <div class="section-title"><h3>کنترل</h3></div>
+      ${canEdit?`
+      <div class="actions" style="margin-bottom:14px">
+        <button class="btn primary" id="engOn">فعال‌سازی موتور جدید</button>
+        <button class="btn danger" id="engOff">بازگشت به مسیر قدیمی</button>
+      </div>
+      <p class="muted" style="font-size:12px">پس از تغییر، صفحه یک‌بار بارگذاری مجدد می‌شود.</p>
+      `:`<p class="muted">فقط مالک/مدیر می‌تواند موتور را عوض کند.</p>`}
+      <div class="section-title" style="margin-top:18px"><h3>عیب‌یابی سریع</h3></div>
+      <button class="btn" id="engCopy">کپی وضعیت در کلیپ‌بورد</button>
+      <pre id="engDump" style="margin-top:12px;font-size:11px;background:#f8fafc;padding:12px;border-radius:12px;overflow:auto;max-height:180px"></pre>
+    </div>
+  </div>`;
+  const dump=()=>{try{$('#engDump').textContent=JSON.stringify({status:st,flag:localStorage.getItem('yq_use_new_engine'),useNew:window.__USE_NEW_ENGINE,wired:window.__YQ_WIRED},null,2)}catch(e){$('#engDump').textContent=String(e)}};
+  dump();
+  if($('#engOn'))$('#engOn').onclick=()=>{try{localStorage.setItem('yq_use_new_engine','1')}catch(e){}location.reload()};
+  if($('#engOff'))$('#engOff').onclick=()=>{if(!confirm('بازگشت به مسیر قدیمی؟ فقط در صورت بروز مشکل استفاده کنید.'))return;try{localStorage.setItem('yq_use_new_engine','0')}catch(e){}location.reload()};
+  if($('#engCopy'))$('#engCopy').onclick=async()=>{try{await navigator.clipboard.writeText($('#engDump').textContent);toast('کپی شد')}catch(e){toast('کپی ممکن نشد',true)}};
+}
+
 function settings(){$('#content').innerHTML=pageHead('تنظیمات','تنظیمات فروشگاه، بارکد و هوش مصنوعی')+`<div class="card"><form id="sf" class="formgrid"><label class="field span2">نام فروشگاه<input id="shop" value="${esc(db.settings.shopName)}"></label><label class="field">واحد پول<input id="cur" value="ریال" readonly><small class="muted">واحد مالی نرم‌افزار به‌صورت استاندارد ریال است.</small></label><label class="field">مالیات %<input id="tax" type="number" value="${db.settings.tax}"></label><label class="field">پیشوند بارکد<input id="pre" value="${esc(db.settings.barcodePrefix)}"></label><label class="field">تعداد رقم<input id="dig" type="number" min="4" max="12" value="${db.settings.barcodeDigits}"></label><label class="field span2">پاورقی فاکتور<input id="foot" value="${esc(db.settings.invoiceFooter)}"></label><div class="modal-actions span4"><button class="btn primary">ذخیره تنظیمات</button><button type="button" class="btn" id="openAI">تنظیم AI</button></div></form></div>`;$('#sf').onsubmit=e=>{e.preventDefault();Object.assign(db.settings,{shopName:$('#shop').value.trim()||'فروشگاه یونیک',currency:'ریال',tax:Math.max(0,num($('#tax').value)),barcodePrefix:$('#pre').value.trim()||'200',barcodeDigits:Math.min(12,Math.max(4,Math.trunc(num($('#dig').value)||8))),invoiceFooter:$('#foot').value.trim()});saveDB();toast('تنظیمات ذخیره شد');render()};$('#openAI').onclick=aiSettings}
 
 function parseMoneyAI(s){return num(String(s||'').replace(/میلیون/g,'000000').replace(/هزار/g,'000').replace(/\s+/g,''))}
@@ -1336,11 +1378,58 @@ function syncDeviceId(){proInit();db.pro.sync=db.pro.sync||{};if(!db.pro.sync.de
 function syncEnvelope(){const data=syncCloneData();const env={app:'unique-pro-sync',schema:38,version:window.YOUNIQUE_VERSION||'1.0',deviceId:syncDeviceId(),createdAt:now(),data};env.checksum=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});return env}
 function syncIsArrayRecord(v){return Array.isArray(v)&&v.every(x=>x&&typeof x==='object'&&typeof x.id==='string')}
 function syncMerge(base,incoming){const result=JSON.parse(JSON.stringify(base||{})),conflicts=[],added=[],same=[];for(const key of Object.keys(incoming||{})){if(key==='pro'||key==='__proto__'||key==='constructor'||key==='prototype')continue;const iv=incoming[key],bv=result[key];if(syncIsArrayRecord(iv)){if(!Array.isArray(result[key]))result[key]=[];const map=new Map(result[key].map(x=>[x.id,x]));for(const item of iv){const old=map.get(item.id);if(!old){result[key].push(item);map.set(item.id,item);added.push({table:key,id:item.id});continue}if(syncSig(old)===syncSig(item)){same.push({table:key,id:item.id});continue}const oldTime=Date.parse(old.updatedAt||old.modifiedAt||old.date||'')||0,newTime=Date.parse(item.updatedAt||item.modifiedAt||item.date||'')||0;if(newTime>oldTime&&newTime>0){const idx=result[key].findIndex(x=>x.id===item.id);if(idx>=0)result[key][idx]=item;conflicts.push({table:key,id:item.id,resolution:'incoming-newer'});}else{conflicts.push({table:key,id:item.id,resolution:'local-kept'});}}}else if(iv&&typeof iv==='object'&&bv&&typeof bv==='object'&&!Array.isArray(iv)){const sub=syncMerge(bv,iv);result[key]=sub.data;conflicts.push(...sub.conflicts.map(c=>({...c,table:key+'.'+c.table})));}else if(bv===undefined||bv===null||bv===''){result[key]=iv;added.push({table:key,id:null})}else if(syncSig(bv)!==syncSig(iv)){conflicts.push({table:key,id:null,resolution:'local-kept'})}}return{data:result,added,conflicts,same}}
-function proSync(){proInit();syncDeviceId();const s=db.pro.sync||{};$('#content').innerHTML=pageHead('انتقال و همگام‌سازی','ادغام امن اطلاعات بین دستگاه‌ها بدون سرور',`<button class="btn primary" id="sx">ساخت بسته انتقال</button><button class="btn" id="si">دریافت و ادغام بسته</button><input id="sif" type="file" accept="application/json,.json,.unique" hidden>`)+`<div class="grid"><div class="card"><b>فروش</b><div>${db.sales.length}</div></div><div class="card"><b>خرید</b><div>${db.purchases.length}</div></div><div class="card"><b>کالا</b><div>${db.products.length}</div></div><div class="card"><b>دستگاه</b><div style="direction:ltr;font-size:11px">${esc(syncDeviceId())}</div></div></div><div class="card section"><h3>روش همگام‌سازی</h3><p class="muted">همگام‌سازی فقط فایل‌محور است. رکوردهای جدید اضافه می‌شوند؛ رکوردهای هم‌شناسه و متفاوت با احتیاط بررسی می‌شوند و در حالت عادی داده محلی حفظ می‌شود. هیچ اطلاعاتی به سرور ارسال نمی‌شود.</p><div id="syncResult"></div></div><div class="card section"><small>آخرین انتقال: ${s.lastSync?esc(s.lastSync):'هنوز انجام نشده'} · آخرین ادغام: ${s.importedAt?esc(s.importedAt):'هنوز انجام نشده'}</small></div>`;
-$('#sx').onclick=()=>{try{const env=syncEnvelope();db.pro.sync.lastSync=env.createdAt;saveDB(true);download('unique-pro-transfer-'+today()+'.unique.json',JSON.stringify(env,null,2));toast('بسته انتقال ساخته شد؛ فایل را به دستگاه دیگر منتقل کنید')}catch(e){toast('ساخت بسته ناموفق بود: '+e.message,true)}};
+function proSync(){proInit();syncDeviceId();
+const s=db.pro.sync||{};
+const sb=(db.settings&&db.settings.supabase)||{};
+const ensureSbScript=()=>new Promise((resolve,reject)=>{
+  if(window.UniqueSupabaseSync)return resolve(window.UniqueSupabaseSync);
+  const el=document.createElement('script');
+  el.src='src/sync/supabase-sync.js';
+  el.onload=()=>window.UniqueSupabaseSync?resolve(window.UniqueSupabaseSync):reject(new Error('ماژول Supabase لود نشد'));
+  el.onerror=()=>reject(new Error('بارگذاری supabase-sync.js ناموفق'));
+  document.head.appendChild(el);
+});
+$('#content').innerHTML=pageHead('انتقال و همگام‌سازی','فایل محلی یا ابر رایگان (Supabase)',`<button class="btn primary" id="sx">ساخت بسته انتقال</button><button class="btn" id="si">دریافت و ادغام بسته</button><input id="sif" type="file" accept="application/json,.json,.unique" hidden>`)+
+`<div class="grid"><div class="card"><b>فروش</b><div>${db.sales.length}</div></div><div class="card"><b>خرید</b><div>${db.purchases.length}</div></div><div class="card"><b>کالا</b><div>${db.products.length}</div></div><div class="card"><b>دستگاه</b><div style="direction:ltr;font-size:11px">${esc(syncDeviceId())}</div></div></div>
+<div class="card section"><h3>همگام‌سازی فایل‌محور (آفلاین)</h3>
+<p class="muted">بدون سرور: بسته را بسازید و روی دستگاه دیگر ادغام کنید. رکوردهای جدید اضافه می‌شوند؛ در تعارض داده محلی حفظ می‌شود.</p>
+<div id="syncResult"></div>
+<small>آخرین انتقال: ${s.lastSync?esc(s.lastSync):'—'} · آخرین ادغام: ${s.importedAt?esc(s.importedAt):'—'}</small>
+</div>
+<div class="card section"><h3>ابر رایگان — Supabase</h3>
+<p class="muted">چند دستگاه با یک فضای کاری مشترک. اول در پنل Supabase فایل <code>supabase/schema.sql</code> را اجرا کنید. راهنما: docs/SUPABASE_SYNC.md</p>
+<form id="sbForm" class="formgrid">
+<label class="field span2">Project URL<input id="sbUrl" dir="ltr" placeholder="https://xxxx.supabase.co" value="${esc(sb.url||'')}"></label>
+<label class="field span2">Anon key<input id="sbKey" dir="ltr" placeholder="eyJhbGciOi..." value="${esc(sb.anonKey||'')}"></label>
+<label class="field span2">Workspace ID<input id="sbWs" dir="ltr" value="${esc(sb.workspaceId||'')}"></label>
+<label class="field span2">Access key<input id="sbAccess" dir="ltr" value="${esc(sb.accessKey||'')}"></label>
+</form>
+<div class="actions" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+<button class="btn" type="button" id="sbSave">ذخیره تنظیمات</button>
+<button class="btn" type="button" id="sbNew">ساخت فضای کاری جدید</button>
+<button class="btn primary" type="button" id="sbPush">ارسال به ابر</button>
+<button class="btn success" type="button" id="sbPull">دریافت از ابر و ادغام</button>
+</div>
+<div id="sbResult" style="margin-top:12px"></div>
+<small>revision محلی: ${sb.lastRevision!=null?esc(String(sb.lastRevision)):'0'} · آخرین ارسال: ${sb.lastPushAt?esc(sb.lastPushAt):'—'} · آخرین دریافت: ${sb.lastPullAt?esc(sb.lastPullAt):'—'}</small>
+</div>`;
+
+$('#sx').onclick=()=>{try{const env=syncEnvelope();db.pro.sync.lastSync=env.createdAt;saveDB(true);download('unique-pro-transfer-'+today()+'.unique.json',JSON.stringify(env,null,2));toast('بسته انتقال ساخته شد')}catch(e){toast('ساخت بسته ناموفق بود: '+e.message,true)}};
 $('#si').onclick=()=>$('#sif').click();
-$('#sif').onchange=async e=>{const f=e.target.files?.[0];if(!f)return;const box=$('#syncResult');try{const raw=await f.text(),env=JSON.parse(raw);if(env.app!=='unique-pro-sync')throw Error('این فایل بسته انتقال یونیک نیست');if(!env.data||typeof env.data!=='object')throw Error('داده‌های بسته معتبر نیستند');const expected=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});if(env.checksum&&env.checksum!==expected)throw Error('صحت فایل تأیید نشد؛ فایل احتمالاً ناقص یا دستکاری شده است');const merged=syncMerge(db,env.data);box.innerHTML='<div class="successbox">پیش‌نمایش ادغام آماده است: <b>'+fa(merged.added.length)+'</b> رکورد جدید، <b>'+fa(merged.conflicts.length)+'</b> مورد تعارض، <b>'+fa(merged.same.length)+'</b> رکورد بدون تغییر.</div><div class="modal-actions"><button class="btn" id="scancel">لغو</button><button class="btn primary" id="sapply">اعمال ادغام</button></div>';$('#scancel').onclick=()=>{box.innerHTML='';$('#sif').value=''};$('#sapply').onclick=()=>{try{atomic('ادغام بسته انتقال',()=>{const m=syncMerge(db,env.data);Object.keys(db).forEach(k=>{if(!(k in m.data)&&k!=='pro')delete db[k]});Object.keys(m.data).forEach(k=>{if(k!=='pro')db[k]=m.data[k]});db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};db.pro.sync.importedAt=now();db.pro.sync.lastSourceDevice=env.deviceId||'';db.pro.sync.lastConflictCount=m.conflicts.length;db.pro.sync.lastAddedCount=m.added.length;});saveDB(true);box.innerHTML='<div class="successbox">ادغام با موفقیت انجام شد. '+fa(merged.added.length)+' رکورد جدید اضافه شد و '+fa(merged.conflicts.length)+' تعارض حفظ شد.</div>';toast('همگام‌سازی انجام شد');render()}catch(err){toast('ادغام ناموفق بود: '+err.message,true)}}}catch(err){box.innerHTML='<div class="errorbox">'+esc(err.message||'فایل نامعتبر است')+'</div>';toast('فایل انتقال معتبر نیست',true)}finally{e.target.value=''}};
+$('#sif').onchange=async e=>{const f=e.target.files?.[0];if(!f)return;const box=$('#syncResult');try{const raw=await f.text(),env=JSON.parse(raw);if(env.app!=='unique-pro-sync')throw Error('این فایل بسته انتقال یونیک نیست');if(!env.data||typeof env.data!=='object')throw Error('داده‌های بسته معتبر نیستند');const expected=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});if(env.checksum&&env.checksum!==expected)throw Error('صحت فایل تأیید نشد');const merged=syncMerge(db,env.data);box.innerHTML='<div class="successbox">پیش‌نمایش: <b>'+fa(merged.added.length)+'</b> جدید، <b>'+fa(merged.conflicts.length)+'</b> تعارض، <b>'+fa(merged.same.length)+'</b> بدون تغییر.</div><div class="modal-actions"><button class="btn" id="scancel">لغو</button><button class="btn primary" id="sapply">اعمال ادغام</button></div>';$('#scancel').onclick=()=>{box.innerHTML=''};$('#sapply').onclick=()=>{try{Object.keys(merged.db).forEach(k=>{if(k!=='pro')db[k]=merged.db[k]});db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};db.pro.sync.importedAt=now();saveDB(true);invalidate();box.innerHTML='<div class="successbox">ادغام اعمال شد.</div>';toast('ادغام انجام شد');render()}catch(err){toast(err.message,true)}}}catch(err){box.innerHTML='<div class="errorbox">'+esc(err.message||'فایل نامعتبر')+'</div>';toast('فایل انتقال معتبر نیست',true)}finally{e.target.value=''}};
+
+const readSbForm=()=>({url:$('#sbUrl').value.trim(),anonKey:$('#sbKey').value.trim(),workspaceId:$('#sbWs').value.trim(),accessKey:$('#sbAccess').value.trim()});
+$('#sbSave').onclick=()=>{const c=readSbForm();db.settings=db.settings||{};db.settings.supabase=Object.assign({},db.settings.supabase||{},c,{enabled:!!(c.url&&c.anonKey)});saveDB(true);toast('تنظیمات ابر ذخیره شد')};
+$('#sbNew').onclick=async()=>{try{const API=await ensureSbScript();const c=readSbForm();const ws=API.randomId();const key=API.randomKey();$('#sbWs').value=ws;$('#sbAccess').value=key;db.settings=db.settings||{};db.settings.supabase=Object.assign({},db.settings.supabase||{},c,{workspaceId:ws,accessKey:key,enabled:true,lastRevision:0});saveDB(true);$('#sbResult').innerHTML='<div class="successbox">فضای کاری ساخته شد. همین Workspace ID و Access key را در دستگاه‌های دیگر وارد کنید.</div>';toast('فضای کاری جدید آماده است')}catch(e){toast(e.message,true)}};
+$('#sbPush').onclick=async()=>{const box=$('#sbResult');box.innerHTML='<div class="muted">در حال ارسال…</div>';try{const API=await ensureSbScript();const c=Object.assign(API.cfgFrom(db),readSbForm());if(!c.url||!c.anonKey||!c.workspaceId||!c.accessKey)throw Error('همه فیلدهای ابر را پر کنید');const env=syncEnvelope();const r=await API.push(c,env,{deviceId:env.deviceId,checksum:env.checksum});API.saveCfg(db,{url:c.url,anonKey:c.anonKey,workspaceId:c.workspaceId,accessKey:c.accessKey,enabled:true,lastRevision:r.revision,lastPushAt:now()});saveDB(true);box.innerHTML='<div class="successbox">ارسال شد · revision '+fa(r.revision)+'</div>';toast('به ابر ارسال شد')}catch(e){box.innerHTML='<div class="errorbox">'+esc(e.message||'خطا')+'</div>';toast(e.message||'ارسال ناموفق',true)}};
+$('#sbPull').onclick=async()=>{const box=$('#sbResult');box.innerHTML='<div class="muted">در حال دریافت…</div>';try{const API=await ensureSbScript();const c=Object.assign(API.cfgFrom(db),readSbForm());if(!c.url||!c.anonKey||!c.workspaceId||!c.accessKey)throw Error('همه فیلدهای ابر را پر کنید');const got=await API.pull(c);if(got.empty){box.innerHTML='<div class="errorbox">هنوز اسنپ‌شاتی روی ابر نیست. اول از دستگاه دیگر ارسال کنید.</div>';return}
+const env=got.row.payload;if(!env||env.app!=='unique-pro-sync'||!env.data)throw Error('اسنپ‌شات ابر معتبر نیست');const merged=syncMerge(db,env.data);
+box.innerHTML='<div class="successbox">پیش‌نمایش ابر: <b>'+fa(merged.added.length)+'</b> جدید · <b>'+fa(merged.conflicts.length)+'</b> تعارض · revision '+fa(got.row.revision)+'</div><div class="modal-actions"><button class="btn" id="sbCancel">لغو</button><button class="btn primary" id="sbApply">اعمال ادغام ابر</button></div>';
+$('#sbCancel').onclick=()=>{box.innerHTML=''};
+$('#sbApply').onclick=()=>{try{Object.keys(merged.db).forEach(k=>{if(k!=='pro')db[k]=merged.db[k]});API.saveCfg(db,{url:c.url,anonKey:c.anonKey,workspaceId:c.workspaceId,accessKey:c.accessKey,enabled:true,lastRevision:got.row.revision,lastPullAt:now()});db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};db.pro.sync.importedAt=now();saveDB(true);invalidate();toast('ادغام ابر انجام شد');render()}catch(err){toast(err.message,true)}};
+}catch(e){box.innerHTML='<div class="errorbox">'+esc(e.message||'خطا')+'</div>';toast(e.message||'دریافت ناموفق',true)}};
 }
+
 function proAccounting(){return window.accounting?window.accounting():void 0}window.proInit=proInit;window.proWarehouse=proWarehouse;window.proCRM=proCRM;window.proInsights=proInsights;window.proSecurity=proSecurity;window.proTax=proTax;window.proSync=proSync;window.proAccounting=proAccounting;window.whStock=whStock;window.setWhStock=setWhStock;proInit();})();
 
 /* Younique v38 — canonical runtime + integrity health check */
@@ -1468,7 +1557,7 @@ const ActionEngine=(()=>{
   const oldMap=window.__yPageMap||{};
   window.reports=reports39; window.reports39=reports39; window.youniqueDiagnostics=diagnostics39;
   // render() resolves lexical functions, so replace the function body with a small stable router.
-  render=function(){try{document.getElementById('app').innerHTML=shell(page);bindShell();const fn={dashboard,sale,sales,returns,purchase,purchases,products,inventory,barcode,automation,customers:()=>people('customer'),suppliers:()=>people('supplier'),finance:window.finance,reports:window.reports,ai,documents,backup,settings,accounting:window.proAccounting,warehouse:window.proWarehouse,crm:window.proCRM,insights:window.proInsights,security:window.proSecurity,tax:window.proTax,sync:window.proSync,checks:window.proChecks,loans:window.proLoans}[page]||dashboard;fn()}catch(e){errorScreen(e)}};
+  render=function(){try{document.getElementById('app').innerHTML=shell(page);bindShell();const fn={dashboard,sale,sales,returns,purchase,purchases,products,inventory,barcode,automation,customers:()=>people('customer'),suppliers:()=>people('supplier'),finance:window.finance,reports:window.reports,ai,documents,backup,settings,accounting:window.proAccounting,warehouse:window.proWarehouse,crm:window.proCRM,insights:window.proInsights,security:window.proSecurity,tax:window.proTax,sync:window.proSync,checks:window.proChecks,loans:window.proLoans,engine:engineAdmin}[page]||dashboard;fn()}catch(e){errorScreen(e)}};
   window.runYouniqueFullDiagnostics=diagnostics39;
   window.runYouniqueSelfTest=function(){const d=diagnostics39();return {ok:d.ok,issues:d.issues,version:window.YOUNIQUE_VERSION,features:['POS','خرید','برگشت','بهای تمام‌شده','حسابداری دوطرفه','خزانه و چک','انبار چندگانه','CRM و وفاداری','OCR محلی','پشتیبان‌گیری','گزارش مدیریتی','آمادگی مالیاتی','بسته همگام‌سازی']}};
 Object.assign(window,{pro39Init});
@@ -1498,7 +1587,7 @@ const manual=()=>Math.max(0,num($('#manualDisc41')?.value));const original=$('#s
   window.customerOrders=customerOrders;
   groups[0][1].push(['customerOrders','سفارش مشتری','◫']);
   pageNames['customerOrders']='سفارش مشتری';
-  const prevRender=render;render=function(){try{document.getElementById('app').innerHTML=shell(page);bindShell();const fn={dashboard,sale,sales,returns,purchase,purchases,purchaseOrders,customerOrders,products,inventory,barcode,automation,customers:()=>people('customer'),suppliers:()=>people('supplier'),finance:window.finance,reports:window.reports,treasury,masterReports,ai,documents,backup,settings,advancedSettings,promotions,accounting:window.proAccounting,warehouse:window.proWarehouse,crm:window.proCRM,insights:window.proInsights,security:window.proSecurity,users,tax:window.proTax,sync:window.proSync,checks:window.proChecks,loans:window.proLoans}[page]||dashboard;fn()}catch(e){errorScreen(e)}};
+  const prevRender=render;render=function(){try{document.getElementById('app').innerHTML=shell(page);bindShell();const fn={dashboard,sale,sales,returns,purchase,purchases,purchaseOrders,customerOrders,products,inventory,barcode,automation,customers:()=>people('customer'),suppliers:()=>people('supplier'),finance:window.finance,reports:window.reports,treasury,masterReports,ai,documents,backup,settings,advancedSettings,promotions,accounting:window.proAccounting,warehouse:window.proWarehouse,crm:window.proCRM,insights:window.proInsights,security:window.proSecurity,users,tax:window.proTax,sync:window.proSync,checks:window.proChecks,loans:window.proLoans,engine:engineAdmin}[page]||dashboard;fn()}catch(e){errorScreen(e)}};
 
   window.YOUNIQUE_VERSION='1.0';
   const ensure=()=>{
@@ -5518,19 +5607,31 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
 (function () {
   'use strict';
   var FLAG = 'yq_use_new_engine';
-  var on = false;
-  try { on = localStorage.getItem(FLAG) === '1'; } catch (e) {}
+  // Default ON: only off when explicitly set to '0'
+  var on = true;
+  try {
+    var v = localStorage.getItem(FLAG);
+    if (v === '0' || v === 'false') on = false;
+    else if (v === null || v === undefined) { try { localStorage.setItem(FLAG, '1'); } catch (e2) {} on = true; }
+    else on = true;
+  } catch (e) { on = true; }
   window.__YQ_ENGINE_BRIDGE = {
     version: '1.1.0',
     enabled: on,
     enable: function () { try { localStorage.setItem(FLAG, '1'); } catch (e) {} location.reload(); },
-    disable: function () { try { localStorage.removeItem(FLAG); } catch (e) {} location.reload(); },
+    disable: function () { try { localStorage.setItem(FLAG, '0'); } catch (e) {} location.reload(); },
     status: function () {
+      var eng = window.__YQ_ENGINE;
+      var fin = window.__YQ_FIN;
       return {
         enabled: !!window.__USE_NEW_ENGINE,
-        hasEngine: typeof window.__YQ_ENGINE !== 'undefined',
-        hasFin: typeof window.__YQ_FIN !== 'undefined',
-        wired: !!window.__YQ_WIRED
+        hasEngine: typeof eng !== 'undefined' && eng !== null,
+        hasFin: typeof fin !== 'undefined' && fin !== null,
+        wired: !!window.__YQ_WIRED,
+        engineVersion: eng && eng.version || null,
+        finVersion: fin && fin.version || null,
+        bridgeVersion: '1.2.0',
+        defaultOn: true
       };
     }
   };
