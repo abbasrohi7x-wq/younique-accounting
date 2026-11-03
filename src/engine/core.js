@@ -1,1 +1,355 @@
-PLACEHOLDER_CORE
+/**
+ * UNIQUE Engine Core v1.2
+ */
+'use strict';
+function createEngine(db, h) {
+  if (!db) throw new Error('db is required');
+  if (!h) throw new Error('helpers are required');
+  const {
+    uid, now, num,
+    roundMoney = (x) => Math.round(num(x) * 100) / 100,
+    cloneDB, normalize, saveDB = () => true, invalidate = () => {},
+    audit = () => {}, variantBy, variantName = (v) => v?.name || v?.id || '?',
+    nextNumber, paymentAccount = (m) => m === 'card' ? 'card' : m === 'bank' ? 'bank' : 'cash',
+  } = h;
+
+  function postJournal(ref, desc, lines, meta = {}) {
+    const clean = lines.map(x => ({ ...x, debit: roundMoney(x.debit || 0), credit: roundMoney(x.credit || 0) })).filter(x => x.debit || x.credit);
+    const debit = roundMoney(clean.reduce((a, x) => a + x.debit, 0));
+    const credit = roundMoney(clean.reduce((a, x) => a + x.credit, 0));
+    if (Math.abs(debit - credit) > 0.01) throw new Error('سند حسابداری نامتوازن است: ' + debit + ' ≠ ' + credit);
+    const entry = { id: uid(), date: now(), ref, description: desc, lines: clean, debit, credit, ...meta };
+    db.journal = db.journal || []; db.journal.push(entry); invalidate(); return entry;
+  }
+
+
+  function ensureCostingState() {
+    db.costing = db.costing || { method: 'weighted_average' };
+    db.costLayers = db.costLayers || {};
+  }
+  function costingMethod() {
+    ensureCostingState();
+    return db.costing.method === 'fifo' ? 'fifo' : 'weighted_average';
+  }
+  function layerList(id) {
+    ensureCostingState();
+    return db.costLayers[id] || (db.costLayers[id] = []);
+  }
+  function layerVal(l) {
+    return l.value !== undefined && l.value !== null
+      ? num(l.value)
+      : roundMoney(Math.max(0, num(l.remaining)) * Math.max(0, num(l.unitCost)));
+  }
+  function layerValue(id) {
+    return roundMoney(layerList(id).reduce((a, l) => a + layerVal(l), 0));
+  }
+  function addCostLayer(variantId, qty, unitCost, source, ref, totalValue) {
+    ensureCostingState();
+    const q = Math.max(0, num(qty));
+    if (!q) return;
+    const cost = Math.max(0, num(unitCost));
+    const value = totalValue !== undefined && totalValue !== null
+      ? roundMoney(Math.max(0, num(totalValue)))
+      : roundMoney(q * cost);
+    if (costingMethod() === 'weighted_average') {
+      const v = variantBy(variantId);
+      const oldQty = Math.max(0, num(v && v.stock));
+      const oldValue = layerValue(variantId);
+      const newQty = oldQty + q;
+      const newValue = roundMoney(oldValue + value);
+      db.costLayers[variantId] = [{
+        id: uid(), date: now(), qty: newQty, remaining: newQty,
+        unitCost: newQty ? newValue / newQty : 0, value: newValue,
+        source: 'weighted_balance', ref: ref || ''
+      }];
+      return;
+    }
+    layerList(variantId).push({
+      id: uid(), date: now(), qty: q, remaining: q,
+      unitCost: value / q, value, source: source || 'purchase', ref: ref || ''
+    });
+  }
+  function consumeCost(variantId, qty, fallbackCost) {
+    ensureCostingState();
+    let need = Math.max(0, num(qty));
+    let cost = 0;
+    const layers = layerList(variantId);
+    if (costingMethod() === 'weighted_average') {
+      const unit = layers[0] ? num(layers[0].unitCost) : num(fallbackCost);
+      const value = roundMoney(need * unit);
+      if (layers[0]) {
+        layers[0].remaining = Math.max(0, num(layers[0].remaining) - need);
+        layers[0].qty = layers[0].remaining;
+        layers[0].value = roundMoney(layers[0].remaining * unit);
+      }
+      return { unitCost: unit, cost: value };
+    }
+    // FIFO
+    for (const layer of layers) {
+      if (need <= 0) break;
+      const take = Math.min(need, Math.max(0, num(layer.remaining)));
+      if (take <= 0) continue;
+      const part = roundMoney(take * num(layer.unitCost));
+      cost = roundMoney(cost + part);
+      layer.remaining = roundMoney(num(layer.remaining) - take);
+      layer.value = roundMoney(layer.remaining * num(layer.unitCost));
+      need = roundMoney(need - take);
+    }
+    if (need > 0) {
+      const unit = num(fallbackCost);
+      cost = roundMoney(cost + need * unit);
+    }
+    db.costLayers[variantId] = layers.filter(l => num(l.remaining) > 0.0001);
+    const unitCost = qty ? roundMoney(cost / num(qty)) : 0;
+    return { unitCost, cost };
+  }
+
+  function ensureWarehouseState() {
+    db.warehouses = Array.isArray(db.warehouses) && db.warehouses.length
+      ? db.warehouses
+      : [{ id: 'MAIN', name: 'انبار اصلی', active: true }];
+    db.warehouseStocks = db.warehouseStocks && typeof db.warehouseStocks === 'object' ? db.warehouseStocks : {};
+  }
+
+  function stockMove(variantId, qty, type, ref, cost = 0, warehouseId) {
+    const v = variantBy(variantId); if (!v) throw new Error('تنوع کالا پیدا نشد');
+    const q = num(qty);
+    const next = num(v.stock) + q;
+    if (next < 0) throw new Error('موجودی «' + variantName(v) + '» کافی نیست');
+
+    // Keep warehouseStocks in sync (required by assertNewTransactionState)
+    ensureWarehouseState();
+    const defaultWh = db.warehouses.find(w => w.id === 'MAIN') || db.warehouses[0];
+    const targetWh = db.warehouses.find(w => w.id === warehouseId && w.active !== false) || defaultWh;
+    db.warehouseStocks[targetWh.id] = db.warehouseStocks[targetWh.id] || {};
+    if (db.warehouseStocks[targetWh.id][variantId] === undefined) {
+      db.warehouseStocks[targetWh.id][variantId] = targetWh.id === 'MAIN' ? Math.max(0, num(v.stock)) : 0;
+    }
+    const targetQty = num(db.warehouseStocks[targetWh.id][variantId]);
+    if (q < 0 && type !== 'stocktake' && targetQty + q < -0.0001) {
+      throw new Error('موجودی انبار «' + targetWh.name + '» برای این گردش کافی نیست.');
+    }
+    db.warehouseStocks[targetWh.id][variantId] = targetQty + q;
+
+    let actualCost = Math.max(0, num(cost));
+    let totalCost = 0;
+    if (q > 0) {
+      const addedValue = roundMoney(q * (actualCost || num(v.buyPrice)));
+      addCostLayer(variantId, q, actualCost || num(v.buyPrice), type, ref, addedValue);
+      totalCost = addedValue;
+      actualCost = q ? addedValue / q : 0;
+      // for weighted avg buyPrice is updated inside addCostLayer path via stock later
+    } else if (q < 0) {
+      const info = consumeCost(variantId, Math.abs(q), actualCost || num(v.buyPrice));
+      actualCost = info.unitCost;
+      totalCost = info.cost;
+    }
+
+    v.stock = next;
+    if (q > 0 && costingMethod() === 'weighted_average') {
+      const lv = layerValue(variantId);
+      v.buyPrice = next > 0 ? roundMoney(lv / next) : 0;
+    } else if (q < 0 && costingMethod() === 'weighted_average') {
+      const lv = layerValue(variantId);
+      v.buyPrice = next > 0 ? roundMoney(lv / next) : num(v.buyPrice);
+    }
+
+    db.stockMoves = db.stockMoves || [];
+    db.stockMoves.push({
+      id: uid(), date: now(), variantId, qty: q, type, ref,
+      cost: actualCost, totalCost, warehouseId: targetWh.id
+    });
+    invalidate();
+    return { unitCost: actualCost, totalCost };
+  }
+
+  function accountBalance(account, partyType = '', partyId = '') {
+    let n = 0;
+    for (const j of (db.journal || [])) for (const l of (j.lines || [])) {
+      if (l.account !== account) continue;
+      if (partyType && l.partyType !== partyType) continue;
+      if (partyId && l.partyId !== partyId) continue;
+      n += num(l.debit) - num(l.credit);
+    }
+    return n;
+  }
+
+  function atomic(label, fn) {
+    if (typeof cloneDB !== 'function' || typeof normalize !== 'function') return fn();
+    const before = cloneDB();
+    try {
+      const result = fn();
+      if (saveDB(true) === false) throw new Error('ذخیره اطلاعات ناموفق بود');
+      return result;
+    } catch (e) {
+      const restored = normalize(before);
+      Object.keys(db).forEach(k => delete db[k]); Object.assign(db, restored);
+      saveDB(true); audit('rollback', label, e?.message || String(e)); throw e;
+    }
+  }
+
+  function cashMove(sessionId, amount, type, ref, note) {
+    const delta = num(amount);
+    db.cashMovements = db.cashMovements || [];
+    db.cashMovements.push({ id: uid(), date: now(), sessionId, amount: Math.abs(delta), delta, type, ref: ref || '', note: note || '' });
+  }
+
+  function activeCashSession() { return (db.cashSessions || []).find(x => x.status === 'open') || null; }
+  function cashSessionExpected(s) {
+    if (!s) return 0;
+    const deltaSum = (db.cashMovements || []).filter(m => m.sessionId === s.id).reduce((a, m) => a + num(m.delta), 0);
+    return roundMoney(num(s.openingCash) + deltaSum);
+  }
+
+  function openCashSession(amount, note = '', source = 'local') {
+    if (activeCashSession()) throw new Error('صندوق دیگری باز است');
+    const openingCash = roundMoney(num(amount));
+    if (!Number.isFinite(openingCash) || openingCash < 0) throw new Error('موجودی اولیه نامعتبر است');
+    db.cashSessions = db.cashSessions || [];
+    const first = db.cashSessions.length === 0;
+    const number = 'CS-' + Date.now().toString().slice(-6);
+    const row = { id: uid(), number, date: now(), status: 'open', openingCash, opening: openingCash, openedBy: source === 'ai' ? 'ai' : 'local', openedAt: now(), note: String(note || '').trim() };
+    db.cashSessions.push(row);
+    if (first && openingCash > 0 && Math.abs(accountBalance('cash')) < 0.005) {
+      postJournal(number + '-OPENING', 'ثبت موجودی افتتاحیه صندوق', [
+        { account: 'cash', debit: openingCash, credit: 0 }, { account: 'equity', debit: 0, credit: openingCash }
+      ], { cashSessionId: row.id, entryType: 'cash_opening' });
+    }
+    audit('باز کردن صندوق', number, String(openingCash)); saveDB(true); return row;
+  }
+
+  function closeCashSession(actualAmount, note = '', source = 'local') {
+    const s = activeCashSession(); if (!s) throw new Error('صندوق بازی وجود ندارد');
+    const expected = cashSessionExpected(s), actual = roundMoney(num(actualAmount)), diff = roundMoney(actual - expected), n = String(note || '').trim();
+    if (!Number.isFinite(actual) || actual < 0) throw new Error('موجودی شمارش‌شده نامعتبر است');
+    if (Math.abs(diff) >= 0.005 && !n) throw new Error('برای اختلاف صندوق، شرح وارد کنید');
+    if (Math.abs(diff) >= 0.005) {
+      const amount = Math.abs(diff);
+      const lines = diff < 0
+        ? [{ account: 'cashShortage', debit: amount, credit: 0 }, { account: 'cash', debit: 0, credit: amount }]
+        : [{ account: 'cash', debit: amount, credit: 0 }, { account: 'cashOverage', debit: 0, credit: amount }];
+      postJournal(s.number + '-CASH-VARIANCE', diff < 0 ? 'ثبت کسری صندوق' : 'ثبت اضافه صندوق', lines, { cashSessionId: s.id, entryType: 'cash_variance', variance: diff });
+    }
+    s.status = 'closed'; s.closedAt = now(); s.closing = actual; s.actualCash = actual; s.expectedCash = expected; s.difference = diff; s.variance = diff; s.closeNote = n;
+    audit('بستن صندوق', s.number, 'diff ' + diff); saveDB(true);
+    return { number: s.number, expected, actual, diff };
+  }
+
+  function createSale(payload) {
+    const { items = [], customerId = '', payment = 'cash', paid: rawPaid = 0, discount = 0, note = '' } = payload;
+    if (!items.length) throw new Error('فاکتور خالی است');
+    const saleItems = []; let cost = 0, subTotal = 0;
+    for (const x of items) {
+      const v = variantBy(x.variantId); if (!v) throw new Error('یکی از کالاها پیدا نشد');
+      const qty = num(x.qty), unitPrice = num(x.unitPrice), itemDiscount = num(x.discount || 0);
+      if (qty <= 0 || !Number.isFinite(qty)) throw new Error('تعداد باید مثبت باشد');
+      if (!Number.isInteger(qty)) throw new Error('تعداد باید عدد صحیح باشد');
+      if (qty > num(v.stock)) throw new Error('موجودی «' + variantName(v) + '» کافی نیست');
+      const lineTotal = qty * unitPrice - itemDiscount;
+      saleItems.push({ id: uid(), variantId: x.variantId, qty, unitPrice, discount: itemDiscount, total: lineTotal, cost: num(v.buyPrice || 0) });
+      cost += qty * num(v.buyPrice || 0); subTotal += lineTotal;
+    }
+    let netTotal = roundMoney(subTotal - num(discount));
+    if (netTotal <= 0) throw new Error('مبلغ فاکتور معتبر نیست');
+
+    // VAT from taxProfile (closer to original app)
+    const tax = db.taxProfile || {};
+    const vatRate = tax.enabled ? num(tax.vatRate) : 0;
+    const vatMode = tax.vatMode || 'exclusive';
+    let vat = 0;
+    let total = netTotal;
+    if (vatRate > 0) {
+      if (vatMode === 'inclusive') {
+        vat = roundMoney(netTotal - netTotal / (1 + vatRate / 100));
+        total = netTotal;
+        netTotal = roundMoney(total - vat);
+      } else {
+        vat = roundMoney(netTotal * vatRate / 100);
+        total = roundMoney(netTotal + vat);
+      }
+    }
+
+    let paid = Math.min(total, Math.max(0, num(rawPaid))); const due = roundMoney(total - paid);
+    if (due > 0 && !customerId) throw new Error('برای ایجاد مانده باید مشتری انتخاب شود');
+    if (payment === 'credit' && (!customerId || paid >= total)) throw new Error('برای نسیه باید مشتری انتخاب شود و مانده باقی بماند');
+    const no = typeof nextNumber === 'function' ? nextNumber('sale') : ('S-' + Date.now());
+    const profit = roundMoney(saleItems.reduce((a, i) => a + i.total - i.qty * i.cost, 0) - num(discount));
+    const sale = { id: uid(), number: no, date: now(), customerId: customerId || '', status: 'confirmed', payment, total, paid, due, discount: num(discount), profit, vat, vatMode, items: saleItems.map(i => i.id), note: note || '' };
+    db.sales = db.sales || []; db.saleItems = db.saleItems || []; db.payments = db.payments || [];
+    db.sales.push(sale);
+    let actualCogs = 0;
+    saleItems.forEach(i => {
+      db.saleItems.push(i);
+      const moved = stockMove(i.variantId, -i.qty, 'sale', no, i.cost);
+      const lineCost = moved && moved.totalCost !== undefined ? moved.totalCost : roundMoney(i.qty * i.cost);
+      i.costTotal = lineCost;
+      i.cost = i.qty ? roundMoney(lineCost / i.qty) : i.cost;
+      actualCogs = roundMoney(actualCogs + lineCost);
+    });
+    sale.profit = roundMoney(netTotal - actualCogs);
+    sale._cogs = actualCogs;
+    if (paid > 0) {
+      db.payments.push({ id: uid(), date: now(), direction: 'in', partyType: customerId ? 'customer' : 'other', partyId: customerId || '', amount: paid, account: payment, ref: no, embedded: true, note: 'پرداخت همراه فروش' });
+      if (payment === 'cash' || paymentAccount(payment) === 'cash') {
+        const cs = activeCashSession();
+        if (cs) cashMove(cs.id, paid, 'sale', no, 'دریافت نقدی فروش');
+      }
+    }
+    const cashAccount = paymentAccount(payment); const lines = [];
+    if (paid > 0) lines.push({ account: cashAccount, debit: paid, credit: 0 });
+    if (due > 0) lines.push({ account: 'receivable', debit: due, credit: 0, partyType: 'customer', partyId: customerId });
+    lines.push({ account: 'sales', debit: 0, credit: netTotal });
+    if (vat > 0) lines.push({ account: 'vatPayable', debit: 0, credit: vat });
+    const cogsAmount = sale._cogs !== undefined ? sale._cogs : cost;
+    if (cogsAmount > 0) { lines.push({ account: 'cogs', debit: cogsAmount, credit: 0 }); lines.push({ account: 'inventory', debit: 0, credit: cogsAmount }); }
+    postJournal(no, 'فروش', lines, { saleId: sale.id });
+    audit('ثبت فروش', no, ''); saveDB(true);
+    return { sale, items: saleItems, number: no };
+  }
+
+  function createPurchase(payload) {
+    const { items = [], supplierId = '', payments = { cash: 0, card: 0, bank: 0, credit: 0 } } = payload;
+    if (!items.length) throw new Error('خرید خالی است');
+    const cash = num(payments.cash || 0), card = num(payments.card || 0), bank = num(payments.bank || 0), credit = num(payments.credit || 0);
+    const total = roundMoney(cash + card + bank + credit);
+    if (total <= 0) throw new Error('مبلغ خرید معتبر نیست');
+    if (credit > 0 && !supplierId) throw new Error('برای ثبت بدهی، تأمین‌کننده را انتخاب کنید');
+    if (cash > 0 && !activeCashSession()) throw new Error('برای پرداخت نقدی ابتدا صندوق را باز کنید');
+    const purchaseItems = [];
+    for (const x of items) {
+      const v = variantBy(x.variantId); if (!v) throw new Error('یکی از کالاها پیدا نشد');
+      const qty = num(x.qty), unitPrice = num(x.unitPrice);
+      if (qty <= 0) throw new Error('تعداد باید مثبت باشد');
+      purchaseItems.push({ id: uid(), variantId: x.variantId, qty, unitPrice, total: roundMoney(qty * unitPrice) });
+    }
+    const no = typeof nextNumber === 'function' ? nextNumber('purchase') : ('P-' + Date.now());
+    const paymentType = (cash && (card || bank || credit)) ? 'mixed' : cash ? 'cash' : card ? 'card' : bank ? 'bank' : 'credit';
+    const row = { id: uid(), number: no, date: now(), supplierId: supplierId || '', status: 'confirmed', payment: paymentType, total, paid: cash + card + bank, due: credit, items: purchaseItems.map(x => x.id),
+      payments: [{ account: 'cash', amount: cash }, { account: 'card', amount: card }, { account: 'bank', amount: bank }, { account: 'credit', amount: credit }].filter(x => x.amount > 0) };
+    db.purchases = db.purchases || []; db.purchaseItems = db.purchaseItems || []; db.payments = db.payments || [];
+    db.purchases.push(row);
+    purchaseItems.forEach(i => {
+      db.purchaseItems.push(i);
+      const v = variantBy(i.variantId); const oldQty = Math.max(0, num(v.stock)), oldCost = Math.max(0, num(v.buyPrice));
+      const qty = Math.max(0, num(i.qty)), price = Math.max(0, num(i.unitPrice));
+      stockMove(i.variantId, qty, 'purchase', no, price);
+      v.buyPrice = (oldQty + qty) > 0 ? roundMoney(((oldQty * oldCost) + (qty * price)) / (oldQty + qty)) : price;
+    });
+    [{ account: 'cash', amount: cash }, { account: 'card', amount: card }, { account: 'bank', amount: bank }].filter(x => x.amount > 0).forEach(x => {
+      db.payments.push({ id: uid(), date: now(), direction: 'out', partyType: supplierId ? 'supplier' : 'other', partyId: supplierId || '', amount: x.amount, account: x.account, ref: no, embedded: true, note: 'پرداخت همراه خرید' });
+      if (x.account === 'cash') { const cs = activeCashSession(); if (cs) cashMove(cs.id, -x.amount, 'purchase', no, 'پرداخت نقدی خرید'); }
+    });
+    const lines = [{ account: 'inventory', debit: total, credit: 0 }];
+    if (cash) lines.push({ account: 'cash', debit: 0, credit: cash });
+    if (card) lines.push({ account: 'card', debit: 0, credit: card });
+    if (bank) lines.push({ account: 'bank', debit: 0, credit: bank });
+    if (credit) lines.push({ account: 'payable', debit: 0, credit: credit, partyType: 'supplier', partyId: supplierId });
+    postJournal(no, 'خرید', lines, { purchaseId: row.id });
+    audit('ثبت خرید', no, ''); saveDB(true);
+    return { purchase: row, items: purchaseItems, number: no };
+  }
+
+  return { postJournal, stockMove, accountBalance, atomic, cashMove, activeCashSession, cashSessionExpected, openCashSession, closeCashSession, createSale, createPurchase, costingMethod, version: '1.3.0-engine' };
+}
+if (typeof module !== 'undefined' && module.exports) module.exports = { createEngine };
+else window.UniqueEngine = { createEngine };

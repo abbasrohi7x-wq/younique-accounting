@@ -152,6 +152,10 @@ button[data-add-sale] .yq-th{width:26px;height:26px;border-radius:8px;margin-inl
 .yq-refbtn{border:0;background:#5b5ce212;color:var(--primary);border-radius:10px;padding:3px 9px;font:inherit;cursor:pointer}.yq-refbtn:hover{background:#5b5ce222}
 .yq-hint{display:block;margin:6px 2px;color:var(--muted);font-size:12px}
 </style>
+<style id="yq-atelier-v5-css">
+.yq-metric{cursor:pointer;position:relative;transition:transform .15s,box-shadow .15s}.yq-metric:hover{transform:translateY(-2px)}
+.yq-metric:after{content:"ردیابی ›";position:absolute;left:12px;top:10px;font-size:11px;color:var(--primary);opacity:.75}
+</style>
 </head><body>
 <div id="app"><div class="boot"><div class="boot-logo"><svg class="umark" aria-label="Unique" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 135" fill="none" stroke="#fff" stroke-linejoin="round"><path d="M5.5 22Q5.5 5.5 22 5.5H78Q94.5 5.5 94.5 22V76C94.5 108 75 129.5 50 129.5C25 129.5 5.5 108 5.5 76Z" stroke-width="11"/><path d="M18 33Q18 20.5 30.5 20.5H69.5Q82 20.5 82 33V76C82 100 68 115.5 50 115.5C32 115.5 18 100 18 76Z" stroke-width="3.4" opacity=".95"/><path d="M32 46V74A18 18 0 0 0 68 74V46" stroke-width="12" stroke-linecap="butt"/></svg></div><strong>یونیک</strong><span>در حال آماده‌سازی برنامه</span></div></div>
 <script>'use strict';
@@ -5498,4 +5502,199 @@ var PP=window.yqPhotoPut;if(typeof PP==='function'&&!PP.__yq4){var pp=function(i
 var R=window.render;if(typeof R==='function'&&!R.__yq4){var h=function(){var r=R.apply(this,arguments);run();return r};h.__yq4=1;window.render=h}
 try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true})}catch(_){}
 })();</script>
+<script id="yq-atelier-v5">(function(){'use strict';
+var PAGES={reports:1,masterReports:1,finance:1,treasury:1};
+var RULES=[[/^فروش$/,['sales','salesReturn']],[/^(بهایتمامشده|بهایفروش)/,['cogs']],[/^سودناخالص/,['sales','salesReturn','cogs']],[/^هزینه/,['expense']],[/^صندوق$/,['cash']],[/^بانک$/,['bank']],[/^چکهای?درانتظار/,['checksReceivable','checksPayable']]];
+function norm(x){return String(x||'').replace(/[\u200c\s]/g,'')}
+function keysFor(label){var n=norm(label);for(var i=0;i<RULES.length;i++)if(RULES[i][0].test(n)){var ks=RULES[i][1].filter(function(k){return ACCOUNT_NAMES&&ACCOUNT_NAMES[k]});return ks.length?ks:null}return null}
+function mark(){var c=document.querySelector('#content');if(!c||!PAGES[window.page])return;
+c.querySelectorAll('.metric').forEach(function(m){if(m.__yq5)return;var box=m.children[m.children.length-1]||m,lab=(box.firstElementChild||box).textContent.trim(),ks=keysFor(lab);if(!ks)return;m.__yq5=1;m.classList.add('yq-metric');m.title='ردیابی تا سند';m.onclick=function(){yqTrace(ks,lab)}})}
+var busy=false;function run(){if(busy)return;busy=true;requestAnimationFrame(function(){busy=false;try{mark()}catch(e){console.warn('atelier v5',e)}})}
+var R=window.render;if(typeof R==='function'&&!R.__yq5){var h=function(){var r=R.apply(this,arguments);run();return r};h.__yq5=1;window.render=h}
+try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true})}catch(_){}
+})();</script>
+
+<script id="yq-engine-bridge-v1">
+(function () {
+  'use strict';
+  var FLAG = 'yq_use_new_engine';
+  var on = false;
+  try { on = localStorage.getItem(FLAG) === '1'; } catch (e) {}
+  window.__YQ_ENGINE_BRIDGE = {
+    version: '1.1.0',
+    enabled: on,
+    enable: function () { try { localStorage.setItem(FLAG, '1'); } catch (e) {} location.reload(); },
+    disable: function () { try { localStorage.removeItem(FLAG); } catch (e) {} location.reload(); },
+    status: function () {
+      return {
+        enabled: !!window.__USE_NEW_ENGINE,
+        hasEngine: typeof window.__YQ_ENGINE !== 'undefined',
+        hasFin: typeof window.__YQ_FIN !== 'undefined',
+        wired: !!window.__YQ_WIRED
+      };
+    }
+  };
+  window.__USE_NEW_ENGINE = on;
+  if (!on) {
+    console.info('[YQ Bridge] off — original path active');
+    return;
+  }
+  console.info('[YQ Bridge] on — loading extracted modules');
+
+  function load(src) {
+    return new Promise(function (resolve, reject) {
+      var s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = function () { reject(new Error('load failed: ' + src)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function helpers() {
+    return {
+      uid: typeof uid === 'function' ? uid : function () { return 'id-' + Math.random().toString(36).slice(2, 10); },
+      now: typeof now === 'function' ? now : function () { return new Date().toISOString(); },
+      num: typeof num === 'function' ? num : function (x) { return Number(x) || 0; },
+      roundMoney: typeof roundMoney === 'function' ? roundMoney : function (x) { return Math.round(Number(x) * 100) / 100; },
+      variantBy: typeof variantBy === 'function' ? variantBy : function (id) { return (db.variants || []).find(function (v) { return v.id === id; }); },
+      variantName: typeof variantName === 'function' ? variantName : function (v) { return (v && (v.name || v.id)) || '?'; },
+      nextNumber: typeof nextNumber === 'function' ? nextNumber : null,
+      paymentAccount: typeof paymentAccount === 'function' ? paymentAccount : function (m) { return m === 'card' ? 'card' : m === 'bank' ? 'bank' : 'cash'; },
+      saveDB: typeof saveDB === 'function' ? saveDB : function () { return true; },
+      invalidate: typeof invalidate === 'function' ? invalidate : function () {},
+      audit: typeof audit === 'function' ? audit : function () {},
+      cloneDB: typeof cloneDB === 'function' ? cloneDB : function () { return JSON.parse(JSON.stringify(db)); },
+      normalize: typeof normalize === 'function' ? normalize : function (d) { return d; },
+      saleByNo: typeof saleByNo === 'function' ? saleByNo : function (ref) { return (db.sales || []).find(function (s) { return s.number === ref || s.id === ref; }); },
+      purchaseByNo: function (ref) { return (db.purchases || []).find(function (p) { return p.number === ref || p.id === ref; }); }
+    };
+  }
+
+  function wireSaveFunctions(engine) {
+    var origSaveSale = window.saveSale;
+    var origSavePurchase = window.savePurchase;
+    var origSaveSaleCore = window.__saveSaleCore;
+    var $el = typeof $ === 'function' ? $ : function () { return null; };
+
+    window.saveSale = function () {
+      try {
+        if (!window.__USE_NEW_ENGINE || !engine) {
+          return origSaveSale && origSaveSale.apply(this, arguments);
+        }
+        var cart = typeof saleCart !== 'undefined' ? saleCart : [];
+        if (!cart.length) {
+          if (typeof toast === 'function') toast('فاکتور خالی است', true);
+          return null;
+        }
+        var customerId = ($el('#saleCustomer') && $el('#saleCustomer').value) || '';
+        var payment = ($el('#salePay') && $el('#salePay').value) || 'cash';
+        var discount = Number(($el('#saleDiscount') && $el('#saleDiscount').value) || 0);
+        // Support both classic form and test helper __salePayments
+        var paid = Number(($el('#salePaid') && $el('#salePaid').value) || 0);
+        if (window.__salePayments) {
+          var sp = window.__salePayments;
+          paid = Number(sp.cash || 0) + Number(sp.card || 0) + Number(sp.bank || 0);
+          if (Number(sp.credit || 0) > 0) payment = paid > 0 ? payment : 'credit';
+          if (Number(sp.cash || 0) > 0) payment = 'cash';
+          else if (Number(sp.card || 0) > 0) payment = 'card';
+          else if (Number(sp.bank || 0) > 0) payment = 'bank';
+        }
+        var items = cart.map(function (x) {
+          return {
+            variantId: x.id || x.variantId,
+            qty: Number(x.qty),
+            unitPrice: Number(x.price || x.unitPrice),
+            discount: Number(x.discount || 0)
+          };
+        });
+        var result = engine.atomic('ثبت فروش', function () {
+          return engine.createSale({ items: items, customerId: customerId, payment: payment, paid: paid, discount: discount });
+        });
+        if (typeof toast === 'function') toast('فروش ' + result.number + ' با موفقیت ثبت شد');
+        if (typeof saleCart !== 'undefined') saleCart.length = 0;
+        if (typeof page !== 'undefined') page = 'sales';
+        if (typeof render === 'function') render();
+        return result.sale;
+      } catch (e) {
+        console.error('[YQ Bridge] saveSale error, fallback', e);
+        if (typeof toast === 'function') toast((e && e.message) || 'ثبت فروش ناموفق بود', true);
+        if (origSaveSale) return origSaveSale.apply(this, arguments);
+        return null;
+      }
+    };
+
+    window.savePurchase = function () {
+      try {
+        if (!window.__USE_NEW_ENGINE || !engine) {
+          return origSavePurchase && origSavePurchase.apply(this, arguments);
+        }
+        var cart = typeof purchaseCart !== 'undefined' ? purchaseCart : [];
+        if (!cart.length) {
+          if (typeof toast === 'function') toast('خرید خالی است', true);
+          return null;
+        }
+        var supplierId = ($el('#purSup') && $el('#purSup').value) || '';
+        var payments = { cash: 0, card: 0, bank: 0, credit: 0 };
+        if (typeof renderPurchasePaymentSummary === 'function') {
+          var p = renderPurchasePaymentSummary();
+          payments = { cash: Number(p.cash || 0), card: Number(p.card || 0), bank: Number(p.bank || 0), credit: Number(p.credit || 0) };
+        } else {
+          payments.cash = Number(($el('#purCash') && $el('#purCash').value) || 0);
+          payments.card = Number(($el('#purCard') && $el('#purCard').value) || 0);
+          payments.bank = Number(($el('#purBank') && $el('#purBank').value) || 0);
+          payments.credit = Number(($el('#purCredit') && $el('#purCredit').value) || 0);
+        }
+        var items = cart.map(function (x) {
+          return { variantId: x.id || x.variantId, qty: Number(x.qty), unitPrice: Number(x.price || x.unitPrice) };
+        });
+        var result = engine.atomic('ثبت خرید', function () {
+          return engine.createPurchase({ items: items, supplierId: supplierId, payments: payments });
+        });
+        if (typeof toast === 'function') toast('خرید ' + result.number + ' با موفقیت ثبت شد');
+        if (typeof purchaseCart !== 'undefined') purchaseCart.length = 0;
+        if (typeof page !== 'undefined') page = 'purchases';
+        if (typeof render === 'function') render();
+        return result.purchase;
+      } catch (e) {
+        console.error('[YQ Bridge] savePurchase error, fallback', e);
+        if (typeof toast === 'function') toast((e && e.message) || 'ثبت خرید ناموفق بود', true);
+        if (origSavePurchase) return origSavePurchase.apply(this, arguments);
+        return null;
+      }
+    };
+
+    window.__YQ_WIRED = true;
+    console.info('[YQ Bridge] saveSale / savePurchase wired to engine');
+  }
+
+  Promise.resolve()
+    .then(function () { return load('src/engine/core.js'); })
+    .then(function () { return load('src/engine/fin.js'); })
+    .then(function () {
+      if (typeof db === 'undefined' || typeof UniqueEngine === 'undefined') {
+        console.warn('[YQ Bridge] prerequisites missing');
+        window.__USE_NEW_ENGINE = false;
+        return;
+      }
+      var h = helpers();
+      var engine = UniqueEngine.createEngine(db, h);
+      var fin = typeof UniqueFin !== 'undefined' ? UniqueFin.createFin(db, h, engine) : null;
+      window.__YQ_ENGINE = engine;
+      window.__YQ_FIN = fin;
+      // When bridge is active, route Fin API to extracted module for end-to-end consistency
+      if (fin) {
+        window.__YQ_ORIG_FIN = window.Fin;
+        window.Fin = fin;
+      }
+      wireSaveFunctions(engine);
+      console.info('[YQ Bridge] ready', engine.version, fin && fin.version);
+    })
+    .catch(function (err) {
+      console.warn('[YQ Bridge] failed, keeping original path', err && err.message);
+      window.__USE_NEW_ENGINE = false;
+    });
+})();
+</script>
+
 </body></html>
