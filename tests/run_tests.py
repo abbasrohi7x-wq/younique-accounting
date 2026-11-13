@@ -442,7 +442,7 @@ async def inventory_purchase_precedes_sale_and_split_payment(br,c):
       const afterPurchase=variantBy(S.v).stock;
       const sale=await T.sell(S,S.v,2,1500,{cash:600,card:1500,bank:300,credit:600});
       const allocations=Object.fromEntries((sale&&sale.payments||[]).map(x=>[x.account,num(x.amount)]));
-      return{noStock,purchase:!!purchase,afterPurchase,sale:!!sale,allocations,
+      return{noStock,purchase:!!purchase,purchasePayment:purchase&&purchase.payment,afterPurchase,sale:!!sale,allocations,
         stock:variantBy(S.v).stock,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}
     """)
     c.true(r['noStock']['blocked'],'sale with zero inventory is rejected')
@@ -450,6 +450,7 @@ async def inventory_purchase_precedes_sale_and_split_payment(br,c):
     c.true(r['noStock']['sales'] and r['noStock']['journal'] and r['noStock']['payments'],'rejected sale creates no financial records')
     c.eq(r['afterPurchase'],5,'confirmed purchase creates available inventory')
     c.true(r['purchase'],'purchase invoice saved before sale')
+    c.eq(r['purchasePayment'],'mixed','purchase with cash and card is classified as mixed')
     c.true(r['sale'],'sale succeeds after stock is received')
     c.eq(r['allocations'],{'cash':600,'card':1500,'bank':300,'credit':600},'sale payment methods are preserved')
     c.eq(r['stock'],3,'sale decrements received inventory')
