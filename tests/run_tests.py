@@ -425,3 +425,66 @@ async def main():
         await br.close()
     bad=[c for c in RES if c.fails];print(f'\n{len(RES)-len(bad)}/{len(RES)} tests passed, {sum(c.n for c in RES)} assertions, {time.time()-t0:.0f}s');sys.exit(1 if bad else 0)
 asyncio.run(main())
+
+
+@test
+async def manual_purchase_and_sale_require_open_cash_session(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const before={p:db.purchases.length,s:db.sales.length,j:db.journal.length,
+        pay:db.payments.length,stock:variantBy(S.v).stock};
+      activeCashSession().status='closed';saveDB(true);
+      const purchase=await T.buy(S,S.v,2,1000,{cash:2000});
+      const afterPurchase={p:db.purchases.length,j:db.journal.length,pay:db.payments.length,
+        stock:variantBy(S.v).stock,msg:T.msgs.at(-1)};
+      openCashSession(100000,'test reopen','test');
+      await T.buy(S,S.v,5,1000,{cash:5000});
+      activeCashSession().status='closed';saveDB(true);
+      const sale=await T.sell(S,S.v,1,1500,{cash:1500});
+      return{purchaseBlocked:!purchase&&afterPurchase.p===before.p&&afterPurchase.j===before.j&&
+          afterPurchase.pay===before.pay&&afterPurchase.stock===before.stock,
+        purchaseMessage:afterPurchase.msg,saleBlocked:!sale&&db.sales.length===before.s,
+        finalStock:variantBy(S.v).stock,saleMessage:T.msgs.at(-1),unb:T.unbalanced()}
+    """)
+    c.true(r['purchaseBlocked'],'manual purchase blocked with closed cash session and no mutation')
+    c.true('صندوق' in r['purchaseMessage'],'manual purchase explains cash session requirement')
+    c.true(r['saleBlocked'],'manual sale blocked with closed cash session and no mutation')
+    c.eq(r['finalStock'],5,'blocked manual sale leaves inventory unchanged')
+    c.true('صندوق' in r['saleMessage'],'manual sale explains cash session requirement')
+    c.eq(r['unb'],0,'ledger remains balanced after blocked invoices')
+    await ctx.close()
+
+
+@test
+async def ai_purchase_and_sale_require_open_cash_session(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      activeCashSession().status='closed';saveDB(true);
+      const info={intent:'create_purchase',entities:{}},p0=db.purchases.length,
+        stock0=variantBy(S.v).stock,j0=db.journal.length;
+      const purchase=await UAI._runSteps([{tool:'create_purchase',params:{
+        supplierId:S.sup,items:[{variantId:S.v,qty:2,price:1000}],method:'card'
+      }}],0,info,'text','خرید دو عدد با کارت');
+      const purchaseSafe=db.purchases.length===p0&&variantBy(S.v).stock===stock0&&db.journal.length===j0&&!UAI.ctx.pending;
+      openCashSession(100000,'test reopen','test');
+      await T.buy(S,S.v,5,1000,{cash:5000});
+      activeCashSession().status='closed';saveDB(true);
+      UAI.ctx.reset();
+      const s0=db.sales.length,st0=variantBy(S.v).stock,j1=db.journal.length;
+      const sale=await UAI._runSteps([{tool:'create_sale',params:{
+        items:[{variantId:S.v,qty:1,price:1500}],method:'card'
+      }}],0,{intent:'create_sale',entities:{}},'text','فروش یک عدد با کارت');
+      const saleSafe=db.sales.length===s0&&variantBy(S.v).stock===st0&&db.journal.length===j1&&!UAI.ctx.pending;
+      return{purchaseSafe,purchaseText:purchase.map(x=>x.text).join(' '),saleSafe,
+        saleText:sale.map(x=>x.text).join(' '),stock:variantBy(S.v).stock,unb:T.unbalanced()}
+    """)
+    c.true(r['purchaseSafe'],'AI purchase rejected before confirmation when cash session is closed')
+    c.true('صندوق' in r['purchaseText'],'AI purchase explains cash session requirement')
+    c.true(r['saleSafe'],'AI sale rejected before confirmation when cash session is closed')
+    c.true('صندوق' in r['saleText'],'AI sale explains cash session requirement')
+    c.eq(r['stock'],5,'AI blocked invoices leave inventory unchanged')
+    c.eq(r['unb'],0,'ledger remains balanced after AI blocks')
+    await ctx.close()
+
