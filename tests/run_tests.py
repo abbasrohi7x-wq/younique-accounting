@@ -570,4 +570,62 @@ async def purchase_return_records_all_noncredit_payment_methods(br,c):
     c.true(r['health'],'business health check remains valid')
     await ctx.close()
 
+
+@test
+async def file_sync_import_merges_new_records_safely(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      db.customers.push({id:'local-sync-customer',name:'مشتری محلی'});
+      const env=syncEnvelope();
+      env.data.customers.push({id:'incoming-sync-customer',name:'مشتری انتقال'});
+      env.checksum=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
+      const raw=await window.yqEncryptBackup(JSON.stringify(env),'TransferPass123');
+      window.prompt=()=> 'TransferPass123';
+      const dt=new DataTransfer();dt.items.add(new File([raw],'transfer.enc.json',{type:'application/json'}));
+      const before=db.customers.length;
+      page='sync';render();await T.sleep(80);
+      const input=document.querySelector('#sif');Object.defineProperty(input,'files',{configurable:true,value:dt.files});
+      input.dispatchEvent(new Event('change',{bubbles:true}));await T.sleep(250);
+      const preview=!!document.querySelector('#sapply');
+      const previewText=document.querySelector('#syncResult')?.innerText||'';
+      if(preview)document.querySelector('#sapply').click();
+      await T.sleep(250);
+      return{preview,previewText,before,after:db.customers.length,
+        local:db.customers.some(x=>x.id==='local-sync-customer'),
+        incoming:db.customers.some(x=>x.id==='incoming-sync-customer'),
+        encrypted:JSON.parse(raw).enc==='younique-enc-v1'}
+    """)
+    c.true(r['preview'],'valid encrypted transfer produces an explicit merge preview')
+    c.true('1' in r['previewText'],'preview reports one incoming record')
+    c.true(r['after']>r['before'],'merge adds the incoming record')
+    c.true(r['local'],'existing local customer is preserved')
+    c.true(r['incoming'],'incoming customer is merged')
+    c.true(r['encrypted'],'transfer package uses the encrypted backup envelope')
+    await ctx.close()
+
+
+@test
+async def file_sync_rejects_tampered_checksum_without_mutation(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const env=syncEnvelope();
+      env.data.customers.push({id:'tampered-sync-customer',name:'نباید وارد شود'});
+      env.checksum='00000000';
+      const raw=await window.yqEncryptBackup(JSON.stringify(env),'TransferPass123');
+      window.prompt=()=> 'TransferPass123';
+      const before=db.customers.length;
+      const dt=new DataTransfer();dt.items.add(new File([raw],'tampered.enc.json',{type:'application/json'}));
+      page='sync';render();await T.sleep(80);
+      const input=document.querySelector('#sif');Object.defineProperty(input,'files',{configurable:true,value:dt.files});
+      input.dispatchEvent(new Event('change',{bubbles:true}));await T.sleep(250);
+      return{before,after:db.customers.length,preview:!!document.querySelector('#sapply'),
+        message:document.querySelector('#syncResult')?.innerText||''}
+    """)
+    c.eq(r['after'],r['before'],'tampered package never mutates local data')
+    c.eq(r['preview'],False,'tampered package never presents an apply action')
+    c.true('صحت بسته' in r['message'],'checksum failure is explained')
+    await ctx.close()
+
 asyncio.run(main())

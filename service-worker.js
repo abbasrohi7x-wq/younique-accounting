@@ -20,7 +20,7 @@ const OCR_CACHE = 'unique-ocr-v1';
 
 const SHELL_FILES = [
   './', './index.html', './manifest.json', './logo.svg', './icon-192.png', './icon-512.png',
-  './src/engine/core.js', './src/engine/fin.js', './src/sync/supabase-sync.js', './src/ui/upgrade.js', './src/ui/local-nlu.js', './vendor/fonts/vazirmatn-arabic.woff2', './vendor/fonts/vazirmatn-latin.woff2'
+  './src/engine/core.js', './src/engine/fin.js', './src/ui/upgrade.js', './src/ui/local-nlu.js', './vendor/fonts/vazirmatn-arabic.woff2', './vendor/fonts/vazirmatn-latin.woff2'
 ];
 /* Everything OCR needs. core/tesseract-core-lstm is the no-SIMD fallback. */
 const OCR_FILES = [
