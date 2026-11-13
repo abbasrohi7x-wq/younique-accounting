@@ -248,7 +248,7 @@ const YStore=(function(){
  const te=new TextEncoder(),td=new TextDecoder();
  const req=r=>new Promise((res,rej)=>{r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error||new Error('IndexedDB request failed'))});
  const open=()=>new Promise((res,rej)=>{const q=indexedDB.open(IDB_NAME,1);q.onupgradeneeded=()=>{if(!q.result.objectStoreNames.contains(KV))q.result.createObjectStore(KV)};q.onsuccess=()=>{dbh=q.result;dbh.onversionchange=()=>{try{dbh.close()}catch(_){}};res(dbh)};q.onerror=()=>rej(q.error||new Error('IndexedDB open failed'));q.onblocked=()=>rej(new Error('IndexedDB blocked'))});
- const getAll=async()=>{const st=dbh.transaction(KV,'readonly').objectStore(KV);const keys=await req(st.getAllKeys()),vals=await req(st.getAll());const m={};keys.forEach((k,i)=>{m[k]=vals[i]});return m};
+ const getAll=async()=>{const tx=dbh.transaction(KV,'readonly'),st=tx.objectStore(KV);const keysReq=req(st.getAllKeys()),valsReq=req(st.getAll());const [keys,vals]=await Promise.all([keysReq,valsReq]);const m={};keys.forEach((k,i)=>{m[k]=vals[i]});return m};
  const subtle=()=>{if(!(typeof crypto!=='undefined'&&crypto.subtle))throw Error('رمزنگاری در این مرورگر/آدرس در دسترس نیست (به HTTPS یا localhost نیاز دارد).');return crypto.subtle};
  const derive=async(pass,salt,iter)=>{const km=await subtle().importKey('raw',te.encode(pass),'PBKDF2',false,['deriveKey']);return subtle().deriveKey({name:'PBKDF2',salt,iterations:iter,hash:'SHA-256'},km,{name:'AES-GCM',length:256},false,['encrypt','decrypt'])};
  const encStr=async(key,str,aad)=>{const iv=crypto.getRandomValues(new Uint8Array(12));const ct=await subtle().encrypt({name:'AES-GCM',iv,additionalData:te.encode(aad)},key,te.encode(str));return{iv,ct}};
