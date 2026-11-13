@@ -5725,6 +5725,7 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
     var $el = typeof $ === 'function' ? $ : function () { return null; };
 
     window.saveSale = function () {
+      if (!window.activeCashSession || !window.activeCashSession()) { if (typeof toast === 'function') toast('برای ثبت فاکتور فروش ابتدا صندوق را باز کنید', true); return null; }
       try {
         if (!window.__USE_NEW_ENGINE || !engine) {
           return origSaveSale && origSaveSale.apply(this, arguments);
@@ -5786,6 +5787,7 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
     };
 
     window.savePurchase = function () {
+      if (!window.activeCashSession || !window.activeCashSession()) { if (typeof toast === 'function') toast('برای ثبت فاکتور خرید ابتدا صندوق را باز کنید', true); return null; }
       try {
         if (!window.__USE_NEW_ENGINE || !engine) {
           return origSavePurchase && origSavePurchase.apply(this, arguments);
