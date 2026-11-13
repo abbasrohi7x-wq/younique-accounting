@@ -269,12 +269,37 @@ function createEngine(db, h) {
       }
     }
 
-    let paid = Math.min(total, Math.max(0, num(rawPaid))); const due = roundMoney(total - paid);
-    if (due > 0 && !customerId) throw new Error('برای ایجاد مانده باید مشتری انتخاب شود');
-    if (payment === 'credit' && (!customerId || paid >= total)) throw new Error('برای نسیه باید مشتری انتخاب شود و مانده باقی بماند');
+    let paid;
+    let due;
+    let payMethod = payment;
+    let splitRows = null;
+    if (payload.payments && typeof payload.payments === 'object') {
+      const cash = roundMoney(num(payload.payments.cash));
+      const card = roundMoney(num(payload.payments.card));
+      const bank = roundMoney(num(payload.payments.bank));
+      const credit = roundMoney(num(payload.payments.credit));
+      [cash, card, bank, credit].forEach(function (a) { if (a < 0) throw new Error('مبلغ پرداخت نامعتبر است'); });
+      paid = roundMoney(cash + card + bank);
+      due = credit;
+      if (Math.abs(roundMoney(paid + due) - total) > 0.01) throw new Error('پرداخت و نسیه باید دقیقاً برابر جمع فاکتور باشد');
+      if (due > 0 && !customerId) throw new Error('برای نسیه باید مشتری انتخاب شود');
+      splitRows = [
+        { account: 'cash', amount: cash },
+        { account: 'card', amount: card },
+        { account: 'bank', amount: bank },
+        { account: 'credit', amount: credit }
+      ].filter(function (x) { return x.amount > 0; });
+      payMethod = splitRows.length > 1 ? 'mixed' : (splitRows[0] ? splitRows[0].account : 'credit');
+    } else {
+      paid = Math.min(total, Math.max(0, num(rawPaid)));
+      due = roundMoney(total - paid);
+      if (due > 0 && !customerId) throw new Error('برای ایجاد مانده باید مشتری انتخاب شود');
+      if (payment === 'credit' && (!customerId || paid >= total)) throw new Error('برای نسیه باید مشتری انتخاب شود و مانده باقی بماند');
+    }
     const no = typeof nextNumber === 'function' ? nextNumber('sale') : ('S-' + Date.now());
     const profit = roundMoney(saleItems.reduce((a, i) => a + i.total - i.qty * i.cost, 0) - num(discount));
-    const sale = { id: uid(), number: no, date: now(), customerId: customerId || '', status: 'confirmed', payment, total, paid, due, discount: num(discount), profit, vat, vatMode, items: saleItems.map(i => i.id), note: note || '' };
+    const seller = db.currentUserId || (Array.isArray(db.users) && db.users[0] && db.users[0].id) || '';
+    const sale = { id: uid(), number: no, date: now(), customerId: customerId || '', userId: seller, status: 'confirmed', payment: payMethod, total, paid, due, discount: num(discount), profit, vat, vatMode, items: saleItems.map(i => i.id), note: note || '', payments: splitRows || (paid > 0 ? [{ account: paymentAccount(payment), amount: paid }] : []) };
     db.sales = db.sales || []; db.saleItems = db.saleItems || []; db.payments = db.payments || [];
     db.sales.push(sale);
     let actualCogs = 0;
@@ -288,15 +313,16 @@ function createEngine(db, h) {
     });
     sale.profit = roundMoney(netTotal - actualCogs);
     sale._cogs = actualCogs;
-    if (paid > 0) {
-      db.payments.push({ id: uid(), date: now(), direction: 'in', partyType: customerId ? 'customer' : 'other', partyId: customerId || '', amount: paid, account: payment, ref: no, embedded: true, note: 'پرداخت همراه فروش' });
-      if (payment === 'cash' || paymentAccount(payment) === 'cash') {
+    const payRows = (sale.payments || []).filter(function (x) { return x.account !== 'credit' && num(x.amount) > 0; });
+    payRows.forEach(function (x) {
+      db.payments.push({ id: uid(), date: now(), direction: 'in', partyType: customerId ? 'customer' : 'other', partyId: customerId || '', amount: x.amount, account: x.account, ref: no, embedded: true, note: 'پرداخت همراه فروش' });
+      if (x.account === 'cash') {
         const cs = activeCashSession();
-        if (cs) cashMove(cs.id, paid, 'sale', no, 'دریافت نقدی فروش');
+        if (cs) cashMove(cs.id, x.amount, 'sale', no, 'دریافت نقدی فروش');
       }
-    }
-    const cashAccount = paymentAccount(payment); const lines = [];
-    if (paid > 0) lines.push({ account: cashAccount, debit: paid, credit: 0 });
+    });
+    const lines = [];
+    payRows.forEach(function (x) { lines.push({ account: x.account, debit: x.amount, credit: 0 }); });
     if (due > 0) lines.push({ account: 'receivable', debit: due, credit: 0, partyType: 'customer', partyId: customerId });
     lines.push({ account: 'sales', debit: 0, credit: netTotal });
     if (vat > 0) lines.push({ account: 'vatPayable', debit: 0, credit: vat });
