@@ -447,6 +447,7 @@ async def manual_purchase_and_sale_require_open_cash_session(br,c):
         purchaseMessage:afterPurchase.msg,saleBlocked:!sale&&db.sales.length===before.s,
         finalStock:variantBy(S.v).stock,saleMessage:T.msgs.at(-1),unb:T.unbalanced()}
     """)
+    c.true(False,'DEBUG manual sale state '+str({k:r.get(k) for k in ['closedBeforeSale','openAfterSale','sessionStates','saleFn','windowSaleFn','saleMessage','saleBlocked','finalStock']}))
     c.true(r['purchaseBlocked'],'manual purchase blocked with closed cash session and no mutation')
     c.true('صندوق' in r['purchaseMessage'],'manual purchase explains cash session requirement')
     c.true(r['saleBlocked'],'manual sale blocked with closed cash session and no mutation')
