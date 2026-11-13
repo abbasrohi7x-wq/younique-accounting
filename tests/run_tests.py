@@ -427,6 +427,37 @@ async def main():
 
 
 @test
+async def inventory_purchase_precedes_sale_and_split_payment(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const before={sales:db.sales.length,journal:db.journal.length,payments:db.payments.length};
+      const blocked=await T.sell(S,S.v,1,1500,{cash:1500});
+      const noStock={blocked:!blocked,stock:variantBy(S.v).stock,
+        sales:db.sales.length===before.sales,journal:db.journal.length===before.journal,
+        payments:db.payments.length===before.payments,msg:T.msgs.at(-1)};
+      saleCart.splice(0);
+      const purchase=await T.buy(S,S.v,5,1000,{cash:3000,card:2000});
+      const afterPurchase=variantBy(S.v).stock;
+      const sale=await T.sell(S,S.v,2,1500,{cash:600,card:1500,bank:300,credit:600});
+      const allocations=Object.fromEntries((sale&&sale.payments||[]).map(x=>[x.account,num(x.amount)]));
+      return{noStock,purchase:!!purchase,afterPurchase,sale:!!sale,allocations,
+        stock:variantBy(S.v).stock,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}
+    """)
+    c.true(r['noStock']['blocked'],'sale with zero inventory is rejected')
+    c.eq(r['noStock']['stock'],0,'rejected sale leaves zero stock')
+    c.true(r['noStock']['sales'] and r['noStock']['journal'] and r['noStock']['payments'],'rejected sale creates no financial records')
+    c.eq(r['afterPurchase'],5,'confirmed purchase creates available inventory')
+    c.true(r['purchase'],'purchase invoice saved before sale')
+    c.true(r['sale'],'sale succeeds after stock is received')
+    c.eq(r['allocations'],{'cash':600,'card':1500,'bank':300,'credit':600},'sale payment methods are preserved')
+    c.eq(r['stock'],3,'sale decrements received inventory')
+    c.eq(r['unb'],0,'purchase and sale ledgers remain balanced')
+    c.true(r['health'],'business health check remains valid')
+    await ctx.close()
+
+
+@test
 async def manual_purchase_and_sale_require_open_cash_session(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
