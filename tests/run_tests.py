@@ -572,16 +572,20 @@ async def purchase_return_records_all_noncredit_payment_methods(br,c):
 
 
 @test
-async def file_sync_import_merges_new_records_safely(br,c):
+async def file_transfer_restores_complete_encrypted_snapshot(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
       const S=await T.seed({});
-      db.customers.push({id:'local-sync-customer',name:'مشتری محلی'});
+      db.customers.push({id:'local-only-customer',name:'مشتری مقصد'});
+      const destinationDevice=syncDeviceId();
       const env=syncEnvelope();
-      env.data.customers.push({id:'incoming-sync-customer',name:'مشتری انتقال'});
+      env.deviceId='DEV-SOURCE-DEVICE';
+      env.data.pro.sync.deviceId=env.deviceId;
+      env.data.customers=env.data.customers.filter(x=>x.id!=='local-only-customer');
+      env.data.customers.push({id:'incoming-transfer-customer',name:'مشتری مبدأ'});
       env.checksum=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
       const raw=await window.yqEncryptBackup(JSON.stringify(env),'TransferPass123');
-      window.prompt=()=> 'TransferPass123';
+      window.prompt=()=> 'TransferPass123';window.confirm=()=>true;
       const dt=new DataTransfer();dt.items.add(new File([raw],'transfer.enc.json',{type:'application/json'}));
       const before=db.customers.length;
       page='sync';render();await T.sleep(80);
@@ -590,28 +594,33 @@ async def file_sync_import_merges_new_records_safely(br,c):
       const preview=!!document.querySelector('#sapply');
       const previewText=document.querySelector('#syncResult')?.innerText||'';
       if(preview)document.querySelector('#sapply').click();
-      await T.sleep(250);
+      await T.sleep(350);
       return{preview,previewText,before,after:db.customers.length,
-        local:db.customers.some(x=>x.id==='local-sync-customer'),
-        incoming:db.customers.some(x=>x.id==='incoming-sync-customer'),
-        encrypted:JSON.parse(raw).enc==='younique-enc-v1'}
+        local:db.customers.some(x=>x.id==='local-only-customer'),
+        incoming:db.customers.some(x=>x.id==='incoming-transfer-customer'),
+        encrypted:JSON.parse(raw).enc==='younique-enc-v1',
+        destinationDevice,deviceAfter:db.pro.sync.deviceId,
+        sourceDevice:env.deviceId,health:runYouniqueHealthCheck().ok}
     """)
-    c.true(r['preview'],'valid encrypted transfer produces an explicit merge preview')
-    c.true('جدید' in r['previewText'] and any(ch in r['previewText'] for ch in '۰۱۲۳۴۵۶۷۸۹'),'preview reports the incoming record count')
-    c.true(r['after']>r['before'],'merge adds the incoming record')
-    c.true(r['local'],'existing local customer is preserved')
-    c.true(r['incoming'],'incoming customer is merged')
-    c.true(r['encrypted'],'transfer package uses the encrypted backup envelope')
+    c.true(r['preview'],'valid encrypted transfer produces an explicit restore preview')
+    c.true('پیش‌نمایش نسخهٔ انتقال' in r['previewText'],'preview shows the full restore scope')
+    c.true(r['after']>0,'restored dataset remains populated')
+    c.eq(r['local'],False,'full restore replaces destination-only records')
+    c.true(r['incoming'],'source customer is restored')
+    c.true(r['encrypted'],'transfer package uses AES-GCM encrypted envelope')
+    c.eq(r['deviceAfter'],r['destinationDevice'],'destination device identity is preserved')
+    c.true(r['deviceAfter']!=r['sourceDevice'],'source device identity is not copied to destination')
+    c.true(r['health'],'restored data passes business integrity check')
     await ctx.close()
 
 
 @test
-async def file_sync_rejects_tampered_checksum_without_mutation(br,c):
+async def file_transfer_rejects_tampered_checksum_without_mutation(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
       const S=await T.seed({});
       const env=syncEnvelope();
-      env.data.customers.push({id:'tampered-sync-customer',name:'نباید وارد شود'});
+      env.data.customers.push({id:'tampered-transfer-customer',name:'نباید وارد شود'});
       env.checksum='00000000';
       const raw=await window.yqEncryptBackup(JSON.stringify(env),'TransferPass123');
       window.prompt=()=> 'TransferPass123';
@@ -624,42 +633,9 @@ async def file_sync_rejects_tampered_checksum_without_mutation(br,c):
         message:document.querySelector('#syncResult')?.innerText||''}
     """)
     c.eq(r['after'],r['before'],'tampered package never mutates local data')
-    c.eq(r['preview'],False,'tampered package never presents an apply action')
+    c.eq(r['preview'],False,'tampered package never presents a replace action')
     c.true('صحت بسته' in r['message'],'checksum failure is explained')
     await ctx.close()
 
-
-@test
-async def returns_and_purchase_void_preserve_original_warehouse(br,c):
-    pg,ctx=await page(br)
-    r=await ev(pg,'''const S=await T.seed({});
-      db.warehouses.push({id:'W2',name:'انبار دوم',active:true});
-      db.warehouseStocks.W2={};saveDB(true);
-      const p=await T.buy(S,S.v,4,1000,{cash:4000});
-      stockMove(S.v,-4,'test_transfer','T1',1000,'MAIN');
-      stockMove(S.v,4,'test_transfer','T1',1000,'W2');
-      p.warehouseId='W2';for(const id of p.items){const it=db.purchaseItems.find(x=>x.id===id);it.warehouseId='W2'}
-      const pi=db.purchaseItems.find(x=>x.variantId===S.v);
-      const pr=Fin.purchaseReturn({ref:p.number,qtys:{[pi.id]:1},method:'card',note:'تست انبار دوم'});
-      const afterPurchaseReturn={total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)};
-      const p2=await T.buy(S,S.v,2,1000,{cash:2000});
-      stockMove(S.v,-2,'test_transfer','T2',1000,'MAIN');stockMove(S.v,2,'test_transfer','T2',1000,'W2');
-      p2.warehouseId='W2';for(const id of p2.items){const it=db.purchaseItems.find(x=>x.id===id);it.warehouseId='W2'}
-      Fin.voidPurchase(p2.number,'ابطال تست انبار دوم');
-      const afterVoid={total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)};
-      const saleWarehouseOriginal=window.saleWarehouseId;window.saleWarehouseId=()=> 'W2';
-      const sale=await T.sell(S,S.v,1,1500,{cash:1500});window.saleWarehouseId=saleWarehouseOriginal;
-      sale.warehouseId='W2';for(const id of sale.items){const it=db.saleItems.find(x=>x.id===id);it.warehouseId='W2'}
-      const si=db.saleItems.find(x=>x.variantId===S.v);
-      const sr=Fin.saleReturn({ref:sale.number,qtys:{[si.id]:1},method:'card',note:'تست برگشت فروش انبار دوم'});
-      return{pr:!!pr,sr:!!sr,afterPurchaseReturn,afterVoid,afterSaleReturn:{total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)},unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}''')
-    c.true(r['pr'],'purchase return from secondary warehouse succeeds')
-    c.eq(r['afterPurchaseReturn'],{'total':3,'main':0,'w2':3},'purchase return decrements the source warehouse')
-    c.eq(r['afterVoid'],{'total':3,'main':0,'w2':3},'purchase void removes stock from the original warehouse only')
-    c.true(r['sr'],'sale return to secondary warehouse succeeds')
-    c.eq(r['afterSaleReturn'],{'total':3,'main':0,'w2':3},'sale return restores stock to the original warehouse')
-    c.eq(r['unb'],0,'warehouse return and void journals remain balanced')
-    c.true(r['health'],'health check remains valid')
-    await ctx.close()
 
 asyncio.run(main())

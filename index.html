@@ -1407,15 +1407,13 @@ function syncStable(v){if(v===null||typeof v!=='object')return JSON.stringify(v)
 function syncSig(v){let h=2166136261;const s=syncStable(v);for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16).padStart(8,'0')}
 function syncDeviceId(){proInit();db.pro.sync=db.pro.sync||{};if(!db.pro.sync.deviceId)db.pro.sync.deviceId='DEV-'+uid().replace(/[^a-zA-Z0-9]/g,'').slice(-16);return db.pro.sync.deviceId}
 function syncEnvelope(){const data=syncCloneData();const env={app:'unique-pro-sync',schema:38,version:window.YOUNIQUE_VERSION||'1.0',deviceId:syncDeviceId(),createdAt:now(),data};env.checksum=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});return env}
-function syncIsArrayRecord(v){return Array.isArray(v)&&v.every(x=>x&&typeof x==='object'&&typeof x.id==='string')}
-function syncMerge(base,incoming){const result=JSON.parse(JSON.stringify(base||{})),conflicts=[],added=[],same=[];for(const key of Object.keys(incoming||{})){if(key==='pro'||key==='__proto__'||key==='constructor'||key==='prototype')continue;const iv=incoming[key],bv=result[key];if(syncIsArrayRecord(iv)){if(!Array.isArray(result[key]))result[key]=[];const map=new Map(result[key].map(x=>[x.id,x]));for(const item of iv){const old=map.get(item.id);if(!old){result[key].push(item);map.set(item.id,item);added.push({table:key,id:item.id});continue}if(syncSig(old)===syncSig(item)){same.push({table:key,id:item.id});continue}const oldTime=Date.parse(old.updatedAt||old.modifiedAt||old.date||'')||0,newTime=Date.parse(item.updatedAt||item.modifiedAt||item.date||'')||0;if(newTime>oldTime&&newTime>0){const idx=result[key].findIndex(x=>x.id===item.id);if(idx>=0)result[key][idx]=item;conflicts.push({table:key,id:item.id,resolution:'incoming-newer'});}else{conflicts.push({table:key,id:item.id,resolution:'local-kept'});}}}else if(iv&&typeof iv==='object'&&bv&&typeof bv==='object'&&!Array.isArray(iv)){const sub=syncMerge(bv,iv);result[key]=sub.data;conflicts.push(...sub.conflicts.map(c=>({...c,table:key+'.'+c.table})));}else if(bv===undefined||bv===null||bv===''){result[key]=iv;added.push({table:key,id:null})}else if(syncSig(bv)!==syncSig(iv)){conflicts.push({table:key,id:null,resolution:'local-kept'})}}return{data:result,added,conflicts,same}}
-function proSync(){
+function syncMerge(base,incoming){const result=JSON.parse(JSON.stringify(base||{})),conflicts=[],added=[],same=[];ffunction proSync(){
   proInit();syncDeviceId();
   const s=db.pro.sync||{};
-  $('#content').innerHTML=pageHead('انتقال و همگام‌سازی','انتقال امن فایل‌محور؛ بدون سرور یا پایگاه دادهٔ ابری',
-    '<button class="btn primary" id="sx">ساخت بستهٔ رمزگذاری‌شده</button><button class="btn" id="si">دریافت و ادغام بسته</button><input id="sif" type="file" accept="application/json,.json,.unique" hidden>')+
+  $('#content').innerHTML=pageHead('انتقال و همگام‌سازی','انتقال کامل و رمزگذاری‌شده بین دستگاه‌ها؛ بدون سرور یا پایگاه دادهٔ ابری',
+    '<button class="btn primary" id="sx">ساخت بستهٔ رمزگذاری‌شده</button><button class="btn" id="si">بازیابی بستهٔ انتقال</button><input id="sif" type="file" accept="application/json,.json,.unique" hidden>')+
     '<div class="grid"><div class="card"><b>فروش</b><div>'+db.sales.length+'</div></div><div class="card"><b>خرید</b><div>'+db.purchases.length+'</div></div><div class="card"><b>کالا</b><div>'+db.products.length+'</div></div><div class="card"><b>دستگاه</b><div style="direction:ltr;font-size:11px">'+esc(syncDeviceId())+'</div></div></div>'+
-    '<div class="card section"><h3>همگام‌سازی فایل‌محور</h3><p class="muted">برای انتقال بین گوشی و رایانه، از یک دستگاه بسته بسازید و در دستگاه دیگر وارد کنید. فایل با AES-256 رمزگذاری می‌شود؛ رمز آن را جداگانه و امن نگه دارید.</p><p class="muted">در مرحلهٔ پیش‌نمایش، تعداد رکوردهای جدید و تعارض‌ها نمایش داده می‌شود. هیچ داده‌ای تا زدن دکمهٔ «اعمال ادغام» تغییر نمی‌کند.</p><div id="syncResult"></div><small>آخرین انتقال: '+(s.lastSync?esc(s.lastSync):'—')+' · آخرین ادغام: '+(s.importedAt?esc(s.importedAt):'—')+'</small></div>';
+    '<div class="card section"><h3>انتقال امن اطلاعات فروشگاه</h3><p class="muted">این روش یک نسخهٔ کامل و یکپارچه از اطلاعات را بین گوشی و رایانه منتقل می‌کند. فایل با AES-256 رمزگذاری می‌شود و رمز آن را باید جداگانه نگه دارید.</p><p class="warningbox">بازیابی، اطلاعات فعلی دستگاه مقصد را به‌طور کامل جایگزین می‌کند. پیش از بازیابی، از اطلاعات مقصد هم پشتیبان بگیرید. برای جلوگیری از تداخل شماره فاکتورها، هم‌زمان روی دو دستگاه فاکتور ثبت نکنید؛ یک دستگاه را به‌عنوان دستگاه فعال نگه دارید.</p><div id="syncResult"></div><small>آخرین انتقال: '+(s.lastSync?esc(s.lastSync):'—')+' · آخرین بازیابی: '+(s.importedAt?esc(s.importedAt):'—')+'</small></div>';
   $('#sx').onclick=async()=>{
     try{
       const pass=prompt('رمز بستهٔ انتقال را وارد کنید (حداقل ۸ نویسه). این رمز را برای دستگاه مقصد نگه دارید.');
@@ -1449,24 +1447,21 @@ function proSync(){
       if(!Number.isInteger(Number(env.schema))||Number(env.schema)<1)throw Error('نسخهٔ ساختار بسته معتبر نیست.');
       const expected=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
       if(!env.checksum||env.checksum!==expected)throw Error('صحت بسته تأیید نشد؛ فایل تغییر کرده یا آسیب دیده است.');
-      validateBackupData(env.data);
-      const merged=syncMerge(db,env.data);
-      validateBackupData(merged.data);
-      box.innerHTML='<div class="successbox">پیش‌نمایش ادغام: <b>'+fa(merged.added.length)+'</b> رکورد جدید، <b>'+fa(merged.conflicts.length)+'</b> تعارض، <b>'+fa(merged.same.length)+'</b> بدون تغییر.</div><div class="modal-actions"><button class="btn" id="scancel">لغو</button><button class="btn primary" id="sapply">اعمال ادغام</button></div>';
+      const stats=validateBackupData(env.data);
+      box.innerHTML='<div class="successbox">پیش‌نمایش نسخهٔ انتقال: <b>'+fa(stats.products)+'</b> کالا، <b>'+fa(stats.variants)+'</b> تنوع، <b>'+fa(stats.sales)+'</b> فروش، <b>'+fa(stats.purchases)+'</b> خرید، <b>'+fa(stats.customers)+'</b> مشتری و <b>'+fa(stats.suppliers)+'</b> تأمین‌کننده.</div><div class="modal-actions"><button class="btn" id="scancel">لغو</button><button class="btn primary" id="sapply">جایگزینی و بازیابی اطلاعات</button></div>';
       $('#scancel').onclick=()=>{box.innerHTML=''};
       $('#sapply').onclick=async()=>{
-        const before=JSON.parse(JSON.stringify(db));
+        if(!confirm('تمام اطلاعات فعلی این دستگاه با نسخهٔ داخل فایل جایگزین می‌شود. آیا از اطلاعات مقصد پشتیبان دارید و ادامه می‌دهید؟'))return;
+        const destinationDeviceId=syncDeviceId();
         try{
-          Object.keys(merged.data).forEach(k=>{if(k!=='pro')db[k]=merged.data[k]});
-          db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};db.pro.sync.importedAt=now();
-          if(!saveDB(true))throw Error('ذخیرهٔ ادغام ناموفق بود؛ اطلاعات قبلی بازگردانده می‌شود.');
+          await replaceDB(env.data);
+          db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};
+          db.pro.sync.deviceId=destinationDeviceId;
+          db.pro.sync.importedAt=now();db.pro.sync.lastSync=now();db.pro.sync.enabled=false;
+          if(!saveDB(true))throw Error('ذخیرهٔ شناسهٔ دستگاه مقصد ناموفق بود.');
           if(window.YStore&&typeof YStore.flush==='function')await YStore.flush();
-          if(window.YStore&&YStore.S&&(YStore.S.failed||YStore.S.stale))throw Error('ذخیره‌سازی پایدار تأیید نشد؛ اطلاعات قبلی بازگردانده می‌شود.');
-          invalidate();box.innerHTML='<div class="successbox">ادغام با موفقیت ذخیره شد.</div>';toast('ادغام بستهٔ انتقال انجام شد');render();
-        }catch(err){
-          try{await replaceDB(before)}catch(restoreErr){console.error('sync rollback failed',restoreErr)}
-          toast(err.message||'اعمال ادغام ناموفق بود',true);
-        }
+          invalidate();toast('بازیابی نسخهٔ انتقال با موفقیت انجام شد');render();
+        }catch(err){toast(err.message||'بازیابی ناموفق بود؛ اطلاعات قبلی حفظ شد.',true)}
       };
     }catch(err){box.innerHTML='<div class="errorbox">'+esc(err.message||'فایل نامعتبر')+'</div>';toast(err.message||'فایل انتقال معتبر نیست',true)}
     finally{e.target.value=''}
