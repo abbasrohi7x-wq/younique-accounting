@@ -647,8 +647,8 @@ async def returns_and_purchase_void_preserve_original_warehouse(br,c):
       p2.warehouseId='W2';for(const id of p2.items){const it=db.purchaseItems.find(x=>x.id===id);it.warehouseId='W2'}
       Fin.voidPurchase(p2.number,'ابطال تست انبار دوم');
       const afterVoid={total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)};
-      const sale=await T.sell(S,S.v,1,1500,{cash:1500});
-      stockMove(S.v,-1,'test_transfer','T3',1000,'MAIN');stockMove(S.v,1,'test_transfer','T3',1000,'W2');
+      const saleWarehouseOriginal=window.saleWarehouseId;window.saleWarehouseId=()=> 'W2';
+      const sale=await T.sell(S,S.v,1,1500,{cash:1500});window.saleWarehouseId=saleWarehouseOriginal;
       sale.warehouseId='W2';for(const id of sale.items){const it=db.saleItems.find(x=>x.id===id);it.warehouseId='W2'}
       const si=db.saleItems.find(x=>x.variantId===S.v);
       const sr=Fin.saleReturn({ref:sale.number,qtys:{[si.id]:1},method:'card',note:'تست برگشت فروش انبار دوم'});
