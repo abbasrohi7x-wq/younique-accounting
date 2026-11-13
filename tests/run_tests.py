@@ -653,6 +653,36 @@ async def committed_invoice_drafts_cannot_be_submitted_twice(br,c):
 
 
 @test
+async def local_tesseract_worker_loads_and_recognizes_invoice_text(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      await new Promise((resolve,reject)=>{
+        const s=document.createElement('script');s.src='./vendor/tesseract/tesseract.min.js';
+        s.onload=resolve;s.onerror=()=>reject(new Error('local tesseract.min.js failed to load'));
+        document.head.appendChild(s);
+      });
+      const worker=await Tesseract.createWorker('eng',1,{
+        workerPath:'./vendor/tesseract/worker.min.js',
+        langPath:'./vendor/tesseract/lang/',
+        corePath:'./vendor/tesseract/core/',
+        gzip:true
+      });
+      try{
+        const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=300;
+        const cx=canvas.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,1400,300);
+        cx.fillStyle='#000';cx.font='bold 140px Arial';cx.fillText('INVOICE 12345',40,190);
+        const result=await worker.recognize(canvas);
+        return{loaded:true,text:String(result.data.text||''),confidence:Number(result.data.confidence)||0};
+      }finally{await worker.terminate()}
+    """)
+    c.true(r['loaded'],'local Tesseract worker and core initialize successfully')
+    c.true('12345' in r['text'].replace(' ','').replace('\\n',''),'local OCR recognizes the invoice number')
+    c.true(r['confidence']>0,'OCR returns a confidence score')
+    c.eq(pg.errs,[],'OCR smoke test produces no uncaught page errors')
+    await ctx.close()
+
+
+@test
 async def file_transfer_restores_complete_encrypted_snapshot(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
