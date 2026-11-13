@@ -694,17 +694,17 @@ async def local_tesseract_worker_loads_and_recognizes_invoice_text(br,c):
         s.onload=resolve;s.onerror=()=>reject(new Error('local tesseract.min.js failed to load'));
         document.head.appendChild(s);
       });
-      const worker=await Tesseract.createWorker('eng',1,{
+      const worker=await Promise.race([Tesseract.createWorker('eng',1,{
         workerPath:'./vendor/tesseract/worker.min.js',
         langPath:'./vendor/tesseract/lang/',
         corePath:'./vendor/tesseract/core/',
         gzip:true
-      });
+      }),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tesseract worker initialization timed out')),40000))]);
       try{
         const canvas=document.createElement('canvas');canvas.width=1400;canvas.height=300;
         const cx=canvas.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,1400,300);
         cx.fillStyle='#000';cx.font='bold 140px Arial';cx.fillText('INVOICE 12345',40,190);
-        const result=await worker.recognize(canvas);
+        const result=await Promise.race([worker.recognize(canvas),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tesseract OCR recognition timed out')),40000))]);
         return{loaded:true,text:String(result.data.text||''),confidence:Number(result.data.confidence)||0};
       }finally{await worker.terminate()}
     """)
