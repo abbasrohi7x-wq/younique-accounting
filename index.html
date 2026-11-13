@@ -543,7 +543,7 @@ function purchaseTotal(){return roundMoney(purchaseCart.reduce((a,x)=>a+roundMon
 function renderPurchasePaymentSummary(){const total=purchaseTotal(),cash=roundMoney($('#purCash')?.value),card=roundMoney($('#purCard')?.value),bank=roundMoney($('#purBank')?.value),credit=roundMoney($('#purCredit')?.value),covered=roundMoney(cash+card+bank+credit),diff=roundMoney(total-covered);const el=$('#purPaySummary');if(el)el.innerHTML=`<div class="card section"><div class="grid3"><div>جمع خرید <b>${money(total)}</b></div><div>پرداخت <b>${money(cash+card+bank)}</b></div><div>بدهی <b>${money(credit)}</b></div></div><div class="section"><b>${Math.abs(diff)<=0.01?'تسویه کامل':diff>0?'مانده تسویه‌نشده':'اضافه‌پرداخت'}</b>: ${money(Math.abs(diff))}</div></div>`;return {total,cash,card,bank,credit,diff}}
 window.renderPurchasePaymentSummary=renderPurchasePaymentSummary;
 function savePurchaseV18(){try{atomic('ثبت خرید',()=>{
- if(!purchaseCart.length)throw Error('خرید خالی است');const supplierId=$('#purSup').value, p=renderPurchasePaymentSummary();if(p.total<=0)throw Error('مبلغ خرید معتبر نیست');if(Math.abs(p.diff)>.01)throw Error('پرداخت و بدهی باید دقیقاً برابر جمع خرید باشند');if(p.credit>0&&!supplierId)throw Error('برای ثبت بدهی، تأمین‌کننده را انتخاب کنید');if(p.cash>0&&!activeCashSession())throw Error('برای پرداخت نقدی ابتدا صندوق را باز کنید');
+ if(!purchaseCart.length)throw Error('خرید خالی است');const supplierId=$('#purSup').value, p=renderPurchasePaymentSummary();if(p.total<=0)throw Error('مبلغ خرید معتبر نیست');if(Math.abs(p.diff)>.01)throw Error('پرداخت و بدهی باید دقیقاً برابر جمع خرید باشند');if(p.credit>0&&!supplierId)throw Error('برای ثبت بدهی، تأمین‌کننده را انتخاب کنید');requireOpenCashSession('purchase');
  const no=nextNumber('purchase'),items=purchaseCart.map(x=>({id:uid(),variantId:x.id,qty:num(x.qty),unitPrice:num(x.price),total:num(x.qty)*num(x.price)})),row={id:uid(),number:no,date:now(),supplierId,status:'confirmed',payment:p.cash&&p.card?'mixed':p.cash?'cash':p.card?'card':p.bank?'bank':'credit',total:p.total,paid:p.cash+p.card+p.bank,due:p.credit,items:items.map(x=>x.id),payments:[{account:'cash',amount:p.cash},{account:'card',amount:p.card},{account:'bank',amount:p.bank},{account:'credit',amount:p.credit}].filter(x=>x.amount>0)};
  db.purchases.push(row);items.forEach(i=>{db.purchaseItems.push(i);const v=variantBy(i.variantId),oldQty=Math.max(0,num(v.stock)),oldCost=Math.max(0,num(v.buyPrice)),qty=Math.max(0,num(i.qty)),price=Math.max(0,num(i.unitPrice));stockMove(i.variantId,qty,'purchase',no,price);v.buyPrice=oldQty+qty?roundMoney(((oldQty*oldCost)+(qty*price))/(oldQty+qty)):price});
  [{account:'cash',amount:p.cash},{account:'card',amount:p.card},{account:'bank',amount:p.bank}].filter(x=>x.amount>0).forEach(x=>{db.payments.push({id:uid(),date:now(),direction:'out',partyType:supplierId?'supplier':'other',partyId:supplierId,amount:x.amount,account:x.account,ref:no,embedded:true,note:'پرداخت همراه خرید'});if(x.account==='cash'){const cs=activeCashSession();cashMove(cs.id,-x.amount,'purchase',no,'پرداخت نقدی خرید')}});
@@ -1075,6 +1075,7 @@ function ensureV17(){
 ensureV17();
 (function migrateV18Cash(){if(db.cashMovements.some(m=>m.delta===undefined)){db.cashMovements.forEach(m=>{if(m.delta!==undefined)return;const t=String(m.type||'');m.delta=t==='opening'?0:(t==='purchase'||t==='out'||t==='expense'||t==='withdraw'?-Math.abs(num(m.amount)):Math.abs(num(m.amount)))});saveDB(true)}})();
 function activeCashSession(){ensureV17();return db.cashSessions.find(x=>x.status==='open')||null}
+function requireOpenCashSession(kind){if(!activeCashSession())throw Error(`برای ثبت فاکتور ${kind==='purchase'?'خرید':'فروش'} ابتدا صندوق را باز کنید`);return true}
 function nextCashSessionNumber(){return `CS-${new Date().getFullYear()}-${String(db.seq.cashSession++).padStart(5,'0')}`}
 function cashRound(v){return roundMoney(v)}
 function cashSessionExpected(s){return cashRound(num(s.openingCash)+db.cashMovements.filter(m=>m.sessionId===s.id).reduce((a,m)=>a+num(m.delta),0))}
@@ -1200,7 +1201,7 @@ function saveSaleV18(){try{atomic('ثبت فروش',()=>{
  if(covered>total+.01)throw Error('مجموع پرداخت و نسیه از مبلغ فاکتور بیشتر است');
  const due=Math.max(0,total-covered);if((credit>0||due>0)&&!customerId)throw Error('برای نسیه یا مانده، مشتری را انتخاب کنید');
  if(due>0.01)throw Error('تسویه کامل نیست؛ مبلغ نسیه را دقیقاً برابر مانده وارد کنید');
- if(p.cash>0&&!activeCashSession())throw Error('برای دریافت نقدی ابتدا صندوق را باز کنید');
+ requireOpenCashSession('sale');
  const warehouseId=saleWarehouseId();if(!(db.warehouses||[]).some(w=>w.id===warehouseId&&w.active!==false))throw Error('انبار انتخاب‌شده معتبر نیست');for(const x of saleCart){const v=variantBy(x.id);if(!v||x.qty<=0||x.qty>warehouseAvailable(warehouseId,x.id))throw Error(`موجودی «${variantName(v||{})}» در انبار انتخاب‌شده کافی نیست`)}
  const no=nextNumber('sale'),discount=num($('#saleDiscount').value);
  const items=saleCart.map(x=>({id:uid(),variantId:x.id,qty:num(x.qty),unitPrice:num(x.price),discount:num(x.discount),total:Math.max(0,num(x.qty)*num(x.price)-num(x.discount)),cost:num(variantBy(x.id).buyPrice)}));
@@ -1362,7 +1363,7 @@ function saveSaleV21(){try{atomic('ثبت فروش',()=>{
   if(covered>total+.01)throw Error('مجموع پرداخت و نسیه از مبلغ فاکتور بیشتر است');
   const due=Math.max(0,total-covered);if((credit>0||due>0)&&!customerId)throw Error('برای نسیه یا مانده، مشتری را انتخاب کنید');
   if(due>.01)throw Error('تسویه کامل نیست؛ مبلغ نسیه را دقیقاً برابر مانده وارد کنید');
-  if(p.cash>0&&!activeCashSession())throw Error('برای دریافت نقدی ابتدا صندوق را باز کنید');   const warehouseId=saleWarehouseId();if(!(db.warehouses||[]).some(w=>w.id===warehouseId&&w.active!==false))throw Error('انبار انتخاب‌شده معتبر نیست');for(const x of saleCart){if(num(x.qty)>warehouseAvailable(warehouseId,x.id)+1e-9){const v0=variantBy(x.id);throw Error(`موجودی «${variantName(v0||{})}» در انبار انتخاب‌شده کافی نیست`)}}
+  requireOpenCashSession('sale');const warehouseId=saleWarehouseId();if(!(db.warehouses||[]).some(w=>w.id===warehouseId&&w.active!==false))throw Error('انبار انتخاب‌شده معتبر نیست');for(const x of saleCart){if(num(x.qty)>warehouseAvailable(warehouseId,x.id)+1e-9){const v0=variantBy(x.id);throw Error(`موجودی «${variantName(v0||{})}» در انبار انتخاب‌شده کافی نیست`)}}
   for(const x of saleCart){const v=variantBy(x.id);if(!v||x.qty<=0||x.qty>v.stock)throw Error(`موجودی «${variantName(v||{})}» کافی نیست`)}
   ensureCostingState();const no=nextNumber('sale'),discount=num($('#saleDiscount').value);
   const items=saleCart.map(x=>{const v=variantBy(x.id),ci=previewCost(v.id,num(x.qty),v.buyPrice);return {id:uid(),variantId:x.id,qty:num(x.qty),unitPrice:roundMoney(x.price),discount:roundMoney(x.discount),total:roundMoney(num(x.qty)*num(x.price)-num(x.discount)),cost:roundMoney(ci.unitCost||num(v.buyPrice)),costTotal:roundMoney(ci.cost),costDetails:ci.details}});
@@ -2532,7 +2533,7 @@ const oldRPC=renderPurchaseCart;renderPurchaseCart=function(){oldRPC();const s=d
 function netLine(x,c){const gross=roundMoney(num(x.qty)*num(x.price));if(!c.on||c.mode==='exclusive')return gross;return roundMoney(gross*100/(100+c.rate))}
 const savePurchaseV4605=function(){try{atomic('ثبت خرید',()=>{
  if(!purchaseCart.length)throw Error('خرید خالی است');for(let i=0;i<purchaseCart.length;i++){const x=purchaseCart[i]||{},q=num(x.qty),price=num(x.price);if(!variantBy(x.id))throw Error(`کالای ردیف ${i+1} پیدا نشد`);if(!Number.isInteger(q)||q<=0)throw Error(`تعداد ردیف ${i+1} باید عدد صحیح و مثبت باشد`);if(!Number.isFinite(price)||price<0)throw Error(`قیمت ردیف ${i+1} معتبر نیست`)}
- const supplierId=$('#purSup').value,warehouseId=$('#purWarehouse')?.value||'MAIN',p=renderPurchasePaymentSummary(),tx=pcalc();if(['cash','card','bank','credit'].some(x=>!Number.isFinite(p[x])||p[x]<0))throw Error('مبلغ پرداخت نامعتبر است');if(p.total<=0)throw Error('مبلغ خرید معتبر نیست');if(Math.abs(p.diff)>.01)throw Error('پرداخت و بدهی باید دقیقاً برابر جمع خرید باشند');if(p.credit>0&&!supplierId)throw Error('برای ثبت بدهی، تأمین‌کننده را انتخاب کنید');if(p.cash>0&&!activeCashSession())throw Error('برای پرداخت نقدی ابتدا صندوق را باز کنید');
+ const supplierId=$('#purSup').value,warehouseId=$('#purWarehouse')?.value||'MAIN',p=renderPurchasePaymentSummary(),tx=pcalc();if(['cash','card','bank','credit'].some(x=>!Number.isFinite(p[x])||p[x]<0))throw Error('مبلغ پرداخت نامعتبر است');if(p.total<=0)throw Error('مبلغ خرید معتبر نیست');if(Math.abs(p.diff)>.01)throw Error('پرداخت و بدهی باید دقیقاً برابر جمع خرید باشند');if(p.credit>0&&!supplierId)throw Error('برای ثبت بدهی، تأمین‌کننده را انتخاب کنید');requireOpenCashSession('purchase');
  ensureCostingState();const no=nextNumber('purchase'),c=pcfg();let items=purchaseCart.map(x=>{const net=netLine(x,c);return{id:uid(),variantId:x.id,qty:num(x.qty),unitPrice:roundMoney(net/num(x.qty)),enteredUnitPrice:roundMoney(x.price),total:net}});const netSum=roundMoney(items.reduce((a,i)=>a+i.total,0));if(items.length&&Math.abs(netSum-tx.net)>.0001){const last=items.at(-1),adjustedTotal=roundMoney(last.total+(tx.net-netSum));last.total=adjustedTotal;last.unitPrice=roundMoney(adjustedTotal/Math.max(1,num(last.qty)));}
  const row={id:uid(),number:no,date:now(),supplierId,status:'confirmed',payment:p.cash&&p.card?'mixed':p.cash?'cash':p.card?'card':p.bank?'bank':'credit',total:tx.gross,netTotal:tx.net,vat:tx.vat,vatMode:tx.vat?tx.mode:'',vatRate:tx.vat?tx.rate:0,paid:p.cash+p.card+p.bank,due:p.credit,items:items.map(x=>x.id),costingMethod:costingMethod(),payments:[{account:'cash',amount:p.cash},{account:'card',amount:p.card},{account:'bank',amount:p.bank},{account:'credit',amount:p.credit}].filter(x=>x.amount>0)};db.purchases.push(row);
  if(!(db.warehouses||[]).some(w=>w.id===warehouseId&&w.active!==false))throw Error('انبار مقصد معتبر نیست');items.forEach(i=>{db.purchaseItems.push(i);const v=variantBy(i.variantId);stockMoveV21(i.variantId,i.qty,'purchase',no,i.unitPrice,i.total,warehouseId);syncVariantCost(v)});
@@ -2609,6 +2610,7 @@ const saleSave46012=window.saveSale||saveSale;
    (otherwise revising a sale that used the available stock always failed with "insufficient stock").
    Any failure restores the pre-revision snapshot and keeps the draft. */
 saveSale=saveSaleV18=window.saveSale=window.saveSaleV18=function(){
+if(!activeCashSession()){toast('برای ثبت فاکتور فروش ابتدا صندوق را باز کنید',true);return null}
 const d=db.revisionDraft&&db.revisionDraft.type==='sale'?JSON.parse(JSON.stringify(db.revisionDraft)):null;
 if(!d)return saleSave46012.apply(this,arguments);
 const b=cloneDB(),n=db.sales.length,keepDraft=()=>{db.revisionDraft=JSON.parse(JSON.stringify(d))};
@@ -2618,7 +2620,7 @@ if(db.sales.length!==n+1){replaceDBInPlace(normalize(b));keepDraft();saveDB(true
 try{const nw=db.sales[db.sales.length-1],old=db.sales.find(x=>x.number===d.of);nw.revisionOf=d.of;if(old)old.revisedBy=nw.number;delete db.revisionDraft;if(!saveDB(true))throw Error('ذخیره ارتباط اصلاح فاکتور ناموفق بود');audit('اصلاح فاکتور',d.of,'نسخه جدید '+nw.number);saveDB(true);page='sales';render();toast('اصلاح ثبت شد؛ فاکتور قبلی باطل و نسخه جدید جایگزین شد')}
 catch(e){replaceDBInPlace(normalize(b));keepDraft();saveDB(true);page='sales';render();toast('اصلاح نهایی نشد و همه تغییرات برگشت داده شد: '+(e.message||e),true)}
 return r};
-const purchaseSave46012=window.savePurchase||savePurchase;savePurchase=savePurchaseV18=window.savePurchase=window.savePurchaseV18=function(){const d=db.revisionDraft&&db.revisionDraft.type==='purchase'?JSON.parse(JSON.stringify(db.revisionDraft)):null,b=cloneDB(),n=db.purchases.length,r=purchaseSave46012.apply(this,arguments);finalizeRevision('purchase',d,n,b);return r};
+const purchaseSave46012=window.savePurchase||savePurchase;savePurchase=savePurchaseV18=window.savePurchase=window.savePurchaseV18=function(){if(!activeCashSession()){toast('برای ثبت فاکتور خرید ابتدا صندوق را باز کنید',true);return null}const d=db.revisionDraft&&db.revisionDraft.type==='purchase'?JSON.parse(JSON.stringify(db.revisionDraft)):null,b=cloneDB(),n=db.purchases.length,r=purchaseSave46012.apply(this,arguments);finalizeRevision('purchase',d,n,b);return r};
 /* FIX 46.2.0: an abandoned revision draft must not stay armed - otherwise the next unrelated invoice would silently void the original one */
 const render46011=render;render=function(){const d=db.revisionDraft;if(d&&!((d.type==='sale'&&page==='sale')||(d.type==='purchase'&&page==='purchase'))){delete db.revisionDraft;try{saveDB(true)}catch(_){}}return render46011.apply(this,arguments)};
 const voidPurchase46012=Fin.voidPurchase.bind(Fin);Fin.voidPurchase=function(no,reason){const p=db.purchases.find(x=>x.number===no);if(p){const j=db.journal.find(x=>x.purchaseId===p.id&&!x.reversalOf);if(j&&db.journal.some(x=>x.reversalOf===j.id))throw Error('سند معکوس این خرید قبلاً ثبت شده است')}return voidPurchase46012(no,reason)};
@@ -3220,7 +3222,7 @@ WRITE({name:'create_sale',desc:'ثبت فاکتور فروش با اقلام و 
     else if(q.method&&METHODS[q.method])pay[q.method]=total;
     else return{status:'ask',ask:{question:`جمع فاکتور ${h.money(total)} است. نحوه پرداخت؟`,field:'method',options:Object.entries(METHODS).map(([k,l])=>({label:l,value:k}))}};
     if(pay.credit>0&&!cust)return{status:'ask',ask:{question:'برای فروش نسیه/مانده، نام مشتری لازم است. نام مشتری؟',field:'customer',type:'text'}};
-    if(pay.cash>0&&typeof window.activeCashSession==='function'&&!window.activeCashSession())return err('FAILED','برای دریافت نقدی ابتدا باید صندوق باز باشد. صندوق را باز کنید یا روش دیگری انتخاب کنید.');
+    if(typeof window.activeCashSession!=='function'||!window.activeCashSession())return err('FAILED','برای ثبت فاکتور فروش ابتدا باید صندوق را باز کنید.');
     const payTxt=Object.entries(pay).filter(([,v])=>v>0).map(([k,v])=>`${METHODS[k]} ${h.shortMoney(v)}`).join(' + ');
     const summary=`فاکتور فروش${cust?' برای «'+cust.name+'»':' (مشتری متفرقه)'}:\n`+merged.map(l=>`• ${l.name} × ${U.fa(l.qty)} @ ${h.shortMoney(l.price)}${l.discount?' (تخفیف '+h.shortMoney(l.discount)+')':''}`).join('\n')+(discount?`\nتخفیف فاکتور: ${h.shortMoney(discount)}`:'')+`\nجمع: ${h.money(total)}\nپرداخت: ${payTxt}`;
     return{status:'ready',params:{customerId:q.customerId||'',cart,discount,pay,total},needsConfirm:true,summary,risk:total>=HIGH_AMOUNT_RIAL?'high':'medium'}},
@@ -3258,7 +3260,7 @@ WRITE({name:'create_purchase',desc:'ثبت سند خرید از تأمین‌ک�
     const total=lines.reduce((a,l)=>a+l.qty*l.price,0);
     if(!q.method||!METHODS[q.method])return{status:'ask',ask:{question:`جمع خرید ${h.money(total)} است. نحوه پرداخت؟`,field:'method',options:Object.entries(METHODS).map(([k,l])=>({label:l,value:k}))}};
     if(q.method==='credit'&&!sup)return{status:'ask',ask:{question:'برای خرید نسیه، نام تأمین‌کننده لازم است. نام تأمین‌کننده؟',field:'supplier',type:'text'}};
-    if(q.method==='cash'&&typeof window.activeCashSession==='function'&&!window.activeCashSession())return err('FAILED','برای پرداخت نقدی ابتدا باید صندوق باز باشد.');
+    if(typeof window.activeCashSession!=='function'||!window.activeCashSession())return err('FAILED','برای ثبت فاکتور خرید ابتدا باید صندوق را باز کنید.');
     return{status:'ready',params:{supplierId:q.supplierId||'',cart:lines.map(l=>({id:l.id,qty:l.qty,price:l.price})),method:q.method,total},needsConfirm:true,risk:total>=HIGH_AMOUNT_RIAL?'high':'medium',
       summary:`سند خرید${sup?' از «'+sup.name+'»':' (تأمین‌کننده متفرقه)'}:\n`+lines.map(l=>`• ${l.name} × ${U.fa(l.qty)} @ ${h.shortMoney(l.price)}`).join('\n')+`\nجمع: ${h.money(total)}\nپرداخت: ${METHODS[q.method]}`}},
   async run(p){
