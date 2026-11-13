@@ -1,5 +1,5 @@
 # آزمون‌های UNIQUE
-- `run_tests.py` — ۱۳ آزمون / ۷۷ ادعا روی برنامهٔ واقعی (Chromium بدون سر). نیاز: `pip install playwright numpy opencv-python-headless` و `python -m playwright install chromium`. اجرا: `python3 tests/run_tests.py [بخشی از نام]`.
+- `run_tests.py` — ۱۵ آزمون شامل حسابداری/انبار/امنیت و دو آزمون ذخیره‌سازی IndexedDB (بازیابی پس از reload و مسدودسازی بازنویسی دادهٔ ناقص) روی برنامهٔ واقعی در Chromium بدون سر. نیاز: `pip install playwright numpy opencv-python-headless` و `python -m playwright install chromium`. اجرا: `python3 tests/run_tests.py [بخشی از نام]`.
 - `helpers.js` — ابزار تزریق‌شده به صفحه؛ فقط داده ساختگی.
 - `headless_probe.js` — آزمایش اجرای موتور در Node (`node tests/headless_probe.js`).
 - QR با OpenCV راستی‌آزمایی می‌شود؛ اگر نصب نباشد آن ادعا رد می‌شود (SKIP) و چاپ می‌شود.
