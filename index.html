@@ -5722,15 +5722,27 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
         var customerId = ($el('#saleCustomer') && $el('#saleCustomer').value) || '';
         var payment = ($el('#salePay') && $el('#salePay').value) || 'cash';
         var discount = Number(($el('#saleDiscount') && $el('#saleDiscount').value) || 0);
-        // Support both classic form and test helper __salePayments
         var paid = Number(($el('#salePaid') && $el('#salePaid').value) || 0);
-        if (window.__salePayments) {
-          var sp = window.__salePayments;
-          paid = Number(sp.cash || 0) + Number(sp.card || 0) + Number(sp.bank || 0);
-          if (Number(sp.credit || 0) > 0) payment = paid > 0 ? payment : 'credit';
-          if (Number(sp.cash || 0) > 0) payment = 'cash';
-          else if (Number(sp.card || 0) > 0) payment = 'card';
-          else if (Number(sp.bank || 0) > 0) payment = 'bank';
+        var split = null;
+        if ($el('#yqPayCash')) {
+          split = {
+            cash: Number($el('#yqPayCash').value || 0),
+            card: Number($el('#yqPayCard').value || 0),
+            bank: Number($el('#yqPayBank').value || 0),
+            credit: Number($el('#yqPayCredit').value || 0)
+          };
+        }
+        var remembered = window.__salePayments;
+        var rememberedSum = remembered ? Number(remembered.cash || 0) + Number(remembered.card || 0) + Number(remembered.bank || 0) + Number(remembered.credit || 0) : 0;
+        var formSum = split ? split.cash + split.card + split.bank + split.credit : 0;
+        if (formSum <= 0 && rememberedSum > 0) {
+          split = {
+            cash: Number(remembered.cash || 0),
+            card: Number(remembered.card || 0),
+            bank: Number(remembered.bank || 0),
+            credit: Number(remembered.credit || 0)
+          };
+          formSum = rememberedSum;
         }
         var items = cart.map(function (x) {
           return {
@@ -5740,8 +5752,10 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
             discount: Number(x.discount || 0)
           };
         });
+        var payload = { items: items, customerId: customerId, payment: payment, paid: paid, discount: discount };
+        if (split && (split.cash + split.card + split.bank + split.credit) > 0) payload.payments = split;
         var result = engine.atomic('ثبت فروش', function () {
-          return engine.createSale({ items: items, customerId: customerId, payment: payment, paid: paid, discount: discount });
+          return engine.createSale(payload);
         });
         if (typeof toast === 'function') toast('فروش ' + result.number + ' با موفقیت ثبت شد');
         if (typeof saleCart !== 'undefined') saleCart.length = 0;
