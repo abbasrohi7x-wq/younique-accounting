@@ -186,8 +186,9 @@ async def indexeddb_encryption_rekey_and_disable_roundtrip(br,c):
       await YStore.changePassphrase('test-pass-123','new-pass-456');
       const meta2=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>{const d=q.result;const t=d.transaction('kv','readonly'),g=t.objectStore('kv').get('meta');g.onsuccess=()=>{d.close();res(g.result)};g.onerror=()=>rej(g.error)};q.onerror=()=>rej(q.error)});
       await YStore.disableEncryption();
+      const meta3=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>{const d=q.result;const t=d.transaction('kv','readonly'),g=t.objectStore('kv').get('meta');g.onsuccess=()=>{d.close();res(g.result)};g.onerror=()=>rej(g.error)};q.onerror=()=>rej(q.error)});
       const plain=await read();
-      return{enc:!!meta1.enc,encryptedRecord:!!(enc1&&enc1.iv&&enc1.ct),rekeyed:!!meta2.enc&&String(meta1.enc.salt)!==String(meta2.enc.salt),disabled:!meta2.enc&&!YStore.S.enc,plainRecord:typeof plain==='string'&&JSON.parse(plain).shopName==='رمزنگاری پایدار',failed:!!YStore.S.failed,shop:db.settings.shopName}
+      return{enc:!!meta1.enc,encryptedRecord:!!(enc1&&enc1.iv&&enc1.ct),rekeyed:!!meta2.enc&&String(meta1.enc.salt)!==String(meta2.enc.salt),disabled:!meta3.enc&&!YStore.S.enc,plainRecord:typeof plain==='string'&&JSON.parse(plain).shopName==='رمزنگاری پایدار',failed:!!YStore.S.failed,shop:db.settings.shopName}
     """)
     c.true(r['enc'],'encryption metadata stored')
     c.true(r['encryptedRecord'],'settings record encrypted at rest')
