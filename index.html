@@ -1628,19 +1628,60 @@ const ActionEngine=(()=>{
   }
   pro39Init();
   function reports39(){
-    pro39Init(); const s=db.sales.filter(x=>x.status==='confirmed'), salesTotal=s.reduce((a,x)=>a+num(x.total),0), cost=s.reduce((a,x)=>a+num(x.costTotal),0), gross=salesTotal-cost;
-    const top={};s.forEach(x=>(x.items||[]).forEach(i0=>{/* v42.1: sale.items holds item ids, not objects */const i=typeof i0==='string'?(db.saleItems||[]).find(y=>y.id===i0):i0;if(!i)return;const v=i.variantId||i.id,k=v;top[k]??={name:variantName(variantBy(k))||i.name||'کالا',qty:0,total:0};top[k].qty+=num(i.qty);top[k].total+=num(i.total)}));
-    const low=stockAlerts(), dead=activeVariants().filter(v=>num(v.stock)>0&&!s.some(x=>(x.items||[]).some(i=>i.variantId===v.id&&new Date(x.date)>new Date(Date.now()-60*86400000))));
-    const rows=Object.values(top).sort((a,b)=>b.qty-a.qty).slice(0,15);
-    $('#content').innerHTML=pageHead('گزارش‌های مدیریتی','سود واقعی، فروش، موجودی، مطالبات و کالاهای راکد',`<button class="btn primary" id="csv39">خروجی CSV</button><button class="btn" id="json39">گزارش JSON</button>`)+
-    `<div class="grid">${metricCard('فروش',money(salesTotal),`${s.length} فاکتور`)}${metricCard('بهای تمام‌شده',money(cost),'واقعی')}${metricCard('سود ناخالص',money(gross),'فروش منهای بهای تمام‌شده',gross>=0?'green':'red')}${metricCard('کالای راکد',dead.length,'بیش از ۶۰ روز','amber')}</div>`+
-    `<div class="grid2 section"><div class="card"><div class="section-title"><h3>پرفروش‌ترین تنوع‌ها</h3></div><div class="rowlist">${rows.map(x=>`<div class="listrow"><div class="grow"><b>${esc(x.name)}</b><small>${x.qty} واحد</small></div><em>${money(x.total)}</em></div>`).join('')||'<div class="empty">اطلاعاتی وجود ندارد.</div>'}</div></div><div class="card"><div class="section-title"><h3>هشدار موجودی</h3></div><div class="rowlist">${low.slice(0,12).map(v=>`<div class="listrow"><div class="grow"><b>${esc(variantName(v))}</b><small>موجودی ${v.stock} · حداقل ${v.minStock}</small></div><em>${money(v.sellPrice)}</em></div>`).join('')||'<div class="empty">موردی نیست.</div>'}</div></div></div>`;
-    $('#csv39').onclick=()=>{const out=[['کالا','تعداد فروش','مبلغ فروش'],...rows.map(x=>[x.name,x.qty,x.total])];download('گزارش-فروش-'+today()+'.csv',out.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),'text/csv;charset=utf-8');toast('گزارش CSV آماده شد')};
-    $('#json39').onclick=()=>download('گزارش-مدیریتی-'+today()+'.json',JSON.stringify({generatedAt:now(),sales:salesTotal,cost,gross,top,low:low.map(v=>({name:variantName(v),stock:v.stock,minStock:v.minStock})),dead:dead.map(v=>variantName(v)),receivable:accountBalance('receivable'),payable:-accountBalance('payable')},null,2));
+    pro39Init();
+    const sales=db.sales.filter(x=>x.status==='confirmed'), purchases=db.purchases.filter(x=>x.status==='confirmed');
+    const saleReturns=(db.returns||[]).filter(x=>x.type==='sale'), purchaseReturns=(db.returns||[]).filter(x=>x.type==='purchase');
+    const salesTotal=sales.reduce((a,x)=>a+num(x.total),0);
+    const netSales=salesTotal-saleReturns.reduce((a,x)=>a+num(x.refund??x.total),0);
+    const purchaseTotal=purchases.reduce((a,x)=>a+num(x.total),0);
+    const netPurchases=purchaseTotal-purchaseReturns.reduce((a,x)=>a+num(x.total),0);
+    const cost=sales.reduce((a,x)=>a+num(x.costTotal),0)-saleReturns.reduce((a,x)=>a+num(x.costTotal),0);
+    const gross=sales.reduce((a,x)=>a+num(x.profit),0)-saleReturns.reduce((a,x)=>a+(typeof saleReturnProfitValue==='function'?saleReturnProfitValue(x):num(x.total)-num(x.costTotal)),0);
+    const top={};
+    sales.forEach(x=>(x.items||[]).forEach(i0=>{
+      const i=typeof i0==='string'?(db.saleItems||[]).find(y=>y.id===i0):i0;if(!i)return;
+      const k=i.variantId;top[k]??={name:variantName(variantBy(k))||i.name||'کالا',qty:0,total:0,cost:0};
+      top[k].qty+=num(i.qty);top[k].total+=num(i.total);top[k].cost+=num(i.costTotal)||num(i.cost)*num(i.qty);
+    }));
+    saleReturns.forEach(r=>(r.items||[]).forEach(i=>{
+      const row=top[i.variantId];if(!row)return;
+      row.qty-=num(i.qty);row.total-=num(i.net??i.total);row.cost-=num(i.costTotal);
+    }));
+    const dead=activeVariants().filter(v=>num(v.stock)>0&&!sales.some(x=>(x.items||[]).some(i0=>{
+      const i=typeof i0==='string'?(db.saleItems||[]).find(y=>y.id===i0):i0;
+      return i&&i.variantId===v.id&&new Date(x.date)>new Date(Date.now()-60*86400000);
+    })));
+    const rows=Object.values(top).filter(x=>x.qty>0).map(x=>({...x,profit:x.total-x.cost})).sort((a,b)=>b.profit-a.profit).slice(0,15);
+    const returns=[...saleReturns.map(x=>({type:'برگشت فروش',ref:x.ref,date:x.date,amount:-num(x.refund??x.total)})),
+      ...purchaseReturns.map(x=>({type:'برگشت خرید',ref:x.ref,date:x.date,amount:-num(x.total)}))]
+      .sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,20);
+    const returnHtml=returns.map(x=>'<div class="listrow"><div class="grow"><b>'+x.type+' · '+esc(x.ref||'—')+'</b><small>'+String(x.date||'').slice(0,10)+'</small></div><em>'+money(x.amount)+'</em></div>').join('')||'<div class="empty">برگشتی ثبت نشده است.</div>';
+    $('#content').innerHTML=pageHead('گزارش‌های مدیریتی','فروش و خرید خالص پس از برگشت، سود اصلاح‌شده با مالیات، موجودی و کالاهای راکد','<button class="btn primary" id="csv39">خروجی CSV</button><button class="btn" id="json39">گزارش JSON</button>')+
+      '<div class="grid">'+
+      metricCard('فروش خالص',money(netSales),sales.length.toLocaleString('fa-IR')+' فاکتور · پس از برگشت')+
+      metricCard('خرید خالص',money(netPurchases),purchases.length.toLocaleString('fa-IR')+' فاکتور · پس از برگشت')+
+      metricCard('سود ناخالص خالص',money(gross),'پس از برگشت و مالیات',gross>=0?'green':'red')+
+      metricCard('بهای تمام‌شده خالص',money(cost),'پس از برگشت کالا')+
+      metricCard('کالای راکد',dead.length,'بیش از ۶۰ روز','amber')+'</div>'+
+      '<div class="grid2 section"><div class="card"><div class="section-title"><h3>پرفروش‌ترین تنوع‌ها</h3></div><div class="rowlist">'+
+      (rows.map(x=>'<div class="listrow"><div class="grow"><b>'+esc(x.name)+'</b><small>'+x.qty.toLocaleString('fa-IR')+' واحد · سود '+money(x.profit)+'</small></div><em>'+money(x.total)+'</em></div>').join('')||'<div class="empty">اطلاعاتی وجود ندارد.</div>')+
+      '</div></div><div class="card"><div class="section-title"><h3>هشدار موجودی</h3></div><div class="rowlist">'+
+      (stockAlerts().slice(0,12).map(v=>'<div class="listrow"><div class="grow"><b>'+esc(variantName(v))+'</b><small>موجودی '+v.stock+' · حداقل '+v.minStock+'</small></div><em>'+money(v.sellPrice)+'</em></div>').join('')||'<div class="empty">موردی نیست.</div>')+
+      '</div></div></div><div class="card section"><div class="section-title"><h3>برگشت‌های ثبت‌شده</h3><span class="muted">فروش و خرید</span></div><div class="rowlist">'+returnHtml+'</div></div>';
+    $('#csv39').onclick=()=>{
+      const out=[['شاخص','مبلغ'],['فروش خالص',netSales],['خرید خالص',netPurchases],['سود ناخالص خالص',gross],['بهای تمام‌شده خالص',cost],[],['کالا','تعداد فروش خالص','مبلغ فروش خالص','بهای تمام‌شده','سود']];
+      rows.forEach(x=>out.push([x.name,x.qty,x.total,x.cost,x.profit]));
+      out.push([],['نوع برگشت','شماره مرجع','تاریخ','مبلغ']);
+      returns.forEach(x=>out.push([x.type,x.ref,x.date,x.amount]));
+      download('گزارش-مدیریتی-'+today()+'.csv',out.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\n'),'text/csv;charset=utf-8');
+      toast('گزارش CSV آماده شد');
+    };
+    $('#json39').onclick=()=>download('گزارش-مدیریتی-'+today()+'.json',JSON.stringify({generatedAt:now(),salesTotal,netSales,purchaseTotal,netPurchases,cost,gross,top:rows,returns,low:stockAlerts().map(v=>({name:variantName(v),stock:v.stock,minStock:v.minStock})),dead:dead.map(v=>variantName(v)),receivable:accountBalance('receivable'),payable:-accountBalance('payable')},null,2));
   }
   function diagnostics39(){
     pro39Init(); const issues=[]; const seen=new Set();
     const push=(x)=>{if(x&&!issues.includes(x))issues.push(x)};
+    if(typeof runYouniqueHealthCheck==='function'){const shared=runYouniqueHealthCheck();(shared.issues||[]).forEach(push)}
     for(const v of db.variants||[]){
       if(v.barcode&&seen.has(v.barcode))push('بارکد تکراری: '+v.barcode); if(v.barcode)seen.add(v.barcode);
       if(num(v.stock)<-0.0001)push('موجودی منفی: '+variantName(v));
