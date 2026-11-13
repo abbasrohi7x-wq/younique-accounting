@@ -17,5 +17,5 @@ window.T=(function(){
     renderPurchasePaymentSummary();const n0=db.purchases.length;document.querySelector('#savePurchase').click();await sleep(150);return db.purchases.length>n0?db.purchases[db.purchases.length-1]:null}
   async function sell(S,vid,q,p,pay,disc){page='sale';render();await sleep(80);addSale(vid);saleCart[0].qty=q;saleCart[0].price=p;renderSaleCart&&renderSaleCart();
     document.querySelector('#saleCustomer').value=S.cus;document.querySelector('#saleDiscount').value=String(disc||0);
-    window.__salePayments=Object.assign({cash:0,card:0,bank:0,credit:0},pay||{});const n0=db.sales.length;document.querySelector('#saveSale').click();await sleep(200);return db.sales.length>n0?db.sales[db.sales.length-1]:null}
+    window.__salePayments=Object.assign({cash:0,card:0,bank:0,credit:0},pay||{});for(const [id,k] of [['yqPayCash','cash'],['yqPayCard','card'],['yqPayBank','bank'],['yqPayCredit','credit']]){const e=document.querySelector('#'+id);if(e)e.value=String(window.__salePayments[k]||0)}const n0=db.sales.length;document.querySelector('#saveSale').click();await sleep(200);return db.sales.length>n0?db.sales[db.sales.length-1]:null}
   return{sleep,msgs,bal,unbalanced,seed,buy,sell}})();
