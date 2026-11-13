@@ -5719,47 +5719,18 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
   }
 
   function wireSaveFunctions(engine) {
-    // The extracted engine is still under parity validation. Keep the mature
-    // tax-aware, warehouse-aware invoice writers as the single commit path.
-    // UI, AI and programmatic callers all enter through these guarded wrappers.
-    var origSaveSale = window.saveSaleV18 || window.saveSale;
-    var origSavePurchase = window.savePurchaseV18 || window.savePurchase;
-
-    window.saveSale = function () {
-      if (!window.activeCashSession || !window.activeCashSession()) {
-        if (typeof toast === 'function') toast('برای ثبت فاکتور فروش ابتدا صندوق را باز کنید', true);
-        return null;
-      }
-      try {
-        if (typeof origSaveSale !== 'function') throw new Error('مسیر نهایی ثبت فروش در دسترس نیست');
-        return origSaveSale.apply(this, arguments);
-      } catch (e) {
-        console.error('[YQ Bridge] authoritative sale writer rejected transaction', e);
-        if (typeof toast === 'function') toast((e && e.message) || 'ثبت فروش ناموفق بود؛ هیچ تغییری ثبت نشد', true);
-        return null;
-      }
-    };
-
-    window.savePurchase = function () {
-      if (!window.activeCashSession || !window.activeCashSession()) {
-        if (typeof toast === 'function') toast('برای ثبت فاکتور خرید ابتدا صندوق را باز کنید', true);
-        return null;
-      }
-      try {
-        if (typeof origSavePurchase !== 'function') throw new Error('مسیر نهایی ثبت خرید در دسترس نیست');
-        return origSavePurchase.apply(this, arguments);
-      } catch (e) {
-        console.error('[YQ Bridge] authoritative purchase writer rejected transaction', e);
-        if (typeof toast === 'function') toast((e && e.message) || 'ثبت خرید ناموفق بود؛ هیچ تغییری ثبت نشد', true);
-        return null;
-      }
-    };
-
-    // Compatibility aliases: old UI/AI entry points now converge on one writer.
-    window.saveSaleV18 = window.saveSale;
-    window.savePurchaseV18 = window.savePurchase;
+    // The extracted engine is not yet at parity with the mature invoice writers
+    // (VAT, warehouse allocation and detailed costing). Keep one authoritative
+    // writer for manual UI, AI and compatibility callers until parity is proven.
+    var saleWriter = window.saveSaleV18 || window.saveSale;
+    var purchaseWriter = window.savePurchaseV18 || window.savePurchase;
+    if (typeof saleWriter !== 'function' || typeof purchaseWriter !== 'function') {
+      throw new Error('مسیر نهایی ثبت فاکتور در دسترس نیست');
+    }
+    window.saveSale = window.saveSaleV18 = saleWriter;
+    window.savePurchase = window.savePurchaseV18 = purchaseWriter;
     window.__YQ_WIRED = true;
-    console.info('[YQ Bridge] manual and AI invoice paths use the same authoritative writers');
+    console.info('[YQ Bridge] manual and AI invoice paths share the authoritative VAT/cost/warehouse writers');
   }
 
   Promise.resolve()
