@@ -428,6 +428,32 @@ async def main():
 
 
 @test
+async def product_variant_edit_rejects_duplicate_combinations_and_codes(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const v=variantBy(S.v),original={color:v.color,size:String(v.size),barcode:v.barcode,sku:v.sku,buyPrice:v.buyPrice};
+      const sibling={...v,id:'variant-sibling',size:String(Number(v.size)+1),barcode:'9988776655443',sku:'SKU-SIBLING'};
+      db.variants.push(sibling);
+      function submit(){document.querySelector('#vf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}))}
+      variantEdit(S.v);document.querySelector('#vs').value=sibling.size;submit();
+      const duplicateCombinationRejected=String(v.size)===original.size;
+      variantEdit(S.v);document.querySelector('#sku').value=sibling.sku;submit();
+      const duplicateSkuRejected=v.sku===original.sku;
+      variantEdit(S.v);document.querySelector('#vb').value=sibling.barcode;submit();
+      const duplicateBarcodeRejected=v.barcode===original.barcode;
+      variantEdit(S.v);document.querySelector('#vbuy').value='-10';submit();
+      const negativePriceRejected=Number(v.buyPrice)===Number(original.buyPrice);
+      return{duplicateCombinationRejected,duplicateSkuRejected,duplicateBarcodeRejected,negativePriceRejected};
+    """)
+    c.true(r['duplicateCombinationRejected'],'same model cannot contain duplicate color/size combinations')
+    c.true(r['duplicateSkuRejected'],'SKU must remain unique across variants')
+    c.true(r['duplicateBarcodeRejected'],'barcode must remain unique across variants')
+    c.true(r['negativePriceRejected'],'negative purchase price is rejected')
+    await ctx.close()
+
+
+@test
 async def inventory_purchase_precedes_sale_and_split_payment(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
