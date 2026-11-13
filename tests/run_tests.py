@@ -577,13 +577,13 @@ async def file_transfer_restores_complete_encrypted_snapshot(br,c):
     r=await ev(pg,"""
       const S=await T.seed({});
       db.customers.push({id:'local-only-customer',name:'مشتری مقصد'});
-      const destinationDevice=syncDeviceId();
-      const env=syncEnvelope();
+      const destinationDevice=window.UniqueTransfer.deviceId();
+      const env=window.UniqueTransfer.createEnvelope();
       env.deviceId='DEV-SOURCE-DEVICE';
       env.data.pro.sync.deviceId=env.deviceId;
       env.data.customers=env.data.customers.filter(x=>x.id!=='local-only-customer');
       env.data.customers.push({id:'incoming-transfer-customer',name:'مشتری مبدأ'});
-      env.checksum=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
+      env.checksum=window.UniqueTransfer.checksum({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
       const raw=await window.yqEncryptBackup(JSON.stringify(env),'TransferPass123');
       window.prompt=()=> 'TransferPass123';window.confirm=()=>true;
       const dt=new DataTransfer();dt.items.add(new File([raw],'transfer.enc.json',{type:'application/json'}));
@@ -619,7 +619,7 @@ async def file_transfer_rejects_tampered_checksum_without_mutation(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
       const S=await T.seed({});
-      const env=syncEnvelope();
+      const env=window.UniqueTransfer.createEnvelope();
       env.data.customers.push({id:'tampered-transfer-customer',name:'نباید وارد شود'});
       env.checksum='00000000';
       const raw=await window.yqEncryptBackup(JSON.stringify(env),'TransferPass123');
@@ -645,13 +645,13 @@ async def returns_and_purchase_void_preserve_original_warehouse(br,c):
     r=await ev(pg,'''const S=await T.seed({});
       db.warehouses.push({id:'W2',name:'انبار دوم',active:true});db.warehouseStocks.W2={};saveDB(true);
       const p=await T.buy(S,S.v,4,1000,{cash:4000});
-      stockMove(S.v,-4,'test_transfer','T1',1000,'MAIN');stockMove(S.v,4,'test_transfer','T1',1000,'W2');
+      stockMove(S.v,-4,'test_transfer','T1',1000,undefined,'MAIN');stockMove(S.v,4,'test_transfer','T1',1000,4000,'W2');
       p.warehouseId='W2';for(const id of p.items)db.purchaseItems.find(x=>x.id===id).warehouseId='W2';
       const pi=db.purchaseItems.find(x=>x.variantId===S.v);
       const pr=Fin.purchaseReturn({ref:p.number,qtys:{[pi.id]:1},method:'card',note:'تست انبار دوم'});
       const afterPurchaseReturn={total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)};
       const p2=await T.buy(S,S.v,2,1000,{cash:2000});
-      stockMove(S.v,-2,'test_transfer','T2',1000,'MAIN');stockMove(S.v,2,'test_transfer','T2',1000,'W2');
+      stockMove(S.v,-2,'test_transfer','T2',1000,undefined,'MAIN');stockMove(S.v,2,'test_transfer','T2',1000,2000,'W2');
       p2.warehouseId='W2';for(const id of p2.items)db.purchaseItems.find(x=>x.id===id).warehouseId='W2';
       Fin.voidPurchase(p2.number,'ابطال تست انبار دوم');
       const afterVoid={total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)};

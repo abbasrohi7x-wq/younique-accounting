@@ -1407,6 +1407,7 @@ function syncStable(v){if(v===null||typeof v!=='object')return JSON.stringify(v)
 function syncSig(v){let h=2166136261;const s=syncStable(v);for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return (h>>>0).toString(16).padStart(8,'0')}
 function syncDeviceId(){proInit();db.pro.sync=db.pro.sync||{};if(!db.pro.sync.deviceId)db.pro.sync.deviceId='DEV-'+uid().replace(/[^a-zA-Z0-9]/g,'').slice(-16);return db.pro.sync.deviceId}
 function syncEnvelope(){const data=syncCloneData();const env={app:'unique-pro-sync',schema:38,version:window.YOUNIQUE_VERSION||'1.0',deviceId:syncDeviceId(),createdAt:now(),data};env.checksum=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});return env}
+window.UniqueTransfer=Object.freeze({createEnvelope:syncEnvelope,deviceId:syncDeviceId,checksum:syncSig});
 function proSync(){
   proInit();syncDeviceId();
   const s=db.pro.sync||{};
