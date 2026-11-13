@@ -221,6 +221,52 @@ async def encrypted_store_accepts_validated_backup_restore(br,c):
 
 
 @test
+async def invalid_backup_never_mutates_live_data(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});db.settings.shopName='اطلاعات زنده';await YStore.flush();
+      const before=cloneDB();let missing=false,row=false;
+      const badMissing={...cloneDB(),customers:'خراب'};
+      try{await replaceDB(badMissing)}catch(_){missing=true}
+      const badRow=cloneDB();badRow.models=[null];
+      try{await replaceDB(badRow)}catch(_){row=true}
+      return{missing,row,shop:db.settings.shopName,customers:db.customers.length,models:db.models.length,
+        pending:Object.keys(YStore.S.pending).length,failed:!!YStore.S.failed,integrity:!!YStore.S.integrityError}
+    """)
+    c.true(r['missing'],'missing required section rejected')
+    c.true(r['row'],'malformed record rejected')
+    c.eq(r['shop'],'اطلاعات زنده','live settings unchanged')
+    c.eq(r['customers'],1,'live customers unchanged')
+    c.eq(r['models'],1,'live models unchanged')
+    c.eq(r['pending'],0,'invalid imports do not queue writes')
+    c.eq(r['failed'],False,'invalid imports do not fail storage')
+    c.eq(r['integrity'],False,'invalid imports do not alter integrity state')
+    await ctx.close()
+
+
+@test
+async def encrypted_backup_rejects_malformed_envelope(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const valid=JSON.parse(await yqEncryptBackup(JSON.stringify({app:'younique',data:{}}),'test-pass-123'));
+      const variants=[
+        {...valid,kdf:'PBKDF2-SHA1'},
+        {...valid,iter:999999999},
+        {...valid,salt:'AA=='},
+        {...valid,iv:'AA=='},
+        {...valid,data:'AA=='},
+        {...valid,app:'other'}
+      ];
+      const rejected=[];
+      for(const item of variants){try{await yqDecryptBackup(item,'test-pass-123');rejected.push(false)}catch(_){rejected.push(true)}}
+      return{rejected,validTag:valid.enc,validIter:valid.iter}
+    """)
+    c.eq(r['rejected'],[True,True,True,True,True,True],'malformed encrypted envelopes rejected')
+    c.eq(r['validIter'],310000,'valid backup retains supported KDF work factor')
+    await ctx.close()
+
+
+@test
 async def localstorage_migrates_to_indexeddb(br,c):
     ctx=await br.new_context(viewport={'width':1280,'height':800})
     await ctx.add_init_script("""localStorage.setItem('younique_v16_db',JSON.stringify({
