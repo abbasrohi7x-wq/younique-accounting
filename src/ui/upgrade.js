@@ -1285,7 +1285,9 @@
   }
 
   if (typeof reports === 'function' && !reports.__yqShop) {
-    var prevReports = reports;
+    // Prefer the latest consolidated report module when it is available.
+    // The lexical legacy function may still exist, but must not shadow reports39.
+    var prevReports = typeof window.reports39 === 'function' ? window.reports39 : reports;
     window.reports = function () {
       prevReports();
       yqAttachShopReport();
