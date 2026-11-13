@@ -766,6 +766,11 @@ async def local_tesseract_worker_loads_and_recognizes_invoice_text(br,c):
 async def local_persian_tesseract_model_loads_and_recognizes_persian_text(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
+      await new Promise((resolve,reject)=>{
+        const script=document.createElement('script');script.src='./vendor/tesseract/tesseract.min.js';
+        script.onload=resolve;script.onerror=()=>reject(new Error('local Tesseract.js failed to load for Persian OCR'));
+        document.head.appendChild(script);
+      });
       const worker=await Promise.race([Tesseract.createWorker('fas+eng',1,{
         workerPath:'./vendor/tesseract/worker.min.js',
         langPath:'./vendor/tesseract/lang/',
