@@ -552,4 +552,22 @@ async def manual_and_ai_invoices_share_authoritative_writers(br,c):
     c.true(r['health'],'business health check remains valid')
     await ctx.close()
 
+
+@test
+async def purchase_return_records_all_noncredit_payment_methods(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      const p=await T.buy(S,S.v,4,1000,{cash:4000});
+      const before=db.payments.length;
+      const item=(db.purchaseItems||[]).find(x=>x.variantId===S.v&&x.qty===4);
+      const ret=Fin.purchaseReturn({ref:p.number,qtys:{[item.id]:2},method:'card',note:'تست برگشت خرید'});
+      const pm=db.payments.slice(before).find(x=>x.ref&&x.ref.includes('-PR'));
+      return{ret:!!ret,stock:variantBy(S.v).stock,payment:pm&&{direction:pm.direction,partyType:pm.partyType,partyId:pm.partyId,amount:pm.amount,account:pm.account},unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}''')
+    c.true(r['ret'],'purchase return saved')
+    c.eq(r['stock'],2,'returned quantity removed from stock')
+    c.eq(r['payment'],{'direction':'in','partyType':'supplier','partyId':'supplier-1','amount':2000,'account':'card'},'card receipt recorded as supplier refund')
+    c.eq(r['unb'],0,'purchase return journals remain balanced')
+    c.true(r['health'],'business health check remains valid')
+    await ctx.close()
+
 asyncio.run(main())
