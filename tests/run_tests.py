@@ -338,6 +338,7 @@ async def manual_sale_split_payment_is_persisted(br,c):
     c.eq(r['total'],3000,'manual invoice total')
     c.eq(r['paid'],2400,'manual received total excludes credit')
     c.eq(r['due'],600,'manual credit balance')
+    c.eq(r['payment'],'mixed','manual multi-method sale is classified as mixed')
     c.eq(r['p'],{'cash':600,'card':1500,'bank':300,'credit':600},'manual payment allocations persist exactly')
     c.eq(r['stock'],3,'manual sale decrements stock by two')
     c.eq(r['unb'],0,'manual split-payment journal balanced')
