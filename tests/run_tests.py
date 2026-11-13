@@ -691,8 +691,9 @@ async def voice_recognition_never_falls_back_to_remote_service(br,c):
     r=await ev(pg,"""
       let starts=0;
       class RemoteOnlyRecognition{start(){starts++}stop(){}}
-      window.SpeechRecognition=RemoteOnlyRecognition;
-      try{delete window.webkitSpeechRecognition}catch(_){}
+      Object.defineProperty(window,'SpeechRecognition',{value:RemoteOnlyRecognition,configurable:true,writable:true});
+      Object.defineProperty(window,'webkitSpeechRecognition',{value:undefined,configurable:true,writable:true});
+      window.__speech=null;
       await voiceRecord();
       return{starts,messages:T.msgs.slice(-2)}
     """)
