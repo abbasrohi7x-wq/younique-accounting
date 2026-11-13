@@ -5,3 +5,15 @@ node_modules/
 *.log
 .playwright/
 test-results/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.venv/
+venv/
+.envrc
+.DS_Store
+Thumbs.db

@@ -796,7 +796,7 @@ async def local_persian_tesseract_model_loads_and_processes_mixed_invoice_text(b
     """)
     constText = r['text'].replace(' ','').replace('\\n','')
     c.true(r['loaded'],'Persian and English traineddata load in the local worker')
-    c.true(/[\\u0600-\\u06FF]/.test(constText),'Persian OCR recognizes Persian glyphs; extracted: '+r['text'])
+    c.true(any('\\u0600' <= ch <= '\\u06FF' for ch in constText),'Persian OCR recognizes Persian glyphs; extracted: '+r['text'])
     c.true('12345' in constText,'Persian OCR preserves the invoice number; extracted: '+r['text'])
     c.eq(pg.errs,[],'Persian OCR produces no uncaught page errors')
     await ctx.close()
