@@ -1223,7 +1223,7 @@ function financeV17(){
 window.recordIncome=recordIncome;window.transferFunds=transferFunds;window.returnItemsFor=returnItemsFor;window.activeCashSession=activeCashSession;window.openCashSession=openCashSession;window.closeCashSession=closeCashSession;window.cashSessionExpected=cashSessionExpected;window.openCashSessionModal=openCashSessionModal;window.closeCashSessionModal=closeCashSessionModal;
 sale=saleV17;window.saleV17=saleV17;finance=financeV17;saveSale=saveSaleV18;savePurchase=savePurchaseV18;
 /* v42.1 fix: expose cash helpers used by later modules */
-Object.assign(window,{cashMove,nextCashSessionNumber,activeCashSession,renderPaymentRows,updatePaymentSummary,cashSessionExpected});
+Object.assign(window,{cashMove,nextCashSessionNumber,activeCashSession,requireOpenCashSession,renderPaymentRows,updatePaymentSummary,cashSessionExpected});
 })();
 
 
