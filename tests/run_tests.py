@@ -1127,4 +1127,30 @@ async def critical_pages_fit_mobile_viewport_without_horizontal_page_overflow(br
     c.eq(pg.errs,[],'mobile navigation has no uncaught browser errors')
     await ctx.close()
 
+
+@test
+async def health_check_detects_catalog_and_journal_integrity_drift(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      const clean=runYouniqueHealthCheck();
+      const v=variantBy(S.v);v.sku='HEALTH-CHECK-SKU';
+      const duplicate={...v,id:'health-duplicate',sku:v.sku,barcode:v.barcode};
+      db.variants.push(duplicate);
+      const catalog=runYouniqueHealthCheck();
+      db.variants.pop();
+      const badJournal={id:'health-journal',ref:'HEALTH-JOURNAL',debit:100,credit:100,
+        lines:[{account:'cash',debit:40,credit:0},{account:'sales',debit:0,credit:40}]};
+      db.journal.push(badJournal);
+      const ledger=runYouniqueHealthCheck();
+      db.journal.pop();
+      return {clean:clean.ok,catalog:catalog.issues,ledger:ledger.issues,
+        restored:runYouniqueHealthCheck().ok}''')
+    c.true(r['clean'],'a valid seeded store passes the expanded integrity check')
+    c.true(any('SKU تکراری' in x for x in r['catalog']),'duplicate SKU is detected')
+    c.true(any('بارکد تکراری' in x for x in r['catalog']),'duplicate barcode is detected')
+    c.true(any('ترکیب رنگ و سایز تکراری' in x for x in r['catalog']),'duplicate variant combination is detected')
+    c.true(any('جمع ردیف‌های سند' in x for x in r['ledger']),'journal line/header mismatch is detected')
+    c.true(r['restored'],'removing test corruption restores a healthy status')
+    await ctx.close()
+
 asyncio.run(main())
