@@ -454,6 +454,34 @@ async def product_variant_edit_rejects_duplicate_combinations_and_codes(br,c):
 
 
 @test
+async def cancelled_product_wizard_does_not_mutate_catalog(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const count=db.models.length,original=modelBy(S.m).name;
+      productModal();
+      document.querySelector('#mn').value='کالای آزمایشی لغوشده';
+      document.querySelector('#mb').value='برند تست';
+      document.querySelector('#mc').value='CANCEL-01';
+      document.querySelector('#mf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      const newModelCountWhileChoosingVariants=db.models.length;
+      closeModal();
+      const newModelCountAfterCancel=db.models.length;
+      productModal(S.m);
+      document.querySelector('#mn').value='نام تغییر موقت';
+      document.querySelector('#mf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      const existingNameWhileChoosingVariants=modelBy(S.m).name;
+      closeModal();
+      return{count,newModelCountWhileChoosingVariants,newModelCountAfterCancel,original,existingNameWhileChoosingVariants,finalName:modelBy(S.m).name};
+    """)
+    c.eq(r['newModelCountWhileChoosingVariants'],r['count'],'new model is not persisted before variant confirmation')
+    c.eq(r['newModelCountAfterCancel'],r['count'],'cancelled new model leaves no orphan catalog record')
+    c.eq(r['existingNameWhileChoosingVariants'],r['original'],'editing a model is staged until variant confirmation')
+    c.eq(r['finalName'],r['original'],'cancelling model edit preserves the original catalog data')
+    await ctx.close()
+
+
+@test
 async def inventory_purchase_precedes_sale_and_split_payment(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
