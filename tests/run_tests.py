@@ -561,7 +561,7 @@ async def purchase_return_records_all_noncredit_payment_methods(br,c):
       const before=db.payments.length;
       const item=(db.purchaseItems||[]).find(x=>x.variantId===S.v&&x.qty===4);
       const ret=Fin.purchaseReturn({ref:p.number,qtys:{[item.id]:2},method:'card',note:'تست برگشت خرید'});
-      const pm=db.payments.slice(before).find(x=>x.ref&&x.ref.includes('-PR'));
+      const pm=db.payments.slice(before).find(x=>x.ref&&x.ref.includes('-R'));
       return{ret:!!ret,stock:variantBy(S.v).stock,supplierId:S.sup,payment:pm&&{direction:pm.direction,partyType:pm.partyType,partyId:pm.partyId,amount:pm.amount,account:pm.account},unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}''')
     c.true(r['ret'],'purchase return saved')
     c.eq(r['stock'],2,'returned quantity removed from stock')
