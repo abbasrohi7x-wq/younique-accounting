@@ -628,4 +628,38 @@ async def file_sync_rejects_tampered_checksum_without_mutation(br,c):
     c.true('صحت بسته' in r['message'],'checksum failure is explained')
     await ctx.close()
 
+
+@test
+async def returns_and_purchase_void_preserve_original_warehouse(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      db.warehouses.push({id:'W2',name:'انبار دوم',active:true});
+      db.warehouseStocks.W2={};saveDB(true);
+      const p=await T.buy(S,S.v,4,1000,{cash:4000});
+      stockMove(S.v,-4,'test_transfer','T1',1000,'MAIN');
+      stockMove(S.v,4,'test_transfer','T1',1000,'W2');
+      p.warehouseId='W2';for(const id of p.items){const it=db.purchaseItems.find(x=>x.id===id);it.warehouseId='W2'}
+      const pi=db.purchaseItems.find(x=>x.variantId===S.v);
+      const pr=Fin.purchaseReturn({ref:p.number,qtys:{[pi.id]:1},method:'card',note:'تست انبار دوم'});
+      const afterPurchaseReturn={total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)};
+      const p2=await T.buy(S,S.v,2,1000,{cash:2000});
+      stockMove(S.v,-2,'test_transfer','T2',1000,'MAIN');stockMove(S.v,2,'test_transfer','T2',1000,'W2');
+      p2.warehouseId='W2';for(const id of p2.items){const it=db.purchaseItems.find(x=>x.id===id);it.warehouseId='W2'}
+      Fin.voidPurchase(p2.number,'ابطال تست انبار دوم');
+      const afterVoid={total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)};
+      const sale=await T.sell(S,S.v,1,1500,{cash:1500});
+      stockMove(S.v,-1,'test_transfer','T3',1000,'MAIN');stockMove(S.v,1,'test_transfer','T3',1000,'W2');
+      sale.warehouseId='W2';for(const id of sale.items){const it=db.saleItems.find(x=>x.id===id);it.warehouseId='W2'}
+      const si=db.saleItems.find(x=>x.variantId===S.v);
+      const sr=Fin.saleReturn({ref:sale.number,qtys:{[si.id]:1},method:'card',note:'تست برگشت فروش انبار دوم'});
+      return{pr:!!pr,sr:!!sr,afterPurchaseReturn,afterVoid,afterSaleReturn:{total:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v)},unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}''')
+    c.true(r['pr'],'purchase return from secondary warehouse succeeds')
+    c.eq(r['afterPurchaseReturn'],{'total':3,'main':0,'w2':3},'purchase return decrements the source warehouse')
+    c.eq(r['afterVoid'],{'total':3,'main':0,'w2':3},'purchase void removes stock from the original warehouse only')
+    c.true(r['sr'],'sale return to secondary warehouse succeeds')
+    c.eq(r['afterSaleReturn'],{'total':3,'main':0,'w2':3},'sale return restores stock to the original warehouse')
+    c.eq(r['unb'],0,'warehouse return and void journals remain balanced')
+    c.true(r['health'],'health check remains valid')
+    await ctx.close()
+
 asyncio.run(main())
