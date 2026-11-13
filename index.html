@@ -1454,12 +1454,11 @@ function syncMerge(base,incoming){const result=JSON.parse(JSON.stringify(base||{
         if(!confirm('تمام اطلاعات فعلی این دستگاه با نسخهٔ داخل فایل جایگزین می‌شود. آیا از اطلاعات مقصد پشتیبان دارید و ادامه می‌دهید؟'))return;
         const destinationDeviceId=syncDeviceId();
         try{
-          await replaceDB(env.data);
-          db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};
-          db.pro.sync.deviceId=destinationDeviceId;
-          db.pro.sync.importedAt=now();db.pro.sync.lastSync=now();db.pro.sync.enabled=false;
-          if(!saveDB(true))throw Error('ذخیرهٔ شناسهٔ دستگاه مقصد ناموفق بود.');
-          if(window.YStore&&typeof YStore.flush==='function')await YStore.flush();
+          const restoreData=JSON.parse(JSON.stringify(env.data));
+          restoreData.pro=restoreData.pro||{};restoreData.pro.sync=restoreData.pro.sync||{};
+          restoreData.pro.sync.deviceId=destinationDeviceId;
+          restoreData.pro.sync.importedAt=now();restoreData.pro.sync.lastSync=now();restoreData.pro.sync.enabled=false;
+          await replaceDB(restoreData);
           invalidate();toast('بازیابی نسخهٔ انتقال با موفقیت انجام شد');render();
         }catch(err){toast(err.message||'بازیابی ناموفق بود؛ اطلاعات قبلی حفظ شد.',true)}
       };
