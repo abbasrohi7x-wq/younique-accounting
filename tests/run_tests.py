@@ -547,7 +547,7 @@ async def manual_and_ai_invoices_share_authoritative_writers(br,c):
     c.eq(r['stock'],6,'stock reflects 5 received, 1 sold, then 2 received')
     c.eq(r['engineSaleCalls'],0,'sale UI does not bypass to the incomplete extracted engine')
     c.eq(r['enginePurchaseCalls'],0,'purchase UI does not bypass to the incomplete extracted engine')
-    c.true(r['engineSaleCalls']===0 and r['enginePurchaseCalls']===0,'manual invoice paths do not bypass the verified writers')
+    c.true(r['engineSaleCalls']==0 and r['enginePurchaseCalls']==0,'manual invoice paths do not bypass the verified writers')
     c.eq(r['unb'],0,'all journals remain balanced')
     c.true(r['health'],'business health check remains valid')
     await ctx.close()
