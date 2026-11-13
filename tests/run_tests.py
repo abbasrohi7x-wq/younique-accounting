@@ -554,6 +554,27 @@ async def manual_and_ai_invoices_share_authoritative_writers(br,c):
 
 
 @test
+async def negative_split_payments_are_rejected_without_partial_commits(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""const S=await T.seed({});
+      const p0=db.purchases.length,j0=db.journal.length,m0=db.payments.length;
+      await T.buy(S,S.v,2,1000,{cash:2500,card:-500});
+      const badPurchase={p:db.purchases.length-p0,j:db.journal.length-j0,m:db.payments.length-m0,stock:variantBy(S.v).stock};
+      const p=await T.buy(S,S.v,2,1000,{cash:2000});
+      const s0=db.sales.length,j1=db.journal.length,m1=db.payments.length;
+      await T.sell(S,S.v,1,1500,{cash:2000,card:-500});
+      return{badPurchase,p:!!p,badSale:{s:db.sales.length-s0,j:db.journal.length-j1,m:db.payments.length-m1,stock:variantBy(S.v).stock},
+        errors:T.msgs.filter(x=>x.startsWith('ERR:')).length,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}""")
+    c.eq(r['badPurchase'],{'p':0,'j':0,'m':0,'stock':0},'negative purchase payment cannot partially commit')
+    c.true(r['p'],'valid purchase commits before sale validation')
+    c.eq(r['badSale'],{'s':0,'j':0,'m':0,'stock':2},'negative sale payment cannot partially commit or change stock')
+    c.true(r['errors']>=2,'both negative split payment attempts are rejected')
+    c.eq(r['unb'],0,'all journals remain balanced')
+    c.true(r['health'],'business health check remains valid')
+    await ctx.close()
+
+
+@test
 async def purchase_return_records_all_noncredit_payment_methods(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,'''const S=await T.seed({});
