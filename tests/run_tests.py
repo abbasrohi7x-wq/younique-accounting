@@ -735,6 +735,29 @@ async def ocr_invoice_requires_review_and_only_creates_purchase_draft(br,c):
 
 
 @test
+async def ocr_rejects_invalid_and_oversized_files_before_processing(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const before={p:db.purchases.length,j:db.journal.length,pay:db.payments.length,
+        stock:variantBy(S.v).stock,history:db.aiHistory.length};
+      let empty=false,type=false,size=false;
+      try{await analyzeInvoiceImage(new File([], 'empty.jpg', {type:'image/jpeg'}))}catch(e){empty=/خالی|نامعتبر/.test(e.message)}
+      try{await analyzeInvoiceImage(new File(['x'], 'note.txt', {type:'text/plain'}))}catch(e){type=/تصویری/.test(e.message)}
+      try{await analyzeInvoiceImage({size:26*1024*1024,type:'image/jpeg'})}catch(e){size=/۲۵ مگابایت/.test(e.message)}
+      return{empty,type,size,progress:OCRProgress.visible(),
+        after:{p:db.purchases.length,j:db.journal.length,pay:db.payments.length,
+          stock:variantBy(S.v).stock,history:db.aiHistory.length}}
+    """)
+    c.true(r['empty'],'empty image is rejected')
+    c.true(r['type'],'non-image file is rejected')
+    c.true(r['size'],'oversized image is rejected before decoding')
+    c.eq(r['progress'],False,'invalid files never start OCR processing')
+    c.eq(r['after'],r['before'],'invalid files do not mutate business data or OCR history')
+    await ctx.close()
+
+
+@test
 async def local_tesseract_worker_loads_and_recognizes_invoice_text(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
