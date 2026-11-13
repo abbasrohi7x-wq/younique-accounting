@@ -160,6 +160,21 @@ async def indexeddb_missing_record_blocks_overwrite(br,c):
     await ctx.close()
 
 
+
+@test
+async def validated_backup_recovers_integrity_locked_store(br,c):
+    pg,ctx=await page(br)
+    await ev(pg,"const S=await T.seed({});db.settings.shopName='نسخه سالم پشتیبان';saveDB(true);await YStore.flush();sessionStorage.setItem('unique-test-backup',exportData());")
+    await pg.evaluate("""async()=>{const d=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});await new Promise((res,rej)=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').delete('k:settings');t.oncomplete=res;t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)});d.close()}""")
+    await pg.reload();await pg.wait_for_timeout(1500);await pg.evaluate(HELP)
+    r=await ev(pg,"const backup=JSON.parse(sessionStorage.getItem('unique-test-backup'));await replaceDB(backup.data);await YStore.flush();return{integrity:!!YStore.S.integrityError,failed:!!YStore.S.failed,shop:db.settings.shopName,ready:YStore.S.ready}")
+    c.true(not r['integrity'],'validated backup clears integrity lock after successful restore')
+    c.true(not r['failed'],'restore transaction completed without failure')
+    c.eq(r['shop'],'نسخه سالم پشتیبان','backup settings restored')
+    c.true(r['ready'],'store remains ready')
+    await ctx.close()
+
+
 @test
 async def localstorage_migrates_to_indexeddb(br,c):
     ctx=await br.new_context(viewport={'width':1280,'height':800})
