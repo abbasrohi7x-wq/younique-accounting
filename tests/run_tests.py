@@ -1058,4 +1058,27 @@ async def returns_and_purchase_void_preserve_original_warehouse(br,c):
     c.true(r['health'],'health check remains valid')
     await ctx.close()
 
+
+@test
+async def all_navigation_pages_render_without_runtime_errors(br,c):
+    pg,ctx=await page(br)
+    pages=['dashboard','sale','sales','returns','purchase','purchases','products','inventory',
+      'barcode','automation','customers','suppliers','finance','reports','ai','documents',
+      'backup','settings','accounting','warehouse','crm','insights','security','tax','sync',
+      'checks','loans','engine']
+    results=[]
+    for name in pages:
+      await pg.evaluate("(name)=>{window.page=name;window.render()}",name)
+      await pg.wait_for_timeout(60)
+      state=await pg.evaluate("""()=>({
+        content:!!document.querySelector('#content'),
+        error:!!document.querySelector('#content .error-inline, .error-screen'),
+        text:(document.querySelector('#content')?.innerText||'').trim().slice(0,80)
+      })""")
+      results.append((name,state))
+      c.true(state['content'] and not state['error'] and bool(state['text']),
+        'page '+name+' renders useful content without an error screen')
+    c.eq(pg.errs,[],'navigation smoke test has no uncaught browser errors')
+    await ctx.close()
+
 asyncio.run(main())
