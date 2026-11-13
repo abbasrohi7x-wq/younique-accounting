@@ -310,12 +310,12 @@ async def ai_sale_requires_explicit_confirmation(br,c):
       const unchanged={sales:db.sales.length===before.sales,stock:variantBy(S.v).stock===before.stock,journal:db.journal.length===before.journal};
       const answer=await UAI.chat.handle('بله',{source:'text'});
       return{kind:asked[0]&&asked[0].kind,waiting,unchanged,committed:db.sales.length===before.sales+1,
-        stock:variantBy(S.v).stock,answerKind:answer[0]&&answer[0].kind,pending:!!UAI.ctx.pending,unb:T.unbalanced()}
+        stock:variantBy(S.v).stock,answerKind:answer[0]&&answer[0].kind,answerText:answer.map(x=>x.text).join(' | '),pending:!!UAI.ctx.pending,toasts:T.msgs.slice(-8),unb:T.unbalanced()}
     """)
     c.eq(r['kind'],'confirm','AI write produces confirmation prompt')
     c.true(r['waiting'],'pending confirmation is stored')
     c.eq(r['unchanged'],{'sales':True,'stock':True,'journal':True},'no business data changes before confirmation')
-    c.true(r['committed'],'sale commits after explicit yes')
+    c.true(r['committed'],'sale commits after explicit yes '+r['answerText']+' '+JSON.stringify(r['toasts']))
     c.eq(r['stock'],4,'confirmed sale decrements stock')
     c.eq(r['pending'],False,'pending confirmation cleared')
     c.eq(r['unb'],0,'confirmed sale journals balanced')
