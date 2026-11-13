@@ -1505,16 +1505,33 @@ window.YOUNIQUE_VERSION='1.0';
 function runYouniqueHealthCheck(){
   const issues=[];
   try{
-    const seen=new Set();
+    const seen=new Set(),skus=new Set(),combinations=new Set(),modelIds=new Set((db.models||[]).map(m=>m.id));
     for(const v of (db.variants||[])){
-      if(v.barcode){if(seen.has(v.barcode))issues.push('بارکد تکراری: '+v.barcode);seen.add(v.barcode)}
-      if(num(v.stock)<-0.0001)issues.push('موجودی منفی: '+variantName(v));
+      const label=variantName(v);
+      if(!modelIds.has(v.modelId))issues.push('تنوع بدون مدل معتبر: '+label);
+      if(v.barcode){const code=String(v.barcode).trim();if(seen.has(code))issues.push('بارکد تکراری: '+code);seen.add(code)}
+      if(v.sku){const sku=String(v.sku).trim().toLocaleLowerCase();if(skus.has(sku))issues.push('SKU تکراری: '+sku);skus.add(sku)}
+      const combination=[v.modelId,String(v.color||'').trim().toLocaleLowerCase(),String(v.size||'').trim()].join('|');
+      if(combinations.has(combination))issues.push('ترکیب رنگ و سایز تکراری: '+label);
+      combinations.add(combination);
+      if(num(v.stock)<-0.0001)issues.push('موجودی منفی: '+label);
+      for(const field of ['buyPrice','sellPrice','minStock'])if(v[field]!==undefined&&v[field]!==null&&v[field]!==''&&!Number.isFinite(Number(v[field])))issues.push('مقدار عددی نامعتبر در '+field+': '+label);
+      if(num(v.buyPrice)<0||num(v.sellPrice)<0||num(v.minStock)<0)issues.push('قیمت یا حداقل موجودی منفی: '+label);
       if(num(v.stock)>0 && db.costLayers && db.costLayers[v.id]){
         const layerQty=(db.costLayers[v.id]||[]).reduce((a,l)=>a+Math.max(0,num(l.remaining)),0);
-        if(Math.abs(layerQty-num(v.stock))>.001)issues.push('عدم تطابق لایه بهای تمام‌شده: '+variantName(v));
+        if(Math.abs(layerQty-num(v.stock))>.001)issues.push('عدم تطابق لایه بهای تمام‌شده: '+label);
       }
     }
-    for(const j of (db.journal||[])) if(Math.abs(num(j.debit)-num(j.credit))>.01) issues.push('سند نامتوازن: '+(j.ref||j.id));
+    for(const j of (db.journal||[])){
+      const debit=num(j.debit),credit=num(j.credit);
+      if(Math.abs(debit-credit)>.01)issues.push('سند نامتوازن: '+(j.ref||j.id));
+      if(Array.isArray(j.lines)&&j.lines.length){
+        const ld=j.lines.reduce((a,l)=>a+num(l.debit),0),lc=j.lines.reduce((a,l)=>a+num(l.credit),0);
+        if(Math.abs(ld-lc)>.01||Math.abs(ld-debit)>.01||Math.abs(lc-credit)>.01)issues.push('جمع ردیف‌های سند با سربرگ مغایرت دارد: '+(j.ref||j.id));
+      }
+    }
+    for(const s of (db.sales||[]))for(const id of s.items||[])if(!(db.saleItems||[]).some(i=>i.id===id))issues.push('قلم فاکتور فروش مفقود است: '+(s.number||s.id));
+    for(const p of (db.purchases||[]))for(const id of p.items||[])if(!(db.purchaseItems||[]).some(i=>i.id===id))issues.push('قلم فاکتور خرید مفقود است: '+(p.number||p.id));
   }catch(e){issues.push('خطای کنترل سلامت: '+(e.message||e))}
   return {ok:issues.length===0,issues,version:window.YOUNIQUE_VERSION};
 }
