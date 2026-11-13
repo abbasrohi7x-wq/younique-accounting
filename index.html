@@ -5779,9 +5779,10 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
         if (typeof render === 'function') render();
         return result.sale;
       } catch (e) {
-        console.error('[YQ Bridge] saveSale error, fallback', e);
-        if (typeof toast === 'function') toast((e && e.message) || 'ثبت فروش ناموفق بود', true);
-        if (origSaveSale) return origSaveSale.apply(this, arguments);
+        // Never fall back to the legacy writer after the engine rejects a transaction.
+        // Doing so could bypass stock, payment, cash-session or ledger invariants.
+        console.error('[YQ Bridge] saveSale rejected by engine; transaction stopped', e);
+        if (typeof toast === 'function') toast((e && e.message) || 'ثبت فروش ناموفق بود؛ هیچ تغییری ثبت نشد', true);
         return null;
       }
     };
@@ -5820,9 +5821,10 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
         if (typeof render === 'function') render();
         return result.purchase;
       } catch (e) {
-        console.error('[YQ Bridge] savePurchase error, fallback', e);
-        if (typeof toast === 'function') toast((e && e.message) || 'ثبت خرید ناموفق بود', true);
-        if (origSavePurchase) return origSavePurchase.apply(this, arguments);
+        // Never fall back to the legacy writer after the engine rejects a transaction.
+        // Keep the failure atomic and surface it to the operator.
+        console.error('[YQ Bridge] savePurchase rejected by engine; transaction stopped', e);
+        if (typeof toast === 'function') toast((e && e.message) || 'ثبت خرید ناموفق بود؛ هیچ تغییری ثبت نشد', true);
         return null;
       }
     };
