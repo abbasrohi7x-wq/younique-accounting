@@ -440,8 +440,9 @@ async def manual_purchase_and_sale_require_open_cash_session(br,c):
       openCashSession(100000,'test reopen','test');
       await T.buy(S,S.v,5,1000,{cash:5000});
       activeCashSession().status='closed';saveDB(true);
+      const closedBeforeSale=db.cashSessions.filter(x=>x.status==='open').length;
       const sale=await T.sell(S,S.v,1,1500,{cash:1500});
-      return{purchaseBlocked:!purchase&&afterPurchase.p===before.p&&afterPurchase.j===before.j&&
+      return{closedBeforeSale,openAfterSale:db.cashSessions.filter(x=>x.status==='open').length,sessionStates:db.cashSessions.map(x=>x.status),saleFn:String(saveSale).slice(0,220),windowSaleFn:String(window.saveSale).slice(0,220),purchaseBlocked:!purchase&&afterPurchase.p===before.p&&afterPurchase.j===before.j&&
           afterPurchase.pay===before.pay&&afterPurchase.stock===before.stock,
         purchaseMessage:afterPurchase.msg,saleBlocked:!sale&&db.sales.length===before.s,
         finalStock:variantBy(S.v).stock,saleMessage:T.msgs.at(-1),unb:T.unbalanced()}
