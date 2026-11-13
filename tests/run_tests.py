@@ -575,6 +575,39 @@ async def negative_split_payments_are_rejected_without_partial_commits(br,c):
 
 
 @test
+async def vat_purchase_return_preserves_original_warehouse(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""const S=await T.seed({vat:10});
+      db.warehouses.push({id:'W2',name:'انبار دوم',active:true});
+      db.warehouseStocks.W2={};saveDB(true);
+      page='purchase';render();await T.sleep(100);addPurchase(S.v);
+      purchaseCart[0].qty=4;purchaseCart[0].price=1000;renderPurchaseCart();
+      document.querySelector('#purSup').value=S.sup;
+      document.querySelector('#purWarehouse').value='W2';
+      document.querySelector('#purCash').value='4400';renderPurchasePaymentSummary();
+      document.querySelector('#savePurchase').click();await T.sleep(200);
+      const p=db.purchases.at(-1),item=db.purchaseItems.find(x=>x.id===p.items[0]);
+      const ret=Fin.purchaseReturn({ref:p.number,qtys:{[item.id]:1},method:'card'});
+      const move=db.warehouseMoves.at(-1),b=T.bal();
+      return{purchaseWarehouse:p.warehouseId,itemWarehouse:item.warehouseId,returnWarehouse:move.warehouseId,
+        stock:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v),
+        returnVat:ret.vat,inventory:b.inventory,value:costValue(),unb:T.unbalanced(),
+        health:runYouniqueHealthCheck().ok}""")
+    c.eq(r['purchaseWarehouse'],'W2','purchase header records selected warehouse')
+    c.eq(r['itemWarehouse'],'W2','purchase line records selected warehouse')
+    c.eq(r['returnWarehouse'],'W2','VAT purchase return movement uses original warehouse')
+    c.eq(r['stock'],3,'one returned unit is removed from total stock')
+    c.eq(r['main'],0,'main warehouse remains unchanged')
+    c.eq(r['w2'],3,'return is deducted from original warehouse')
+    c.eq(r['returnVat'],100,'VAT return is prorated from the original purchase')
+    c.eq(r['inventory'],3000,'inventory ledger reflects returned net cost')
+    c.eq(r['value'],3000,'cost-layer valuation matches inventory ledger')
+    c.eq(r['unb'],0,'return journal remains balanced')
+    c.true(r['health'],'business health check remains valid')
+    await ctx.close()
+
+
+@test
 async def purchase_return_records_all_noncredit_payment_methods(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,'''const S=await T.seed({});
