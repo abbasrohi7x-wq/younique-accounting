@@ -159,6 +159,20 @@ async def indexeddb_missing_record_blocks_overwrite(br,c):
     c.eq(r['save'],False,'writes blocked on incomplete data');c.eq(r['flushPending'],0,'no automatic overwrite queued')
     await ctx.close()
 
+
+@test
+async def localstorage_migrates_to_indexeddb(br,c):
+    ctx=await br.new_context(viewport={'width':1280,'height':800})
+    await ctx.add_init_script("""localStorage.setItem('younique_v16_db',JSON.stringify({
+      schema:13,settings:{shopName:'مهاجرت نسخه قدیمی'},models:[],variants:[],
+      sales:[],purchases:[],customers:[],suppliers:[]
+    }))""")
+    pg=await ctx.new_page();await pg.goto(URL);await pg.wait_for_timeout(1500);await pg.evaluate(HELP)
+    r=await ev(pg,"return{mode:YStore.S.mode,migrated:YStore.S.migrated,shop:db.settings.shopName,ready:YStore.S.ready}")
+    c.eq(r['mode'],'idb','migrated store uses IndexedDB');c.true(r['migrated'],'legacy migration flagged')
+    c.eq(r['shop'],'مهاجرت نسخه قدیمی','legacy settings preserved');c.true(r['ready'],'store ready after migration')
+    await ctx.close()
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
