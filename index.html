@@ -625,7 +625,7 @@ function reports(){
     ...purchases.map(x=>['خرید',x.number,x.date.slice(0,10),x.total,x.due]),
     ...saleReturns.map(x=>['برگشت فروش',x.ref,x.date,-num(x.refund??x.total),0]),
     ...purchaseReturns.map(x=>['برگشت خرید',x.ref,x.date,-num(x.total),0])];
-    download('گزارش-یونیک-'+today()+'.csv',csvRows.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\\n'),'text/csv;charset=utf-8')};
+    download('گزارش-یونیک-'+today()+'.csv',csvRows.map(r=>r.map(v=>'"'+String(v).replaceAll('"','""')+'"').join(',')).join('\n'),'text/csv;charset=utf-8')};
 }
 
 function extractAIJson(text){
