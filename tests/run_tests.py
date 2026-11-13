@@ -572,6 +572,32 @@ async def purchase_return_records_all_noncredit_payment_methods(br,c):
 
 
 @test
+async def purchase_return_reconciles_inventory_cost_and_supplier_refund(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\"const S=await T.seed({costing:'weighted_average'});
+      const p1=await T.buy(S,S.v,2,1000,{cash:2000});
+      const p2=await T.buy(S,S.v,2,2000,{card:4000});
+      const item=db.purchaseItems.find(x=>x.variantId===S.v&&x.qty===2&&x.unitPrice===1000);
+      const ret=Fin.purchaseReturn({ref:p1.number,qtys:{[item.id]:1},method:'card',note:'valuation regression'});
+      const jr=db.journal.find(x=>x.returnId===ret.id);
+      const refund=db.payments.find(x=>x.ref&&x.ref.includes('-R')&&x.partyType==='supplier'&&x.direction==='in');
+      return{p1:!!p1,p2:!!p2,ret:!!ret,stock:variantBy(S.v).stock,
+        costValue:costValue(),inventoryLedger:accountBalance('inventory'),
+        returnedCost:ret.costTotal,variance:jr&&jr.lines.find(x=>x.account==='purchaseReturnVariance'),
+        refund:refund&&{direction:refund.direction,partyId:refund.partyId,amount:refund.amount,account:refund.account},
+        unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}\"\"\")
+    c.true(r['p1'] and r['p2'] and r['ret'],'weighted-average purchases and partial purchase return succeed')
+    c.eq(r['stock'],3,'partial purchase return removes one unit')
+    c.true(abs(r['costValue']-r['inventoryLedger'])<0.01,'inventory valuation matches inventory control account after return')
+    c.true(abs(r['returnedCost']-1500)<0.01,'returned inventory uses current weighted-average cost')
+    c.true(r['variance'] is not None,'purchase return price/cost difference is posted to variance account')
+    c.eq(r['refund'],{'direction':'in','partyId':r['refund']['partyId'],'amount':1000,'account':'card'},'supplier refund is recorded to the selected card account')
+    c.eq(r['unb'],0,'purchase return journal remains balanced')
+    c.true(r['health'],'business health check remains valid')
+    await ctx.close()
+
+
+@test
 async def file_transfer_restores_complete_encrypted_snapshot(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
