@@ -1094,7 +1094,7 @@ async def local_persian_nlu_normalizes_colloquial_commands(br,c):
       ];
       const parsed=pairs.map(([a,b])=>{
         const x=UAI.NLU.understand(a,UAI.ctx),y=UAI.NLU.understand(b,UAI.ctx);
-        return {a:aUnknown:!!x.unknown,bUnknown:!!y.unknown,aIntent:x.intent,bIntent:y.intent};
+        return {aUnknown:!!x.unknown,bUnknown:!!y.unknown,aIntent:x.intent,bIntent:y.intent};
       });
       const digits=UAI.normalize('۱۲۳٤ كفش ي');
       return {parsed,digits,sales:db.sales.length,stock:variantBy(S.v).stock}''')
