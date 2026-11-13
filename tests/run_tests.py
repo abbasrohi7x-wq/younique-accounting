@@ -763,6 +763,79 @@ async def local_tesseract_worker_loads_and_recognizes_invoice_text(br,c):
 
 
 @test
+async def local_persian_tesseract_model_loads_and_recognizes_persian_text(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const worker=await Promise.race([Tesseract.createWorker('fas+eng',1,{
+        workerPath:'./vendor/tesseract/worker.min.js',
+        langPath:'./vendor/tesseract/lang/',
+        corePath:'./vendor/tesseract/core/',
+        gzip:true
+      }),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Persian Tesseract initialization timed out')),60000))]);
+      try{
+        const canvas=document.createElement('canvas');canvas.width=1600;canvas.height=360;
+        const cx=canvas.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,1600,360);
+        cx.fillStyle='#000';cx.textAlign='right';cx.direction='rtl';
+        cx.font='bold 150px Tahoma, Arial, sans-serif';
+        cx.fillText('فاکتور 12345',1500,230);
+        const result=await Promise.race([worker.recognize(canvas),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Persian OCR recognition timed out')),60000))]);
+        return{loaded:true,text:String(result.data.text||''),confidence:Number(result.data.confidence)||0};
+      }finally{await worker.terminate()}
+    """)
+    constText = r['text'].replace(' ','').replace('\\n','')
+    c.true(r['loaded'],'Persian and English traineddata load in the local worker')
+    c.true(any(ch in constText for ch in 'فاکتور'),'Persian OCR returns Persian invoice text')
+    c.true('12345' in constText,'Persian OCR preserves the invoice number')
+    c.eq(pg.errs,[],'Persian OCR produces no uncaught page errors')
+    await ctx.close()
+
+
+@test
+async def offline_ocr_pack_is_cached_and_served_without_network(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      await navigator.serviceWorker.ready;
+      for(let i=0;i<40&&!navigator.serviceWorker.controller;i++)await new Promise(resolve=>setTimeout(resolve,250));
+      if(!navigator.serviceWorker.controller)throw new Error('service worker did not take control');
+      const sw=navigator.serviceWorker.controller;
+      const ready=new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(new Error('OCR precache timed out')),120000);
+        const handler=e=>{
+          if(e.data?.type==='OCR_READY'){clearTimeout(timer);navigator.serviceWorker.removeEventListener('message',handler);resolve(e.data)}
+          if(e.data?.type==='OCR_ERROR'){clearTimeout(timer);navigator.serviceWorker.removeEventListener('message',handler);reject(new Error(e.data.message||'OCR precache failed'))}
+        };
+        navigator.serviceWorker.addEventListener('message',handler);
+      });
+      sw.postMessage({type:'PRECACHE_OCR'});
+      const downloaded=await ready;
+      const files=[
+        './vendor/tesseract/tesseract.min.js','./vendor/tesseract/worker.min.js',
+        './vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
+        './vendor/tesseract/core/tesseract-core-lstm.wasm.js',
+        './vendor/tesseract/lang/fas.traineddata.gz','./vendor/tesseract/lang/eng.traineddata.gz'
+      ];
+      const status=await new Promise((resolve,reject)=>{
+        const timer=setTimeout(()=>reject(new Error('OCR_STATUS timed out')),10000);
+        const handler=e=>{if(e.data?.type==='OCR_STATUS'){clearTimeout(timer);navigator.serviceWorker.removeEventListener('message',handler);resolve(e.data)}};
+        navigator.serviceWorker.addEventListener('message',handler);sw.postMessage({type:'OCR_STATUS'});
+      });
+      return{downloaded,status,files};
+    """)
+    c.eq(r['status']['cached'],6,'all six OCR assets are cached')
+    c.eq(r['status']['ready'],True,'OCR pack reports ready after download')
+    await ctx.set_offline(True)
+    offline=await pg.evaluate("""async files=>{
+      const results=[];
+      for(const path of files){const response=await fetch(path);results.push({path,ok:response.ok,status:response.status})}
+      return results;
+    }""",r['files'])
+    c.true(all(x['ok'] for x in offline),'all OCR assets are served from cache with network disabled')
+    await ctx.set_offline(False)
+    c.eq(pg.errs,[],'offline OCR cache test produces no uncaught page errors')
+    await ctx.close()
+
+
+@test
 async def file_transfer_restores_complete_encrypted_snapshot(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
