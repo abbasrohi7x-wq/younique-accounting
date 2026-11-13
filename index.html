@@ -623,7 +623,7 @@ const LOCAL_OCR_ROOT='./vendor/tesseract/';
 const LOCAL_OCR_CORE=LOCAL_OCR_ROOT+'core/';
 const LOCAL_OCR_LANG=LOCAL_OCR_ROOT+'lang/';
 
-function loadLocalScript(src){return new Promise((resolve,reject)=>{const existing=[...document.scripts].find(x=>x.src&&x.src.endsWith(src.replace(/^\.\//,'')));if(existing){existing.addEventListener('load',resolve,{once:true});existing.addEventListener('error',()=>reject(Error('بارگذاری موتور OCR محلی ناموفق بود.')),{once:true});if(window.Tesseract?.createWorker)resolve();return}const s=document.createElement('script');s.src=src;s.async=false;s.onload=resolve;s.onerror=()=>reject(Error('فایل Tesseract.js محلی پیدا نشد: '+src));document.head.appendChild(s)})}
+function loadLocalScript(src){return new Promise((resolve,reject)=>{const existing=[...document.scripts].find(x=>x.src&&x.src.endsWith(src.replace(/^\.\//,'')));const fail=()=>reject(Error('بارگذاری موتور OCR محلی ناموفق بود: '+src));if(existing){if(window.Tesseract?.createWorker)return resolve();if(existing.dataset.yqOcrState==='loaded'||existing.readyState==='loaded'||existing.readyState==='complete')return fail();existing.addEventListener('load',()=>window.Tesseract?.createWorker?resolve():fail(),{once:true});existing.addEventListener('error',()=>{existing.remove();fail()},{once:true});return}const s=document.createElement('script');s.src=src;s.async=false;s.onload=()=>{s.dataset.yqOcrState='loaded';resolve()};s.onerror=()=>{s.dataset.yqOcrState='error';s.remove();fail()};document.head.appendChild(s)})}
 const LOCAL_OCR_ASSETS=['tesseract.min.js','worker.min.js','core/tesseract-core-simd-lstm.wasm.js','core/tesseract-core-lstm.wasm.js','lang/fas.traineddata.gz','lang/eng.traineddata.gz'];
 let localOCRAssetsPromise=null;
 async function verifyLocalOCRAssets(){
@@ -647,7 +647,7 @@ async function verifyLocalOCRAssets(){
 async function ensureLocalOCR(){
  await verifyLocalOCRAssets();
  if(window.Tesseract?.createWorker)return window.Tesseract;
- if(!localOCRScriptPromise)localOCRScriptPromise=loadLocalScript(LOCAL_OCR_ROOT+'tesseract.min.js');
+ if(!localOCRScriptPromise)localOCRScriptPromise=loadLocalScript(LOCAL_OCR_ROOT+'tesseract.min.js').catch(err=>{localOCRScriptPromise=null;throw err});
  await localOCRScriptPromise;
  if(!window.Tesseract?.createWorker)throw Error('نسخه محلی Tesseract.js معتبر نیست.');
  return window.Tesseract;
