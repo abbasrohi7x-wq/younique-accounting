@@ -95,6 +95,7 @@ GitHub Actions همین مجموعه را برای push به `main` و Pull Requ
 - [راهنمای آزمون‌ها](tests/README.md)
 - [گزارش استخراج موتور](docs/ENGINE_EXTRACTION.md)
 - [قواعد نگهداری مخزن](docs/GITHUB_REPOSITORY_GUIDE.md)
+- [گزارش ممیزی مخازن و تنظیمات GitHub](docs/GITHUB_AUDIT.md)
 
 ## مشارکت و تغییرات
 
