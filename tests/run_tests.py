@@ -424,7 +424,6 @@ async def main():
             for x in c.fails:print('     -',x)
         await br.close()
     bad=[c for c in RES if c.fails];print(f'\n{len(RES)-len(bad)}/{len(RES)} tests passed, {sum(c.n for c in RES)} assertions, {time.time()-t0:.0f}s');sys.exit(1 if bad else 0)
-asyncio.run(main())
 
 
 @test
@@ -488,3 +487,4 @@ async def ai_purchase_and_sale_require_open_cash_session(br,c):
     c.eq(r['unb'],0,'ledger remains balanced after AI blocks')
     await ctx.close()
 
+asyncio.run(main())
