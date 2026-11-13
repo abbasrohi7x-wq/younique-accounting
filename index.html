@@ -1220,7 +1220,7 @@ function financeV17(){
 }
 // Expose and replace page handlers. Existing navigation calls lexical names, so assignments are made in global scope.
 window.recordIncome=recordIncome;window.transferFunds=transferFunds;window.returnItemsFor=returnItemsFor;window.activeCashSession=activeCashSession;window.openCashSession=openCashSession;window.closeCashSession=closeCashSession;window.cashSessionExpected=cashSessionExpected;window.openCashSessionModal=openCashSessionModal;window.closeCashSessionModal=closeCashSessionModal;
-sale=saleV17;finance=financeV17;saveSale=saveSaleV18;savePurchase=savePurchaseV18;
+sale=saleV17;window.saleV17=saleV17;finance=financeV17;saveSale=saveSaleV18;savePurchase=savePurchaseV18;
 /* v42.1 fix: expose cash helpers used by later modules */
 Object.assign(window,{cashMove,nextCashSessionNumber,activeCashSession,renderPaymentRows,updatePaymentSummary,cashSessionExpected});
 })();
@@ -3226,7 +3226,7 @@ WRITE({name:'create_sale',desc:'ثبت فاکتور فروش با اقلام و 
     return{status:'ready',params:{customerId:q.customerId||'',cart,discount,pay,total},needsConfirm:true,summary,risk:total>=HIGH_AMOUNT_RIAL?'high':'medium'}},
   async run(p){
     const before=window.db.sales.length;
-    window.__YQ_AI_SALE_STAGE='render sale form';window.page='sale';window.render();await h.waitFor('#saleCustomer');await new Promise(r=>setTimeout(r,30));
+    window.__YQ_AI_SALE_STAGE='render sale form';window.page='sale';window.render();await h.waitFor('#saleCustomer');await new Promise(r=>setTimeout(r,30));if(!document.querySelector('#paymentRows')&&typeof window.saleV17==='function'){window.__YQ_AI_SALE_STAGE='repair sale form route';window.saleV17();}if(!document.querySelector('#paymentRows'))throw Error('فرم کامل فروش بارگذاری نشد؛ بخش تسویه در دسترس نیست');
     window.__YQ_AI_SALE_STAGE='populate sale form';saleCart.splice(0,saleCart.length,...p.cart.map(x=>({...x})));
     const sel=document.querySelector('#saleCustomer');sel.value=p.customerId||'';if(sel.value!==(p.customerId||''))throw Error('مشتری در فرم فروش پیدا نشد');
     for(const id of['#manualDisc41','#saleDiscount']){const e=document.querySelector(id);if(e)e.value=String(p.discount||0)}
