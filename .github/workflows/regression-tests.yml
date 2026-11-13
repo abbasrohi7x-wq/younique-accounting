@@ -1,0 +1,41 @@
+name: Regression tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  browser-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright numpy opencv-python-headless
+          python -m playwright install --with-deps chromium
+      - name: Start local app server
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 > /tmp/unique-http.log 2>&1 &
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:8765/index.html > /dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/unique-http.log
+          exit 1
+      - name: Run browser regression suite
+        run: python tests/run_tests.py
