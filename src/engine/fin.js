@@ -145,7 +145,12 @@ function createFin(db, h, core) {
       if (method === 'credit') lines.push({ account: 'payable', debit: total, credit: 0, partyType: 'supplier', partyId: p.supplierId });
       else lines.push({ account: paymentAccount(method), debit: total, credit: 0 });
       lines.push({ account: 'inventory', debit: 0, credit: total });
-      postJournal(ref + '-PR' + row.id.slice(-4), 'برگشت از خرید', lines, { returnId: row.id });
+      const jr = ref + '-PR' + row.id.slice(-4);
+      postJournal(jr, 'برگشت از خرید', lines, { returnId: row.id });
+      if (method !== 'credit') {
+        db.payments = db.payments || [];
+        db.payments.push({ id: uid(), date: now(), direction: 'in', partyType: 'supplier', partyId: p.supplierId || '', amount: total, account: paymentAccount(method), ref: jr, embedded: true, note: 'دریافت برگشت خرید' });
+      }
       if (method === 'cash') { const cs = activeCashSession(); if (cs) cashMove(cs.id, total, 'purchase_return', ref, 'دریافت برگشت خرید'); }
       audit('ثبت برگشت خرید', ref, String(total)); saveDB(true); return row;
     });
