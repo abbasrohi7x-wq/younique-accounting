@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Unique Pro — Service Worker  (cache v1.10.0)
+   Unique Pro — Service Worker  (cache v1.11.0)
    Goals: fully offline, predictable updates, no network traffic to other origins.
 
    Caches
@@ -14,7 +14,7 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = '1.10.0';
+const VERSION = '1.11.0';
 const SHELL_CACHE = 'unique-shell-' + VERSION;
 const OCR_CACHE = 'unique-ocr-v1';
 
