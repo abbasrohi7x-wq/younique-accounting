@@ -140,9 +140,9 @@ async def receipt_qr_and_no_photo(br,c):
 @test
 async def indexeddb_roundtrip_survives_reload(br,c):
     pg,ctx=await page(br)
-    await ev(pg,\"const S=await T.seed({});db.settings.shopName='ذخیره پایدار آزمون';db.customers.push({id:'persist-customer',name:'مشتری پایدار'});saveDB(true);await YStore.flush();\")
+    await ev(pg,"const S=await T.seed({});db.settings.shopName='ذخیره پایدار آزمون';db.customers.push({id:'persist-customer',name:'مشتری پایدار'});saveDB(true);await YStore.flush();")
     await pg.reload();await pg.wait_for_timeout(1500);await pg.evaluate(HELP)
-    r=await ev(pg,\"return{mode:YStore.S.mode,ready:YStore.S.ready,shop:db.settings.shopName,customer:db.customers.some(x=>x.id==='persist-customer'),error:window.__YOUNIQUE_LOAD_ERROR||''}\")
+    r=await ev(pg,"return{mode:YStore.S.mode,ready:YStore.S.ready,shop:db.settings.shopName,customer:db.customers.some(x=>x.id==='persist-customer'),error:window.__YOUNIQUE_LOAD_ERROR||''}")
     c.eq(r['mode'],'idb','IndexedDB mode after reload');c.true(r['ready'],'store ready after reload')
     c.eq(r['shop'],'ذخیره پایدار آزمون','settings survive reload');c.true(r['customer'],'customer survives reload')
     c.eq(r['error'],'','no load error');await ctx.close()
@@ -151,10 +151,10 @@ async def indexeddb_roundtrip_survives_reload(br,c):
 @test
 async def indexeddb_missing_record_blocks_overwrite(br,c):
     pg,ctx=await page(br)
-    await ev(pg,\"const S=await T.seed({});db.settings.shopName='رکوردی که نباید حذف شود';saveDB(true);await YStore.flush();\")
-    await pg.evaluate(\"\"\"async()=>{const d=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});await new Promise((res,rej)=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').delete('k:settings');t.oncomplete=res;t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)});d.close()}\"\"\")
+    await ev(pg,"const S=await T.seed({});db.settings.shopName='رکوردی که نباید حذف شود';saveDB(true);await YStore.flush();")
+    await pg.evaluate("""async()=>{const d=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});await new Promise((res,rej)=>{const t=d.transaction('kv','readwrite');t.objectStore('kv').delete('k:settings');t.oncomplete=res;t.onerror=()=>rej(t.error);t.onabort=()=>rej(t.error)});d.close()}""")
     await pg.reload();await pg.wait_for_timeout(1500);await pg.evaluate(HELP)
-    r=await ev(pg,\"return{mode:YStore.S.mode,integrity:!!YStore.S.integrityError,save:saveDB(true),flushPending:Object.keys(YStore.S.pending).length}\")
+    r=await ev(pg,"return{mode:YStore.S.mode,integrity:!!YStore.S.integrityError,save:saveDB(true),flushPending:Object.keys(YStore.S.pending).length}")
     c.eq(r['mode'],'idb','store remains in IndexedDB mode');c.true(r['integrity'],'missing record detected')
     c.eq(r['save'],False,'writes blocked on incomplete data');c.eq(r['flushPending'],0,'no automatic overwrite queued')
     await ctx.close()
