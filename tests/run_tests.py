@@ -1096,14 +1096,14 @@ async def local_persian_nlu_normalizes_colloquial_commands(br,c):
         const x=UAI.NLU.understand(a,UAI.ctx),y=UAI.NLU.understand(b,UAI.ctx);
         return {aUnknown:!!x.unknown,bUnknown:!!y.unknown,aIntent:x.intent,bIntent:y.intent};
       });
-      const digits=UAI.normalize('۱۲۳٤ كفش ي');
-      return {parsed,digits,sales:db.sales.length,stock:variantBy(S.v).stock}''')
+      const digits=UAI.normalize('۱۲۳٤ كفش ي'),initialStock=variantBy(S.v).stock;
+      return {parsed,digits,sales:db.sales.length,initialStock,stock:variantBy(S.v).stock}''')
     for row in r['parsed']:
       c.true(not row['aUnknown'] and not row['bUnknown'],'colloquial command is understood: '+row['aIntent'])
       c.eq(row['aIntent'],row['bIntent'],'colloquial and canonical phrase resolve to the same intent')
     c.eq(r['digits'],'1234 کفش ی','Persian/Arabic digits and Arabic letter forms normalize consistently')
     c.eq(r['sales'],0,'intent parsing does not create invoices')
-    c.eq(r['stock'],5,'intent parsing does not mutate inventory')
+    c.eq(r['stock'],r['initialStock'],'intent parsing does not mutate inventory')
     await ctx.close()
 
 
@@ -1151,6 +1151,49 @@ async def health_check_detects_catalog_and_journal_integrity_drift(br,c):
     c.true(any('ترکیب رنگ و سایز تکراری' in x for x in r['catalog']),'duplicate variant combination is detected')
     c.true(any('جمع ردیف‌های سند' in x for x in r['ledger']),'journal line/header mismatch is detected')
     c.true(r['restored'],'removing test corruption restores a healthy status')
+    await ctx.close()
+
+
+@test
+async def exclusive_sale_returns_reconcile_dashboard_and_management_reports(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({vat:10});
+      await T.buy(S,S.v,10,1000,{cash:11000});
+      const sale=await T.sell(S,S.v,3,1500,{cash:4950});
+      const ret=Fin.saleReturn({ref:sale.number,qtys:{[sale.items[0]]:1},method:'cash',note:'report test'});
+      const t=totals();page='reports';render();
+      const body=document.querySelector('#content').innerText;
+      return {return:{total:ret.total,vat:ret.vat,refund:ret.refund},revenue:t.revenue,profit:t.profit,
+        reportRevenue:body.includes(money(3300)),reportProfit:body.includes(money(1000)),
+        returnRow:body.includes('برگشت فروش'),unb:T.unbalanced()}''')
+    c.eq(r['return'],{'total':1500,'vat':150,'refund':1650},'exclusive VAT return totals')
+    c.eq(r['revenue'],3300,'dashboard revenue subtracts the full refund including VAT')
+    c.eq(r['profit'],1000,'dashboard profit subtracts returned net revenue less returned cost')
+    c.true(r['reportRevenue'],'management report shows net revenue')
+    c.true(r['reportProfit'],'management report shows net gross profit')
+    c.true(r['returnRow'],'management report lists the sale return')
+    c.eq(r['unb'],0,'return journal remains balanced')
+    await ctx.close()
+
+
+@test
+async def inclusive_sale_returns_remove_vat_from_profit_reversal(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({vat:9,mode:'inclusive'});
+      await T.buy(S,S.v,7,333,{cash:2331});
+      const sale=await T.sell(S,S.v,3,999,{cash:2997});
+      const ret=Fin.saleReturn({ref:sale.number,qtys:{[sale.items[0]]:1},method:'cash',note:'inclusive report test'});
+      const t=totals();page='reports';render();
+      const body=document.querySelector('#content').innerText;
+      return {saleProfit:sale.profit,return:{total:ret.total,vat:ret.vat,cost:ret.costTotal},
+        revenue:t.revenue,profit:t.profit,reportRevenue:body.includes(money(1998)),
+        reportProfit:body.includes(money(1167)),unb:T.unbalanced()}''')
+    c.eq(r['return'],{'total':999,'vat':82,'cost':333},'inclusive return retains its VAT and cost components')
+    c.eq(r['revenue'],1998,'inclusive net revenue subtracts the refunded gross amount')
+    c.eq(r['profit'],1167,'inclusive profit reversal excludes VAT from returned profit')
+    c.true(r['reportRevenue'],'management report shows inclusive net revenue')
+    c.true(r['reportProfit'],'management report shows VAT-adjusted net profit')
+    c.eq(r['unb'],0,'inclusive return journal remains balanced')
     await ctx.close()
 
 asyncio.run(main())
