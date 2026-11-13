@@ -323,6 +323,70 @@ async def ai_sale_requires_explicit_confirmation(br,c):
 
 
 @test
+async def manual_sale_split_payment_is_persisted(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});await T.buy(S,S.v,5,1000,{cash:5000});
+      const sale=await T.sell(S,S.v,2,1500,{cash:600,card:1500,bank:300,credit:600});
+      const p=Object.fromEntries((sale&&sale.payments||[]).map(x=>[x.account,num(x.amount)]));
+      const journal=db.journal.find(j=>j.ref===sale.number||j.number===sale.number);
+      return{saved:!!sale,total:sale&&sale.total,paid:sale&&sale.paid,due:sale&&sale.due,p,
+        stock:variantBy(S.v).stock,unb:T.unbalanced(),
+        journalAccounts:journal?(journal.lines||[]).filter(x=>['cash','card','bank','receivable'].includes(x.account)).map(x=>[x.account,num(x.debit)]):[]}
+    """)
+    c.true(r['saved'],'manual split-payment sale saved')
+    c.eq(r['total'],3000,'manual invoice total')
+    c.eq(r['paid'],2400,'manual received total excludes credit')
+    c.eq(r['due'],600,'manual credit balance')
+    c.eq(r['p'],{'cash':600,'card':1500,'bank':300,'credit':600},'manual payment allocations persist exactly')
+    c.eq(r['stock'],3,'manual sale decrements stock by two')
+    c.eq(r['unb'],0,'manual split-payment journal balanced')
+    c.eq(dict(r['journalAccounts']),{'cash':600,'card':1500,'bank':300,'receivable':600},'manual journal posts each payment account')
+    await ctx.close()
+
+
+@test
+async def ai_sale_split_payment_requires_confirmation_and_persists(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});await T.buy(S,S.v,5,1000,{cash:5000});
+      UAI.ctx.reset();
+      const before={sales:db.sales.length,stock:variantBy(S.v).stock,journal:db.journal.length,payments:db.payments.length};
+      const info={intent:'create_sale',entities:{}};
+      const asked=await UAI._runSteps([{tool:'create_sale',params:{
+        customerId:S.cus,items:[{variantId:S.v,qty:2,price:1500}],
+        payments:{cash:600,card:1500,bank:300,credit:600},unit:'rial'
+      }}],0,info,'text','فروش دو عدد با پرداخت ترکیبی');
+      const waiting=!!UAI.ctx.pending;
+      const unchanged={sales:db.sales.length===before.sales,stock:variantBy(S.v).stock===before.stock,
+        journal:db.journal.length===before.journal,payments:db.payments.length===before.payments};
+      const answer=await UAI.chat.handle('بله',{source:'text'});
+      const sale=db.sales.at(-1);
+      const p=Object.fromEntries((sale&&sale.payments||[]).map(x=>[x.account,num(x.amount)]));
+      const journal=db.journal.find(j=>j.ref===sale.number||j.number===sale.number);
+      return{kind:asked[0]&&asked[0].kind,waiting,unchanged,committed:db.sales.length===before.sales+1,
+        total:sale&&sale.total,paid:sale&&sale.paid,due:sale&&sale.due,p,stock:variantBy(S.v).stock,
+        paymentRecords:db.payments.filter(x=>x.ref===sale.number&&x.embedded).map(x=>[x.account,num(x.amount)]),
+        journalAccounts:journal?(journal.lines||[]).filter(x=>['cash','card','bank','receivable'].includes(x.account)).map(x=>[x.account,num(x.debit)]):[],
+        answer:answer.map(x=>x.text).join(' '),unb:T.unbalanced(),pending:!!UAI.ctx.pending}
+    """)
+    c.eq(r['kind'],'confirm','AI split-payment write asks for confirmation')
+    c.true(r['waiting'],'AI split-payment confirmation is pending')
+    c.eq(r['unchanged'],{'sales':True,'stock':True,'journal':True,'payments':True},'AI split-payment does not mutate data before confirmation')
+    c.true(r['committed'],'AI split-payment commits after explicit confirmation')
+    c.eq(r['total'],3000,'AI split-payment invoice total')
+    c.eq(r['paid'],2400,'AI split-payment received total')
+    c.eq(r['due'],600,'AI split-payment credit balance')
+    c.eq(r['p'],{'cash':600,'card':1500,'bank':300,'credit':600},'AI payment allocations persist exactly')
+    c.eq(r['stock'],3,'AI sale decrements stock by two')
+    c.eq(dict(r['paymentRecords']),{'cash':600,'card':1500,'bank':300},'AI payment records use correct accounts and amounts')
+    c.eq(dict(r['journalAccounts']),{'cash':600,'card':1500,'bank':300,'receivable':600},'AI journal debits match split payments')
+    c.eq(r['unb'],0,'AI split-payment journal balanced')
+    c.eq(r['pending'],False,'AI confirmation is cleared after commit')
+    await ctx.close()
+
+
+@test
 async def ai_sale_decline_and_permission_recheck(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
