@@ -315,7 +315,7 @@ async def ai_sale_requires_explicit_confirmation(br,c):
     c.eq(r['kind'],'confirm','AI write produces confirmation prompt')
     c.true(r['waiting'],'pending confirmation is stored')
     c.eq(r['unchanged'],{'sales':True,'stock':True,'journal':True},'no business data changes before confirmation')
-    c.true(r['committed'],'sale commits after explicit yes '+r['answerText']+' '+JSON.stringify(r['toasts']))
+    c.true(r['committed'],'sale commits after explicit yes '+r['answerText']+' '+str(r['toasts']))
     c.eq(r['stock'],4,'confirmed sale decrements stock')
     c.eq(r['pending'],False,'pending confirmation cleared')
     c.eq(r['unb'],0,'confirmed sale journals balanced')
