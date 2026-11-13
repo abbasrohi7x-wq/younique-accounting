@@ -435,7 +435,7 @@ async def manual_purchase_and_sale_require_open_cash_session(br,c):
       const before={p:db.purchases.length,s:db.sales.length,j:db.journal.length,
         pay:db.payments.length,stock:variantBy(S.v).stock};
       activeCashSession().status='closed';saveDB(true);
-      const purchase=await T.buy(S,S.v,2,1000,{cash:2000});
+      const purchase=await T.buy(S,S.v,2,1000,{cash:2000});purchaseCart.splice(0);
       const afterPurchase={p:db.purchases.length,j:db.journal.length,pay:db.payments.length,
         stock:variantBy(S.v).stock,msg:T.msgs.at(-1)};
       openCashSession(100000,'test reopen','test');
