@@ -686,6 +686,36 @@ async def committed_invoice_drafts_cannot_be_submitted_twice(br,c):
 
 
 @test
+async def ocr_invoice_requires_review_and_only_creates_purchase_draft(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const before={p:db.purchases.length,j:db.journal.length,pay:db.payments.length,stock:variantBy(S.v).stock};
+      const name=variantName(variantBy(S.v));
+      showInvoiceResult({documentType:'purchase_invoice',confidence:.95,total:1000,subtotal:1000,
+        discount:0,tax:0,shipping:0,items:[{name,qty:1,unitPrice:1000,lineTotal:1000,confidence:.95}]},null);
+      const review=document.querySelector('.modalbox h2')?.textContent||'';
+      const rows=document.querySelectorAll('#invoiceRows tr').length;
+      document.querySelector('#invoiceConfirm').click();await T.sleep(80);
+      const draft=document.querySelector('.modalbox h2')?.textContent||'';
+      const afterReview={p:db.purchases.length,j:db.journal.length,pay:db.payments.length,stock:variantBy(S.v).stock};
+      document.querySelector('#aiExec').click();await T.sleep(100);
+      return{review,rows,draft,before,afterReview,
+        afterDraft:{p:db.purchases.length,j:db.journal.length,pay:db.payments.length,stock:variantBy(S.v).stock},
+        cart:purchaseCart.length,form:!!document.querySelector('#purWarehouse')}
+    """)
+    c.eq(r['review'],'بررسی و تأیید فاکتور','OCR opens an editable invoice review before any purchase')
+    c.eq(r['rows'],1,'OCR review shows the extracted invoice line')
+    c.eq(r['draft'],'پیش‌نویس خرید','confirming OCR opens a purchase draft preview')
+    c.eq(r['afterReview'],r['before'],'review confirmation does not commit financial records')
+    c.eq(r['afterDraft'],r['before'],'creating the purchase draft still does not post stock or ledger entries')
+    c.eq(r['cart'],1,'the approved OCR item is carried into the manual purchase cart')
+    c.true(r['form'],'user lands on the normal purchase form for final payment and commit')
+    c.eq(r['afterDraft']['p'],0,'no purchase invoice is committed before final manual save')
+    await ctx.close()
+
+
+@test
 async def local_tesseract_worker_loads_and_recognizes_invoice_text(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
