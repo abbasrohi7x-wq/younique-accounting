@@ -745,7 +745,7 @@ async def ocr_rejects_invalid_and_oversized_files_before_processing(br,c):
       try{await analyzeInvoiceImage(new File([], 'empty.jpg', {type:'image/jpeg'}))}catch(e){empty=/خالی|نامعتبر/.test(e.message)}
       try{await analyzeInvoiceImage(new File(['x'], 'note.txt', {type:'text/plain'}))}catch(e){type=/تصویری/.test(e.message)}
       try{await analyzeInvoiceImage({size:26*1024*1024,type:'image/jpeg'})}catch(e){size=/۲۵ مگابایت/.test(e.message)}
-      return{empty,type,size,progress:OCRProgress.visible(),
+      return{before,empty,type,size,progress:OCRProgress.visible(),
         after:{p:db.purchases.length,j:db.journal.length,pay:db.payments.length,
           stock:variantBy(S.v).stock,history:db.aiHistory.length}}
     """)
