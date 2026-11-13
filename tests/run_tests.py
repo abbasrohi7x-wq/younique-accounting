@@ -330,7 +330,7 @@ async def manual_sale_split_payment_is_persisted(br,c):
       const sale=await T.sell(S,S.v,2,1500,{cash:600,card:1500,bank:300,credit:600});
       const p=Object.fromEntries((sale&&sale.payments||[]).map(x=>[x.account,num(x.amount)]));
       const journal=db.journal.find(j=>j.ref===sale.number||j.number===sale.number);
-      return{saved:!!sale,total:sale&&sale.total,paid:sale&&sale.paid,due:sale&&sale.due,p,
+      return{saved:!!sale,total:sale&&sale.total,paid:sale&&sale.paid,due:sale&&sale.due,payment:sale&&sale.payment,p,
         stock:variantBy(S.v).stock,unb:T.unbalanced(),
         journalAccounts:journal?(journal.lines||[]).filter(x=>['cash','card','bank','receivable'].includes(x.account)).map(x=>[x.account,num(x.debit)]):[]}
     """)
