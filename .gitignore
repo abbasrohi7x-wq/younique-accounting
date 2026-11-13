@@ -2,6 +2,7 @@
 node_modules/
 .env
 .env.*
+!.env.example
 *.log
 .playwright/
 test-results/
@@ -15,5 +16,4 @@ htmlcov/
 .venv/
 venv/
 .envrc
-.DS_Store
 Thumbs.db

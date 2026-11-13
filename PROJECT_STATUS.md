@@ -8,7 +8,7 @@
 |---|---|
 | مخزن | `abbasrohi7x-wq/younique-accounting` |
 | شاخهٔ اصلی | `main` |
-| commit مبنای بررسی کد | `4f65c87b38a4960bfc6cb665af028c600eb78f9b` |
+| commit مبنای بررسی کد | `f211f5ff00f633c9572a2225baf24d8ff92a2c46` |
 | نوع برنامه | وب‌اپ استاتیک / PWA |
 | زبان رابط | فارسی، RTL |
 | میزبان هدف | GitHub Pages |
@@ -42,14 +42,19 @@
 | مورد | نتیجه |
 |---|---|
 | Push workflow روی commit مبنا | موفق |
-| Regression tests روی commit مبنا | ناموفق |
-| علت ثبت‌شده | `SyntaxError` در `tests/run_tests.py`، خط 799 |
-| محل خطا | عبارت منظم JavaScript با سینتکس نامعتبر در کد Python |
-| نتیجهٔ OCR فارسی | هنوز قابل تأیید نیست؛ آزمون پیش از اجرا متوقف شده است |
+| Regression tests روی commit `8d3f427` | **موفق** |
+| تعداد آزمون‌ها | **43/43** |
+| Assertionها | **266** |
+| مدت اجرا | حدود 107 ثانیه |
+| OCR فارسی/انگلیسی | آزمون تشخیص متن فارسی و شمارهٔ فاکتور موفق |
+| CodeQL روی commit `8d3f427` | تحلیل Python و Actions موفق؛ JavaScript/TypeScript نیز در اجرای ثبت‌شده تکمیل شد |
 
-اجرای ناموفق: [Regression tests — 4f65c87](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43508516651)
+- اجرای موفق آزمون‌ها: [Regression tests — 8d3f427](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43509463688)
+- اجرای موفق CodeQL: [CodeQL — 8d3f427](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43509463251)
+- خطای نحوی قبلی در commit `4f65c87` با commit `8d3f427` اصلاح شد.
+- commit `f211f5f` فقط مستندات و گزارش ممیزی را تغییر داده است؛ اجرای Regression Tests برای همین commit هنگام ثبت گزارش در جریان بود.
 
-تا رفع خطای آزمون و اجرای مجدد، هیچ ادعای «همهٔ آزمون‌ها موفق‌اند» معتبر نیست.
+بنابراین مجموعهٔ آزمون روی commit اصلاح کد **43/43 موفق** است؛ اجرای نهایی commit مستندات نیز باید از Actions بررسی شود.
 
 ## 6. ساختار و نگهداری
 
