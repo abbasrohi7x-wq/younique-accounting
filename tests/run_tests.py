@@ -1165,13 +1165,13 @@ async def exclusive_sale_returns_reconcile_dashboard_and_management_reports(br,c
       const body=document.querySelector('#content').innerText;
       return {return:{total:ret.total,vat:ret.vat,refund:ret.refund},revenue:t.revenue,profit:t.profit,
         reportRevenue:body.includes(money(3300)),reportProfit:body.includes(money(1000)),
-        returnRow:body.includes('برگشت فروش'),unb:T.unbalanced()}''')
+        returnRow:body.includes('برگشت فروش'),body:body.slice(0,1600),reportError:!!document.querySelector('#content .error-inline'),unb:T.unbalanced()}''')
     c.eq(r['return'],{'total':1500,'vat':150,'refund':1650},'exclusive VAT return totals')
     c.eq(r['revenue'],3300,'dashboard revenue subtracts the full refund including VAT')
     c.eq(r['profit'],1000,'dashboard profit subtracts returned net revenue less returned cost')
-    c.true(r['reportRevenue'],'management report shows net revenue')
-    c.true(r['reportProfit'],'management report shows net gross profit')
-    c.true(r['returnRow'],'management report lists the sale return')
+    c.true(r['reportRevenue'],'management report shows net revenue: '+r['body'])
+    c.true(r['reportProfit'],'management report shows net gross profit: '+r['body'])
+    c.true(r['returnRow'],'management report lists the sale return: '+r['body'])
     c.eq(r['unb'],0,'return journal remains balanced')
     await ctx.close()
 
@@ -1187,12 +1187,12 @@ async def inclusive_sale_returns_remove_vat_from_profit_reversal(br,c):
       const body=document.querySelector('#content').innerText;
       return {saleProfit:sale.profit,return:{total:ret.total,vat:ret.vat,cost:ret.costTotal},
         revenue:t.revenue,profit:t.profit,reportRevenue:body.includes(money(1998)),
-        reportProfit:body.includes(money(1167)),unb:T.unbalanced()}''')
-    c.eq(r['return'],{'total':999,'vat':82,'cost':333},'inclusive return retains its VAT and cost components')
+        reportProfit:body.includes(money(1222)),body:body.slice(0,1600),unb:T.unbalanced()}''')
+    c.eq(r['return'],{'total':999,'vat':82,'cost':306},'inclusive return retains its VAT and actual FIFO cost components')
     c.eq(r['revenue'],1998,'inclusive net revenue subtracts the refunded gross amount')
-    c.eq(r['profit'],1167,'inclusive profit reversal excludes VAT from returned profit')
-    c.true(r['reportRevenue'],'management report shows inclusive net revenue')
-    c.true(r['reportProfit'],'management report shows VAT-adjusted net profit')
+    c.eq(r['profit'],1222,'inclusive profit reversal excludes VAT from returned profit')
+    c.true(r['reportRevenue'],'management report shows inclusive net revenue: '+r['body'])
+    c.true(r['reportProfit'],'management report shows VAT-adjusted net profit: '+r['body'])
     c.eq(r['unb'],0,'inclusive return journal remains balanced')
     await ctx.close()
 
