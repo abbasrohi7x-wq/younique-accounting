@@ -780,19 +780,24 @@ async def local_persian_tesseract_model_loads_and_processes_mixed_invoice_text(b
         gzip:true
       }),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Persian Tesseract initialization timed out')),60000))]);
       try{
+        /* Use the app's bundled Persian font: CI runners do not guarantee Tahoma. */
+        const font=new FontFace('UniqueOCRTest','url(./vendor/fonts/vazirmatn-arabic.woff2)');
+        await font.load();document.fonts.add(font);await document.fonts.ready;
         const canvas=document.createElement('canvas');canvas.width=1600;canvas.height=360;
         const cx=canvas.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,1600,360);
         cx.fillStyle='#000';cx.textAlign='right';cx.direction='rtl';
-        cx.font='bold 150px Tahoma, Arial, sans-serif';
-        cx.fillText('فاکتور 12345',1500,230);
+        cx.font='bold 150px UniqueOCRTest';cx.fillText('فاکتور',1500,230);
+        /* Keep the Latin invoice number in a separate LTR run to avoid bidi ambiguity. */
+        cx.textAlign='left';cx.direction='ltr';cx.font='bold 140px Arial';
+        cx.fillText('12345',80,230);
         const result=await Promise.race([worker.recognize(canvas),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Persian OCR recognition timed out')),60000))]);
         return{loaded:true,text:String(result.data.text||''),confidence:Number(result.data.confidence)||0};
       }finally{await worker.terminate()}
     """)
     constText = r['text'].replace(' ','').replace('\\n','')
     c.true(r['loaded'],'Persian and English traineddata load in the local worker')
-    c.true(bool(constText.strip()),'combined Persian/English OCR returns extracted text')
-    c.true('12345' in constText,'Persian OCR preserves the invoice number')
+    c.true(/[\\u0600-\\u06FF]/.test(constText),'Persian OCR recognizes Persian glyphs; extracted: '+r['text'])
+    c.true('12345' in constText,'Persian OCR preserves the invoice number; extracted: '+r['text'])
     c.eq(pg.errs,[],'Persian OCR produces no uncaught page errors')
     await ctx.close()
 
