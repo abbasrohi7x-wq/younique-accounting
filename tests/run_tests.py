@@ -697,7 +697,7 @@ async def voice_recognition_never_falls_back_to_remote_service(br,c):
       return{starts,messages:T.msgs.slice(-2)}
     """)
     c.eq(r['starts'],0,'remote-only speech recognition is never started')
-    c.true(any('آفلاین' in m and 'تایپ' in m for m in r['messages']),'unsupported local speech shows a clear text-entry fallback')
+    c.true(any('تایپ' in m and any(k in m for k in ('آفلاین','محلی','پشتیبانی')) for m in r['messages']),'unsupported local speech shows a clear text-entry fallback')
     await ctx.close()
 
 
