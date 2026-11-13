@@ -5249,7 +5249,19 @@ html body :focus-visible{outline:3px solid color-mix(in srgb,var(--brand) 70%,tr
   var fa=function(n){try{return Number(n).toLocaleString('fa-IR')}catch(e){return n}};
   var set=function(t,p){msg.textContent=t;if(p!=null&&bar)bar.style.transform='scaleX('+p+')'};
   var sw=function(){return navigator.serviceWorker&&navigator.serviceWorker.controller};
-  if(!sw()){set('این قابلیت نیازمند اجرا از آدرس http/https و فعال بودن Service Worker است.',0);btn.disabled=true;return}
+  if(!sw()){
+   set('در حال آماده‌سازی سرویس آفلاین… پس از فعال‌شدن، امکان دانلود بسته فراهم می‌شود.',0);
+   btn.disabled=true;
+   if(navigator.serviceWorker){
+    var waitForController=function(){
+     if(!sw())return;
+     navigator.serviceWorker.removeEventListener('controllerchange',waitForController);
+     window.yqOcrPack.init();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange',waitForController);
+   }
+   return;
+  }
   if(handler)navigator.serviceWorker.removeEventListener('message',handler);
   handler=function(e){var d=e.data||{};
    if(d.type==='OCR_STATUS'){if(d.ready){set('بستهٔ OCR روی این دستگاه ذخیره است؛ OCR بدون اینترنت هم کار می‌کند.',1);btn.textContent='بررسی دوباره'}else set('ذخیره‌شده: '+fa(d.cached)+' از '+fa(d.total)+' فایل. برای OCR آفلاین یک‌بار دانلود کنید.',d.total?d.cached/d.total:0)}
