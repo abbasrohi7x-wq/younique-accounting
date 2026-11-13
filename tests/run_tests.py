@@ -758,6 +758,40 @@ async def ocr_rejects_invalid_and_oversized_files_before_processing(br,c):
 
 
 @test
+async def offline_ocr_loader_retries_after_script_download_failure(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const original=HTMLHeadElement.prototype.appendChild;
+      const previous=window.Tesseract;
+      let attempts=0,firstFailed=false,secondLoaded=false;
+      HTMLHeadElement.prototype.appendChild=function(node){
+        if(node.tagName==='SCRIPT'&&node.src.includes('/vendor/tesseract/tesseract.min.js')){
+          attempts++;
+          setTimeout(()=>{
+            if(attempts===1)node.onerror(new Event('error'));
+            else{window.Tesseract={createWorker:function(){}};node.onload(new Event('load'))}
+          },0);
+          return node;
+        }
+        return original.call(this,node);
+      };
+      try{
+        try{await ensureLocalOCR()}catch(e){firstFailed=true}
+        const T=await ensureLocalOCR();
+        secondLoaded=!!(T&&T.createWorker);
+        return{attempts,firstFailed,secondLoaded};
+      }finally{
+        HTMLHeadElement.prototype.appendChild=original;
+        if(previous===undefined)delete window.Tesseract;else window.Tesseract=previous;
+      }
+    """)
+    c.eq(r['attempts'],2,'failed OCR script is removed and a fresh download is attempted')
+    c.true(r['firstFailed'],'first failed download is surfaced')
+    c.true(r['secondLoaded'],'OCR engine can initialize on a later attempt')
+    await ctx.close()
+
+
+@test
 async def local_tesseract_worker_loads_and_recognizes_invoice_text(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
