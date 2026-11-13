@@ -176,6 +176,50 @@ async def validated_backup_recovers_integrity_locked_store(br,c):
 
 
 @test
+async def indexeddb_encryption_rekey_and_disable_roundtrip(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});db.settings.shopName='رمزنگاری پایدار';saveDB(true);await YStore.flush();
+      await YStore.enableEncryption('test-pass-123');
+      const read=async()=>{const d=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});const x=await new Promise((res,rej)=>{const t=d.transaction('kv','readonly');const q=t.objectStore('kv').get('k:settings');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});d.close();return x};
+      const enc1=await read(),meta1=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>{const d=q.result;const t=d.transaction('kv','readonly'),g=t.objectStore('kv').get('meta');g.onsuccess=()=>{d.close();res(g.result)};g.onerror=()=>rej(g.error)};q.onerror=()=>rej(q.error)});
+      await YStore.changePassphrase('test-pass-123','new-pass-456');
+      const meta2=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>{const d=q.result;const t=d.transaction('kv','readonly'),g=t.objectStore('kv').get('meta');g.onsuccess=()=>{d.close();res(g.result)};g.onerror=()=>rej(g.error)};q.onerror=()=>rej(q.error)});
+      await YStore.disableEncryption();
+      const plain=await read();
+      return{enc:!!meta1.enc,encryptedRecord:!!(enc1&&enc1.iv&&enc1.ct),rekeyed:!!meta2.enc&&String(meta1.enc.salt)!==String(meta2.enc.salt),disabled:!meta2.enc&&!YStore.S.enc,plainRecord:typeof plain==='string'&&JSON.parse(plain).shopName==='رمزنگاری پایدار',failed:!!YStore.S.failed,shop:db.settings.shopName}
+    """)
+    c.true(r['enc'],'encryption metadata stored')
+    c.true(r['encryptedRecord'],'settings record encrypted at rest')
+    c.true(r['rekeyed'],'passphrase change generated a new salt')
+    c.true(r['disabled'],'encryption can be disabled')
+    c.true(r['plainRecord'],'plaintext restored after disabling encryption')
+    c.eq(r['failed'],False,'no storage failure during encryption transitions')
+    c.eq(r['shop'],'رمزنگاری پایدار','live data preserved')
+    await ctx.close()
+
+
+@test
+async def encrypted_store_accepts_validated_backup_restore(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});db.settings.shopName='نسخه پشتیبان رمزنگاری';saveDB(true);await YStore.flush();
+      const backup=JSON.parse(exportData());await YStore.enableEncryption('test-pass-123');
+      db.settings.shopName='داده تغییریافته';saveDB(true);await YStore.flush();
+      await replaceDB(backup.data);await YStore.flush();
+      const d=await new Promise((res,rej)=>{const q=indexedDB.open('younique_store');q.onsuccess=()=>res(q.result);q.onerror=()=>rej(q.error)});
+      const state=await new Promise((res,rej)=>{const t=d.transaction('kv','readonly'),st=t.objectStore('kv'),m=st.get('meta'),v=st.get('k:settings');t.oncomplete=()=>res({meta:m.result,record:v.result});t.onerror=()=>rej(t.error)});d.close();
+      return{shop:db.settings.shopName,encrypted:!!state.meta.enc,recordEncrypted:!!(state.record&&state.record.iv&&state.record.ct),failed:!!YStore.S.failed,integrity:!!YStore.S.integrityError}
+    """)
+    c.eq(r['shop'],'نسخه پشتیبان رمزنگاری','backup data restored')
+    c.true(r['encrypted'],'encryption remains enabled after restore')
+    c.true(r['recordEncrypted'],'restored data remains encrypted at rest')
+    c.eq(r['failed'],False,'no storage failure during encrypted restore')
+    c.eq(r['integrity'],False,'no integrity lock after restore')
+    await ctx.close()
+
+
+@test
 async def localstorage_migrates_to_indexeddb(br,c):
     ctx=await br.new_context(viewport={'width':1280,'height':800})
     await ctx.add_init_script("""localStorage.setItem('younique_v16_db',JSON.stringify({
