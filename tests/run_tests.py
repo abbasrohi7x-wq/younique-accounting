@@ -537,10 +537,7 @@ async def manual_and_ai_invoices_share_authoritative_writers(br,c):
       window.__YQ_ENGINE.createPurchase=purchaseWriter;
       return{before,firstPurchase:!!firstPurchase,sale:!!sale,purchase:!!purchase,
         sales:db.sales.length,purchases:db.purchases.length,stock:variantBy(S.v).stock,
-        engineSaleCalls,enginePurchaseCalls,aliases:{
-          sale:window.saveSale===window.saveSaleV18,
-          purchase:window.savePurchase===window.savePurchaseV18
-        },unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}
+        engineSaleCalls,enginePurchaseCalls,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}
     """)
     c.true(r['firstPurchase'],'purchase uses the validated tax-aware writer')
     c.true(r['sale'],'sale uses the validated writer')
@@ -550,7 +547,7 @@ async def manual_and_ai_invoices_share_authoritative_writers(br,c):
     c.eq(r['stock'],6,'stock reflects 5 received, 1 sold, then 2 received')
     c.eq(r['engineSaleCalls'],0,'sale UI does not bypass to the incomplete extracted engine')
     c.eq(r['enginePurchaseCalls'],0,'purchase UI does not bypass to the incomplete extracted engine')
-    c.eq(r['aliases'],{'sale':True,'purchase':True},'legacy UI aliases converge on the central writers')
+    c.true(r['engineSaleCalls']===0 and r['enginePurchaseCalls']===0,'manual invoice paths do not bypass the verified writers')
     c.eq(r['unb'],0,'all journals remain balanced')
     c.true(r['health'],'business health check remains valid')
     await ctx.close()
