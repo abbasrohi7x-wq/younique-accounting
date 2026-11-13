@@ -298,6 +298,55 @@ async def backup_export_excludes_ai_secret(br,c):
     await ctx.close()
 
 
+@test
+async def ai_sale_requires_explicit_confirmation(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});await T.buy(S,S.v,5,1000,{cash:5000});
+      UAI.ctx.reset();const before={sales:db.sales.length,stock:variantBy(S.v).stock,journal:db.journal.length};
+      const info={intent:'create_sale',entities:{}};
+      const asked=await UAI._runSteps([{tool:'create_sale',params:{items:[{variantId:S.v,qty:1,price:1500}],method:'cash'}}],0,info,'text','فروش یک عدد کتونی');
+      const waiting=!!UAI.ctx.pending;
+      const unchanged={sales:db.sales.length===before.sales,stock:variantBy(S.v).stock===before.stock,journal:db.journal.length===before.journal};
+      const answer=await UAI.chat.handle('بله',{source:'text'});
+      return{kind:asked[0]&&asked[0].kind,waiting,unchanged,committed:db.sales.length===before.sales+1,
+        stock:variantBy(S.v).stock,answerKind:answer[0]&&answer[0].kind,pending:!!UAI.ctx.pending,unb:T.unbalanced()}
+    """)
+    c.eq(r['kind'],'confirm','AI write produces confirmation prompt')
+    c.true(r['waiting'],'pending confirmation is stored')
+    c.eq(r['unchanged'],{'sales':True,'stock':True,'journal':True},'no business data changes before confirmation')
+    c.true(r['committed'],'sale commits after explicit yes')
+    c.eq(r['stock'],4,'confirmed sale decrements stock')
+    c.eq(r['pending'],False,'pending confirmation cleared')
+    c.eq(r['unb'],0,'confirmed sale journals balanced')
+    await ctx.close()
+
+
+@test
+async def ai_sale_decline_and_permission_recheck(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});await T.buy(S,S.v,5,1000,{cash:5000});
+      const info={intent:'create_sale',entities:{}};
+      const start=db.sales.length;
+      await UAI._runSteps([{tool:'create_sale',params:{items:[{variantId:S.v,qty:1,price:1500}],method:'cash'}}],0,info,'text','فروش یک عدد');
+      const declined=await UAI.chat.handle('خیر',{source:'text'});
+      const declineSafe=db.sales.length===start&&variantBy(S.v).stock===5&&!UAI.ctx.pending;
+      await UAI._runSteps([{tool:'create_sale',params:{items:[{variantId:S.v,qty:1,price:1500}],method:'cash'}}],0,info,'text','فروش یک عدد');
+      db.users[0].role='accountant';
+      const blocked=await UAI.chat.handle('بله',{source:'text'});
+      return{declineSafe,blockedNoSale:db.sales.length===start,stock:variantBy(S.v).stock,
+        pending:!!UAI.ctx.pending,blockedText:blocked.map(x=>x.text).join(' '),unb:T.unbalanced()}
+    """)
+    c.true(r['declineSafe'],'declined operation leaves sales and stock unchanged')
+    c.true(r['blockedNoSale'],'permission revoked before confirmation blocks the write')
+    c.eq(r['stock'],5,'stock unchanged after decline and permission denial')
+    c.eq(r['pending'],False,'pending confirmation cleared')
+    c.true('اجازه' in r['blockedText'],'permission denial is surfaced')
+    c.eq(r['unb'],0,'ledger remains balanced')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
