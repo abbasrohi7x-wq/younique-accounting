@@ -5755,10 +5755,12 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
       var fin = typeof UniqueFin !== 'undefined' ? UniqueFin.createFin(db, h, engine) : null;
       window.__YQ_ENGINE = engine;
       window.__YQ_FIN = fin;
-      // When bridge is active, route Fin API to extracted module for end-to-end consistency
+      // Keep the production financial service active until the extracted module
+      // passes parity for costing, warehouse cardex, VAT, returns and voids.
+      // The extracted module remains available as __YQ_FIN for isolated comparison.
       if (fin) {
         window.__YQ_ORIG_FIN = window.Fin;
-        window.Fin = fin;
+        window.__YQ_FIN_PARITY_ONLY = fin;
       }
       wireSaveFunctions(engine);
       console.info('[YQ Bridge] ready', engine.version, fin && fin.version);
