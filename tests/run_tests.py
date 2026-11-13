@@ -279,6 +279,25 @@ async def localstorage_migrates_to_indexeddb(br,c):
     c.eq(r['shop'],'مهاجرت نسخه قدیمی','legacy settings preserved');c.true(r['ready'],'store ready after migration')
     await ctx.close()
 
+
+@test
+async def backup_export_excludes_ai_secret(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      await T.seed({});
+      db.settings.ai=db.settings.ai||{};
+      db.settings.ai.apiKey='UNIQUE_TEST_SECRET_DO_NOT_EXPORT';
+      const raw=exportData(),parsed=JSON.parse(raw);
+      return{secretInBackup:raw.includes('UNIQUE_TEST_SECRET_DO_NOT_EXPORT'),
+        backupKey:parsed.data.settings.ai.apiKey,
+        liveKey:db.settings.ai.apiKey}
+    """)
+    c.eq(r['secretInBackup'],False,'AI secret never appears in exported backup')
+    c.eq(r['backupKey'],'','backup contains an empty AI key')
+    c.eq(r['liveKey'],'UNIQUE_TEST_SECRET_DO_NOT_EXPORT','export preserves the active in-memory key')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
