@@ -519,7 +519,7 @@ function purchase(){
  if(!purchaseDraftMode)purchaseCart=[];purchaseDraftMode=false;
  $('#content').innerHTML=pageHead('خرید جدید','ثبت خرید، افزایش موجودی و ایجاد بدهی تأمین‌کننده')+`<div class="card"><div class="formgrid"><label class="field span2">تأمین‌کننده<select id="purSup"><option value="">بدون تأمین‌کننده</option>${db.suppliers.map(s=>`<option value="${s.id}">${esc(s.name)} · بدهی ${money(supplierBalance(s.id))}</option>`).join('')}</select><button type="button" class="btn" id="purNewSup" style="margin-top:8px">＋ تأمین‌کنندهٔ جدید</button></label><label class="field">انبار مقصد<select id="purWarehouse">${(db.warehouses||[]).filter(w=>w.active!==false).map(w=>`<option value="${esc(w.id)}">${esc(w.name)}</option>`).join('')||'<option value="MAIN">انبار اصلی</option>'}</select></label></div><div class="toolbar section"><div class="searchbox"><span>⌕</span><input id="purSearch" placeholder="نام کالا، مدل، بارکد یا SKU"></div></div><div id="purResults"></div><div class="tablewrap"><table><thead><tr><th>کالا</th><th>تعداد</th><th>بهای خرید</th><th>جمع</th><th></th></tr></thead><tbody id="purRows"></tbody></table></div><div id="purSummary"></div><div class="card section" style="background:#fbfbff"><div class="section-title"><h3>تسویه خرید</h3><span class="pill">نقدی + کارت + بانک + بدهی</span></div><div id="purPayments" class="formgrid"><label class="field"><span>نقدی</span><input id="purCash" type="text" inputmode="numeric" data-money-input min="0" value="0"></label><label class="field"><span>کارت</span><input id="purCard" type="text" inputmode="numeric" data-money-input min="0" value="0"></label><label class="field"><span>بانک</span><input id="purBank" type="text" inputmode="numeric" data-money-input min="0" value="0"></label><label class="field"><span>بدهی به تأمین‌کننده</span><input id="purCredit" type="text" inputmode="numeric" data-money-input min="0" value="0"></label></div><div id="purPaySummary"></div></div><div class="modal-actions"><button class="btn primary" id="savePurchase">ثبت نهایی خرید</button></div></div>`;
  $('#purSearch').oninput=()=>{const q=$('#purSearch').value.trim();const hits=q?productSearch(q).slice(0,30):[];$('#purResults').innerHTML=q?`<div class="toolbar">${hits.map(v=>`<button type="button" class="btn" data-add-pur="${v.id}">${esc(variantName(v))} · ${money(v.buyPrice)}</button>`).join('')||'<span class="muted">کالایی پیدا نشد.</span>'}</div>`:'';$$('[data-add-pur]').forEach(b=>b.onclick=()=>addPurchase(b.dataset.addPur));};$('#purSearch').onkeydown=e=>{if(e.key==='Enter'){const hits=productSearch(e.target.value.trim());if(hits[0])addPurchase(hits[0].id)}};
- ['purCash','purCard','purBank','purCredit'].forEach(id=>$('#'+id).oninput=renderPurchasePaymentSummary);bindMoneyInputs($('#content'));$('#savePurchase').onclick=savePurchaseV18;renderPurchaseCart();renderPurchasePaymentSummary();
+ ['purCash','purCard','purBank','purCredit'].forEach(id=>$('#'+id).oninput=renderPurchasePaymentSummary);bindMoneyInputs($('#content'));$('#savePurchase').onclick=window.savePurchase;renderPurchaseCart();renderPurchasePaymentSummary();
  if(purchaseSupplierDraft){const hit=db.suppliers.find(x=>smartNormalize(x.name)===smartNormalize(purchaseSupplierDraft)||smartNormalize(x.name).includes(smartNormalize(purchaseSupplierDraft)));if(hit)$('#purSup').value=hit.id;else if(purchaseSupplierDraft){const dn=purchaseSupplierDraft;toast('تأمین‌کنندهٔ فاکتور در اشخاص ثبت نشده است؛ می‌توانید آن را ثبت کنید.');setTimeout(()=>purchaseQuickSupplier(dn),250)}purchaseSupplierDraft=''}
   {const nb=$('#purNewSup');if(nb)nb.onclick=()=>purchaseQuickSupplier('')}
 }
@@ -1191,7 +1191,7 @@ function saleV17(){
  saleCart=[];window.__salePayments={cash:0,card:0,bank:0,credit:0};
  $('#content').innerHTML=pageHead('فروش جدید','POS حرفه‌ای؛ کالا را سریع با بارکد، جستجو یا لمس انتخاب کنید.',`<button class="btn" id="saleOpenCash">صندوق</button>`)+`<div class="card"><div class="formgrid"><label class="field span2">مشتری<select id="saleCustomer"><option value="">مشتری متفرقه</option>${db.customers.map(c=>`<option value="${c.id}">${esc(c.name)} · بدهی ${money(customerBalance(c.id))}</option>`).join('')}</select></label><label class="field span2">یادداشت فاکتور<input id="saleNote" placeholder="توضیح اختیاری"></label></div><div class="toolbar section"><div class="searchbox"><span>⌕</span><input id="saleSearch" autofocus placeholder="نام کالا، مدل، بارکد یا SKU"></div><button class="btn" id="scanSale">▣ اسکن</button></div><div id="saleResults"></div><div class="tablewrap"><table><thead><tr><th>کالا / Variant</th><th>تعداد</th><th>قیمت</th><th>تخفیف</th><th>جمع</th><th></th></tr></thead><tbody id="saleRows"></tbody></table></div><div class="section"><div class="formgrid"><label class="field span2">تخفیف فاکتور<input id="saleDiscount" type="number" min="0" value="0"></label></div><div id="saleSummary"></div></div><div class="card section" style="background:#fbfbff"><div class="section-title"><h3>تسویه</h3><span class="pill">نقدی + کارت + بانک + نسیه</span></div><div id="paymentRows" class="formgrid"></div><div id="paymentSummary"></div></div><div class="modal-actions"><button class="btn primary" id="saveSale">ثبت نهایی فروش</button></div></div>`;
  $('#saleSearch').oninput=()=>showSaleResults($('#saleSearch').value);$('#saleSearch').onkeydown=e=>{if(e.key==='Enter'){const a=productSearch(e.target.value);if(a[0])addSale(a[0].id)}};
- $('#saleDiscount').oninput=()=>{renderSaleCart();renderPaymentRows()};$('#scanSale').onclick=()=>scanBarcode('sale');$('#saveSale').onclick=()=>{const fn=window.saveSaleV18;if(typeof fn!=='function')return toast('مسیر ثبت فروش در دسترس نیست',true);return fn()};$('#saleOpenCash').onclick=()=>activeCashSession()?closeCashSessionModal():openCashSessionModal();renderSaleCart();renderPaymentRows();
+ $('#saleDiscount').oninput=()=>{renderSaleCart();renderPaymentRows()};$('#scanSale').onclick=()=>scanBarcode('sale');$('#saveSale').onclick=()=>{const fn=window.saveSale;if(typeof fn!=='function')return toast('مسیر ثبت فروش در دسترس نیست',true);return fn()};$('#saleOpenCash').onclick=()=>activeCashSession()?closeCashSessionModal():openCashSessionModal();renderSaleCart();renderPaymentRows();
 }
 function saveSaleV18(){try{atomic('ثبت فروش',()=>{
  if(!saleCart.length)throw Error('فاکتور خالی است');
@@ -3235,7 +3235,7 @@ WRITE({name:'create_sale',desc:'ثبت فاکتور فروش با اقلام و 
     window.__salePayments={...p.pay};window.__YQ_AI_SALE_STAGE='render sale cart';if(typeof window.renderSaleCart==='function')window.renderSaleCart();window.__YQ_AI_SALE_STAGE='render payment rows';if(typeof window.renderPaymentRows==='function')window.renderPaymentRows();
     for(const id of['#manualDisc41','#saleDiscount']){const e=document.querySelector(id);if(e)e.value=String(p.discount||0)}
     window.__salePayments={...p.pay};
-    window.__YQ_AI_SALE_STAGE='save sale';const cap=await h.captureToast(()=>window.saveSaleV18());window.__YQ_AI_SALE_STAGE='verify sale';
+    window.__YQ_AI_SALE_STAGE='save sale';const cap=await h.captureToast(()=>window.saveSale());window.__YQ_AI_SALE_STAGE='verify sale';
     if(window.db.sales.length!==before+1)throw Error(lastErr(cap)||'ثبت فاکتور انجام نشد');
     const s=window.db.sales.at(-1);if(s.status!=='confirmed'||Math.abs(num(s.total)-p.total)>1)throw Error('فاکتور ثبت‌شده با مبلغ درخواستی هم‌خوانی ندارد؛ لطفاً فاکتور را بررسی کنید');
     return{number:s.number,id:s.id,total:s.total,due:s.due||0,customer:D.customerName(s.customerId)}},
@@ -3268,7 +3268,7 @@ WRITE({name:'create_purchase',desc:'ثبت سند خرید از تأمین‌ک�
     purchaseCart.splice(0,purchaseCart.length,...p.cart.map(x=>({...x})));
     document.querySelector('#purSup').value=p.supplierId||'';if(document.querySelector('#purSup').value!==(p.supplierId||''))throw Error('تأمین‌کننده در فرم خرید پیدا نشد');
     const f={cash:'#purCash',card:'#purCard',bank:'#purBank',credit:'#purCredit'};for(const[k,sel]of Object.entries(f)){const e=document.querySelector(sel);if(e)e.value=k===p.method?String(p.total):'0'}
-    const cap=await h.captureToast(()=>window.savePurchaseV18());
+    const cap=await h.captureToast(()=>window.savePurchase());
     if(window.db.purchases.length!==before+1)throw Error(lastErr(cap)||'ثبت خرید انجام نشد');
     const s=window.db.purchases.at(-1);if(s.status!=='confirmed'||Math.abs(num(s.total)-p.total)>1)throw Error('سند خرید ثبت‌شده با مبلغ درخواستی هم‌خوانی ندارد؛ لطفاً بررسی کنید');
     return{number:s.number,total:s.total,due:s.due||0,supplier:(window.db.suppliers.find(x=>x.id===s.supplierId)||{}).name||'متفرقه'}},
@@ -5719,118 +5719,47 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
   }
 
   function wireSaveFunctions(engine) {
-    var origSaveSale = window.saveSale;
-    var origSavePurchase = window.savePurchase;
-    var origSaveSaleCore = window.__saveSaleCore;
-    var $el = typeof $ === 'function' ? $ : function () { return null; };
+    // The extracted engine is still under parity validation. Keep the mature
+    // tax-aware, warehouse-aware invoice writers as the single commit path.
+    // UI, AI and programmatic callers all enter through these guarded wrappers.
+    var origSaveSale = window.saveSaleV18 || window.saveSale;
+    var origSavePurchase = window.savePurchaseV18 || window.savePurchase;
 
     window.saveSale = function () {
-      if (!window.activeCashSession || !window.activeCashSession()) { if (typeof toast === 'function') toast('برای ثبت فاکتور فروش ابتدا صندوق را باز کنید', true); return null; }
+      if (!window.activeCashSession || !window.activeCashSession()) {
+        if (typeof toast === 'function') toast('برای ثبت فاکتور فروش ابتدا صندوق را باز کنید', true);
+        return null;
+      }
       try {
-        if (!window.__USE_NEW_ENGINE || !engine) {
-          return origSaveSale && origSaveSale.apply(this, arguments);
-        }
-        var cart = typeof saleCart !== 'undefined' ? saleCart : [];
-        if (!cart.length) {
-          if (typeof toast === 'function') toast('فاکتور خالی است', true);
-          return null;
-        }
-        var customerId = ($el('#saleCustomer') && $el('#saleCustomer').value) || '';
-        var payment = ($el('#salePay') && $el('#salePay').value) || 'cash';
-        var discount = Number(($el('#saleDiscount') && $el('#saleDiscount').value) || 0);
-        var paid = Number(($el('#salePaid') && $el('#salePaid').value) || 0);
-        var split = null;
-        if ($el('#yqPayCash')) {
-          split = {
-            cash: Number($el('#yqPayCash').value || 0),
-            card: Number($el('#yqPayCard').value || 0),
-            bank: Number($el('#yqPayBank').value || 0),
-            credit: Number($el('#yqPayCredit').value || 0)
-          };
-        }
-        var remembered = window.__salePayments;
-        var rememberedSum = remembered ? Number(remembered.cash || 0) + Number(remembered.card || 0) + Number(remembered.bank || 0) + Number(remembered.credit || 0) : 0;
-        var formSum = split ? split.cash + split.card + split.bank + split.credit : 0;
-        if (formSum <= 0 && rememberedSum > 0) {
-          split = {
-            cash: Number(remembered.cash || 0),
-            card: Number(remembered.card || 0),
-            bank: Number(remembered.bank || 0),
-            credit: Number(remembered.credit || 0)
-          };
-          formSum = rememberedSum;
-        }
-        var items = cart.map(function (x) {
-          return {
-            variantId: x.id || x.variantId,
-            qty: Number(x.qty),
-            unitPrice: Number(x.price || x.unitPrice),
-            discount: Number(x.discount || 0)
-          };
-        });
-        var payload = { items: items, customerId: customerId, payment: payment, paid: paid, discount: discount };
-        if (split && (split.cash + split.card + split.bank + split.credit) > 0) payload.payments = split;
-        var result = engine.atomic('ثبت فروش', function () {
-          return engine.createSale(payload);
-        });
-        if (typeof toast === 'function') toast('فروش ' + result.number + ' با موفقیت ثبت شد');
-        if (typeof saleCart !== 'undefined') saleCart.length = 0;
-        if (typeof page !== 'undefined') page = 'sales';
-        if (typeof render === 'function') render();
-        return result.sale;
+        if (typeof origSaveSale !== 'function') throw new Error('مسیر نهایی ثبت فروش در دسترس نیست');
+        return origSaveSale.apply(this, arguments);
       } catch (e) {
-        // Never fall back to the legacy writer after the engine rejects a transaction.
-        // Doing so could bypass stock, payment, cash-session or ledger invariants.
-        console.error('[YQ Bridge] saveSale rejected by engine; transaction stopped', e);
+        console.error('[YQ Bridge] authoritative sale writer rejected transaction', e);
         if (typeof toast === 'function') toast((e && e.message) || 'ثبت فروش ناموفق بود؛ هیچ تغییری ثبت نشد', true);
         return null;
       }
     };
 
     window.savePurchase = function () {
-      if (!window.activeCashSession || !window.activeCashSession()) { if (typeof toast === 'function') toast('برای ثبت فاکتور خرید ابتدا صندوق را باز کنید', true); return null; }
+      if (!window.activeCashSession || !window.activeCashSession()) {
+        if (typeof toast === 'function') toast('برای ثبت فاکتور خرید ابتدا صندوق را باز کنید', true);
+        return null;
+      }
       try {
-        if (!window.__USE_NEW_ENGINE || !engine) {
-          return origSavePurchase && origSavePurchase.apply(this, arguments);
-        }
-        var cart = typeof purchaseCart !== 'undefined' ? purchaseCart : [];
-        if (!cart.length) {
-          if (typeof toast === 'function') toast('خرید خالی است', true);
-          return null;
-        }
-        var supplierId = ($el('#purSup') && $el('#purSup').value) || '';
-        var payments = { cash: 0, card: 0, bank: 0, credit: 0 };
-        if (typeof renderPurchasePaymentSummary === 'function') {
-          var p = renderPurchasePaymentSummary();
-          payments = { cash: Number(p.cash || 0), card: Number(p.card || 0), bank: Number(p.bank || 0), credit: Number(p.credit || 0) };
-        } else {
-          payments.cash = Number(($el('#purCash') && $el('#purCash').value) || 0);
-          payments.card = Number(($el('#purCard') && $el('#purCard').value) || 0);
-          payments.bank = Number(($el('#purBank') && $el('#purBank').value) || 0);
-          payments.credit = Number(($el('#purCredit') && $el('#purCredit').value) || 0);
-        }
-        var items = cart.map(function (x) {
-          return { variantId: x.id || x.variantId, qty: Number(x.qty), unitPrice: Number(x.price || x.unitPrice) };
-        });
-        var result = engine.atomic('ثبت خرید', function () {
-          return engine.createPurchase({ items: items, supplierId: supplierId, payments: payments });
-        });
-        if (typeof toast === 'function') toast('خرید ' + result.number + ' با موفقیت ثبت شد');
-        if (typeof purchaseCart !== 'undefined') purchaseCart.length = 0;
-        if (typeof page !== 'undefined') page = 'purchases';
-        if (typeof render === 'function') render();
-        return result.purchase;
+        if (typeof origSavePurchase !== 'function') throw new Error('مسیر نهایی ثبت خرید در دسترس نیست');
+        return origSavePurchase.apply(this, arguments);
       } catch (e) {
-        // Never fall back to the legacy writer after the engine rejects a transaction.
-        // Keep the failure atomic and surface it to the operator.
-        console.error('[YQ Bridge] savePurchase rejected by engine; transaction stopped', e);
+        console.error('[YQ Bridge] authoritative purchase writer rejected transaction', e);
         if (typeof toast === 'function') toast((e && e.message) || 'ثبت خرید ناموفق بود؛ هیچ تغییری ثبت نشد', true);
         return null;
       }
     };
 
+    // Compatibility aliases: old UI/AI entry points now converge on one writer.
+    window.saveSaleV18 = window.saveSale;
+    window.savePurchaseV18 = window.savePurchase;
     window.__YQ_WIRED = true;
-    console.info('[YQ Bridge] saveSale / savePurchase wired to engine');
+    console.info('[YQ Bridge] manual and AI invoice paths use the same authoritative writers');
   }
 
   Promise.resolve()

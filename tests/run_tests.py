@@ -520,39 +520,39 @@ async def ai_purchase_and_sale_require_open_cash_session(br,c):
 
 
 @test
-async def engine_rejection_never_falls_back_to_legacy_writers(br,c):
+async def manual_and_ai_invoices_share_authoritative_writers(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
       const S=await T.seed({});
-      await T.buy(S,S.v,5,1000,{cash:5000});
-      const beforeSale={sales:db.sales.length,stock:variantBy(S.v).stock,
-        journal:db.journal.length,payments:db.payments.length};
-      const saleFn=window.__YQ_ENGINE.createSale;
-      window.__YQ_ENGINE.createSale=()=>{throw new Error('engine_rejection_probe_sale')};
+      const saleWriter=window.__YQ_ENGINE.createSale;
+      const purchaseWriter=window.__YQ_ENGINE.createPurchase;
+      let engineSaleCalls=0,enginePurchaseCalls=0;
+      window.__YQ_ENGINE.createSale=()=>{engineSaleCalls++;throw new Error('engine_sale_must_not_be_used_yet')};
+      window.__YQ_ENGINE.createPurchase=()=>{enginePurchaseCalls++;throw new Error('engine_purchase_must_not_be_used_yet')};
+      const before={sales:db.sales.length,purchases:db.purchases.length,stock:variantBy(S.v).stock};
+      const firstPurchase=await T.buy(S,S.v,5,1000,{cash:5000});
       const sale=await T.sell(S,S.v,1,1500,{cash:1500});
-      window.__YQ_ENGINE.createSale=saleFn;
-      const afterSale={sales:db.sales.length,stock:variantBy(S.v).stock,
-        journal:db.journal.length,payments:db.payments.length};
-      const beforePurchase={purchases:db.purchases.length,stock:variantBy(S.v).stock,
-        journal:db.journal.length,payments:db.payments.length};
-      const purchaseFn=window.__YQ_ENGINE.createPurchase;
-      window.__YQ_ENGINE.createPurchase=()=>{throw new Error('engine_rejection_probe_purchase')};
       const purchase=await T.buy(S,S.v,2,900,{cash:1800});
-      window.__YQ_ENGINE.createPurchase=purchaseFn;
-      const afterPurchase={purchases:db.purchases.length,stock:variantBy(S.v).stock,
-        journal:db.journal.length,payments:db.payments.length};
-      return{sale:!!sale,purchase:!!purchase,beforeSale,afterSale,beforePurchase,afterPurchase,
-        saleMessage:T.msgs.some(x=>String(x).includes('engine_rejection_probe_sale')),
-        purchaseMessage:T.msgs.some(x=>String(x).includes('engine_rejection_probe_purchase')),
-        unb:T.unbalanced()}
+      window.__YQ_ENGINE.createSale=saleWriter;
+      window.__YQ_ENGINE.createPurchase=purchaseWriter;
+      return{before,firstPurchase:!!firstPurchase,sale:!!sale,purchase:!!purchase,
+        sales:db.sales.length,purchases:db.purchases.length,stock:variantBy(S.v).stock,
+        engineSaleCalls,enginePurchaseCalls,aliases:{
+          sale:window.saveSale===window.saveSaleV18,
+          purchase:window.savePurchase===window.savePurchaseV18
+        },unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}
     """)
-    c.eq(r['sale'],False,'engine-rejected sale does not commit through legacy writer')
-    c.eq(r['afterSale'],r['beforeSale'],'engine-rejected sale leaves every financial and stock record unchanged')
-    c.eq(r['purchase'],False,'engine-rejected purchase does not commit through legacy writer')
-    c.eq(r['afterPurchase'],r['beforePurchase'],'engine-rejected purchase leaves every financial and stock record unchanged')
-    c.true(r['saleMessage'],'sale engine rejection is surfaced to the operator')
-    c.true(r['purchaseMessage'],'purchase engine rejection is surfaced to the operator')
-    c.eq(r['unb'],0,'rejected writes leave journals balanced')
+    c.true(r['firstPurchase'],'purchase uses the validated tax-aware writer')
+    c.true(r['sale'],'sale uses the validated writer')
+    c.true(r['purchase'],'subsequent purchase uses the same validated writer')
+    c.eq(r['sales'],1,'one sale is committed')
+    c.eq(r['purchases'],2,'two purchases are committed')
+    c.eq(r['stock'],6,'stock reflects 5 received, 1 sold, then 2 received')
+    c.eq(r['engineSaleCalls'],0,'sale UI does not bypass to the incomplete extracted engine')
+    c.eq(r['enginePurchaseCalls'],0,'purchase UI does not bypass to the incomplete extracted engine')
+    c.eq(r['aliases'],{'sale':True,'purchase':True},'legacy UI aliases converge on the central writers')
+    c.eq(r['unb'],0,'all journals remain balanced')
+    c.true(r['health'],'business health check remains valid')
     await ctx.close()
 
 asyncio.run(main())
