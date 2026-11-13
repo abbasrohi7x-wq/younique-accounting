@@ -25,8 +25,8 @@ async def ev(pg,js):return await pg.evaluate('async()=>{'+js+'}')
 async def vat_exclusive_sale_and_ledger(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({vat:10});await T.buy(S,S.v,10,1000,{cash:4000,credit:7000});
       const s=await T.sell(S,S.v,3,1500,{cash:2000,credit:2950});const b=T.bal();const v=variantBy(S.v);
-      return{sale:s&&{total:s.total,vat:s.vat,profit:s.profit},b,stock:v.stock,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}''')
-    c.eq(r['sale'],{'total':4950,'vat':450,'profit':1500},'sale totals');c.eq(r['stock'],7,'stock')
+      return{sale:s&&{total:s.total,vat:s.vat,profit:s.profit},saleError:T.msgs.slice(-5),saleRoute:{wired:window.__YQ_WIRED,saveSale:typeof window.saveSale,saveSaleV18:typeof window.saveSaleV18,same:window.saveSale===window.saveSaleV18,warehouse:saleWarehouseId(),available:warehouseAvailable(saleWarehouseId(),S.v),cart:saleCart.map(x=>({...x}))},b,stock:v.stock,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}''')
+    c.eq(r['sale'],{'total':4950,'vat':450,'profit':1500},'sale totals');c.eq(r['saleError'],[],'sale toast diagnostics');c.eq(r['saleRoute']['same'],true,'sale route identity');c.eq(r['stock'],7,'stock')
     for k,x in {'inventory':7000,'vatReceivable':1000,'vatPayable':-450,'receivable':2950,'sales':-4500,'cogs':3000,'payable':-7000}.items():c.eq(r['b'].get(k),x,'account '+k)
     c.eq(r['unb'],0,'unbalanced journals');c.true(r['health'],'health check');c.eq(pg.errs,[],'page errors');await ctx.close()
 
