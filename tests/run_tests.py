@@ -432,8 +432,8 @@ async def inventory_purchase_precedes_sale_and_split_payment(br,c):
     r=await ev(pg,"""
       const S=await T.seed({});
       const before={sales:db.sales.length,journal:db.journal.length,payments:db.payments.length};
-      const blocked=await T.sell(S,S.v,1,1500,{cash:1500});
-      const noStock={blocked:!blocked,stock:variantBy(S.v).stock,
+      page='sale';render();await T.sleep(80);addSale(S.v);
+      const noStock={blocked:saleCart.length===0,stock:variantBy(S.v).stock,
         sales:db.sales.length===before.sales,journal:db.journal.length===before.journal,
         payments:db.payments.length===before.payments,msg:T.msgs.at(-1)};
       saleCart.splice(0);
