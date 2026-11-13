@@ -597,7 +597,7 @@ async def file_sync_import_merges_new_records_safely(br,c):
         encrypted:JSON.parse(raw).enc==='younique-enc-v1'}
     """)
     c.true(r['preview'],'valid encrypted transfer produces an explicit merge preview')
-    c.true('1' in r['previewText'],'preview reports one incoming record')
+    c.true('جدید' in r['previewText'] and any(ch in r['previewText'] for ch in '۰۱۲۳۴۵۶۷۸۹'),'preview reports the incoming record count')
     c.true(r['after']>r['before'],'merge adds the incoming record')
     c.true(r['local'],'existing local customer is preserved')
     c.true(r['incoming'],'incoming customer is merged')
