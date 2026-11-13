@@ -5719,18 +5719,22 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
   }
 
   function wireSaveFunctions(engine) {
-    // The extracted engine is not yet at parity with the mature invoice writers
-    // (VAT, warehouse allocation and detailed costing). Keep one authoritative
-    // writer for manual UI, AI and compatibility callers until parity is proven.
-    var saleWriter = window.saveSaleV18 || window.saveSale;
-    var purchaseWriter = window.savePurchaseV18 || window.savePurchase;
-    if (typeof saleWriter !== 'function' || typeof purchaseWriter !== 'function') {
-      throw new Error('مسیر نهایی ثبت فاکتور در دسترس نیست');
-    }
-    window.saveSale = window.saveSaleV18 = saleWriter;
-    window.savePurchase = window.savePurchaseV18 = purchaseWriter;
+    // Keep the already validated VAT-, costing- and warehouse-aware invoice
+    // writers intact. The extracted core remains available for parity work,
+    // but it must not replace production invoice commits until all invariants
+    // are proven against the full application.
+    var required = ['saveSale', 'saveSaleV18', 'savePurchase', 'savePurchaseV18'];
+    var missing = required.filter(function (name) { return typeof window[name] !== 'function'; });
+    if (missing.length) throw new Error('مسیر ثبت نهایی فاکتور در دسترس نیست: ' + missing.join(', '));
+    window.__YQ_INVOICE_WRITERS = {
+      sale: window.saveSale,
+      saleCompat: window.saveSaleV18,
+      purchase: window.savePurchase,
+      purchaseCompat: window.savePurchaseV18,
+      engineParityOnly: true
+    };
     window.__YQ_WIRED = true;
-    console.info('[YQ Bridge] manual and AI invoice paths share the authoritative VAT/cost/warehouse writers');
+    console.info('[YQ Bridge] verified invoice writers retained; extracted engine is parity-only');
   }
 
   Promise.resolve()
