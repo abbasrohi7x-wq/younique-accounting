@@ -1410,6 +1410,7 @@ function syncEnvelope(){const data=syncCloneData();const env={app:'unique-pro-sy
 // Expose the transfer primitives for the regression harness and app integrations.
 Object.assign(window,{syncDeviceId,syncEnvelope,syncSig});
 window.UniqueTransfer=Object.freeze({createEnvelope:syncEnvelope,deviceId:syncDeviceId,checksum:syncSig});
+window.UniqueTransferUI=proSync;
 function proSync(){
   proInit();syncDeviceId();
   const s=db.pro.sync||{};
@@ -1855,13 +1856,7 @@ dashboard=function(){
     $$('[data-check-status]').forEach(sel=>{const c=db.checks.find(x=>String(x.id)===sel.dataset.checkStatus);if(c)sel.value=({registered:'pending'}[c.status]||c.status||'pending');sel.onchange=()=>{const v=sel.value,old=c.status||'pending';if(old!=='pending'){toast('وضعیت نهایی چک قفل است؛ برای جلوگیری از سند تکراری تغییر مستقیم مجاز نیست.',true);sel.value=old;return}if(c.type==='received'&&v==='paid'||c.type!=='received'&&v==='cashed'){toast('این وضعیت برای نوع چک انتخاب‌شده معتبر نیست.',true);sel.value=old;return}if(!confirm('وضعیت چک به «'+label(v)+'» تغییر کند؟ این تغییر سند حسابداری متناظر ایجاد می‌کند.')){sel.value=old;return}try{let lines=null,desc='';if(c.type==='received'&&v==='cashed'){lines=[{account:'bank',debit:num(c.amount),credit:0},{account:checkAsset,debit:0,credit:num(c.amount)}];desc='وصول چک دریافتی '+c.number}else if(c.type==='received'&&v==='returned'){lines=[{account:'receivable',debit:num(c.amount),credit:0},{account:checkAsset,debit:0,credit:num(c.amount)}];desc='برگشت چک دریافتی '+c.number}else if(c.type!=='received'&&v==='paid'){lines=[{account:checkDebt,debit:num(c.amount),credit:0},{account:'bank',debit:0,credit:num(c.amount)}];desc='پرداخت چک '+c.number}else if(c.type!=='received'&&v==='returned'){lines=[{account:checkDebt,debit:num(c.amount),credit:0},{account:'payable',debit:0,credit:num(c.amount)}];desc='برگشت چک پرداختی '+c.number}else if(v==='cancelled'){lines=c.type==='received'?[{account:'receivable',debit:num(c.amount),credit:0},{account:checkAsset,debit:0,credit:num(c.amount)}]:[{account:checkDebt,debit:num(c.amount),credit:0},{account:'payable',debit:0,credit:num(c.amount)}];desc='ابطال چک '+c.number}else if(v==='pending'){lines=null}else{toast('تغییر وضعیت انتخاب‌شده پشتیبانی نمی‌شود.',true);sel.value=old;return}if(lines)journalOnce('CHECK-STATUS-'+c.id+'-'+v,desc,lines,{checkId:c.id,transactionType:'check-status',status:v});c.status=v;c.statusUpdatedAt=now();c.statusJournalStatus=v;db.audit.push({id:uid(),date:now(),action:'تغییر وضعیت چک',entity:c.id,detail:v});saveDB(true);toast(lines?'وضعیت و سند حسابداری چک ثبت شد':'وضعیت چک ذخیره شد');window.proChecks()}catch(err){toast('تغییر وضعیت ثبت نشد: '+(err.message||'خطای حسابداری'),true);sel.value=old}}});
   };
   // Safer transfer bundle: never export the AI provider secret in a sync/migration file.
-  window.proSync=function(){
-    initLocalFinance();const safe=JSON.parse(JSON.stringify(db));
-    $('#content').innerHTML=pageHead('همگام‌سازی و انتقال فایل','مدیریت بسته انتقال داده بین دستگاه‌ها، بدون اتصال ابری',`<button class="btn primary" id="exportSafeSync">ساخت بسته امن</button>`)+
-      `<div class="grid">${metricCard('فروش',db.sales.length,'فاکتور')}${metricCard('خرید',db.purchases.length,'فاکتور')}${metricCard('اندازه داده',Math.round(JSON.stringify(safe).length/1024)+' KB','تقریبی')}${metricCard('اتصال ابری','استفاده نمی‌شود','انتقال فقط با فایل','green')}</div>`+
-      `<div class="card section"><h3>وضعیت اتصال</h3><p>این نسخه همگام‌سازی و انتقال فایل ندارد. دکمه زیر فقط یک بسته انتقال فایل می‌سازد و اطلاعات را به سرور ارسال نمی‌کند.</p><p class="muted">این مسیر فقط برای انتقال فایل بین دستگاه‌هاست؛ هیچ داده‌ای به سرور ارسال نمی‌شود و کلید یا تنظیمات سرویس ابری در بسته قرار نمی‌گیرد.</p></div>`;
-    $('#exportSafeSync').onclick=()=>{const bundle=JSON.parse(JSON.stringify(db));bundle.pro=bundle.pro||{};bundle.pro.sync={...(bundle.pro.sync||{}),lastExport:now()};download('unique-pro-transfer-'+today()+'.json',JSON.stringify({app:'unique-pro-transfer',version:'42.9.0',createdAt:now(),data:bundle},null,2));toast('بسته انتقال امن ساخته شد')};
-  };
+  window.proSync=function(){return window.UniqueTransferUI();};
 })();
 </script>
 <script id="younique-v4290-storefront">
