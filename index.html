@@ -3226,14 +3226,14 @@ WRITE({name:'create_sale',desc:'ثبت فاکتور فروش با اقلام و 
     return{status:'ready',params:{customerId:q.customerId||'',cart,discount,pay,total},needsConfirm:true,summary,risk:total>=HIGH_AMOUNT_RIAL?'high':'medium'}},
   async run(p){
     const before=window.db.sales.length;
-    window.page='sale';window.render();await h.waitFor('#saleCustomer');await new Promise(r=>setTimeout(r,30));
-    saleCart.splice(0,saleCart.length,...p.cart.map(x=>({...x})));
+    window.__YQ_AI_SALE_STAGE='render sale form';window.page='sale';window.render();await h.waitFor('#saleCustomer');await new Promise(r=>setTimeout(r,30));
+    window.__YQ_AI_SALE_STAGE='populate sale form';saleCart.splice(0,saleCart.length,...p.cart.map(x=>({...x})));
     const sel=document.querySelector('#saleCustomer');sel.value=p.customerId||'';if(sel.value!==(p.customerId||''))throw Error('مشتری در فرم فروش پیدا نشد');
     for(const id of['#manualDisc41','#saleDiscount']){const e=document.querySelector(id);if(e)e.value=String(p.discount||0)}
-    window.__salePayments={...p.pay};if(typeof window.renderSaleCart==='function')window.renderSaleCart();if(typeof window.renderPaymentRows==='function')window.renderPaymentRows();
+    window.__salePayments={...p.pay};window.__YQ_AI_SALE_STAGE='render sale cart';if(typeof window.renderSaleCart==='function')window.renderSaleCart();window.__YQ_AI_SALE_STAGE='render payment rows';if(typeof window.renderPaymentRows==='function')window.renderPaymentRows();
     for(const id of['#manualDisc41','#saleDiscount']){const e=document.querySelector(id);if(e)e.value=String(p.discount||0)}
     window.__salePayments={...p.pay};
-    const cap=await h.captureToast(()=>window.saveSaleV18());
+    window.__YQ_AI_SALE_STAGE='save sale';const cap=await h.captureToast(()=>window.saveSaleV18());window.__YQ_AI_SALE_STAGE='verify sale';
     if(window.db.sales.length!==before+1)throw Error(lastErr(cap)||'ثبت فاکتور انجام نشد');
     const s=window.db.sales.at(-1);if(s.status!=='confirmed'||Math.abs(num(s.total)-p.total)>1)throw Error('فاکتور ثبت‌شده با مبلغ درخواستی هم‌خوانی ندارد؛ لطفاً فاکتور را بررسی کنید');
     return{number:s.number,id:s.id,total:s.total,due:s.due||0,customer:D.customerName(s.customerId)}},
