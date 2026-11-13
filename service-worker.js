@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Unique Pro — Service Worker  (v1.1.0)
+   Unique Pro — Service Worker  (cache v1.10.0)
    Goals: fully offline, predictable updates, no network traffic to other origins.
 
    Caches
