@@ -1081,4 +1081,50 @@ async def all_navigation_pages_render_without_runtime_errors(br,c):
     c.eq(pg.errs,[],'navigation smoke test has no uncaught browser errors')
     await ctx.close()
 
+
+@test
+async def local_persian_nlu_normalizes_colloquial_commands(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      UAI.ctx.reset();
+      const pairs=[
+        ['صندوق چنده','موجودی صندوق چقدره'],
+        ['سود','سود این ماه'],
+        ['امروز چقدر فروختیم','فروش امروز چقدره']
+      ];
+      const parsed=pairs.map(([a,b])=>{
+        const x=UAI.NLU.understand(a,UAI.ctx),y=UAI.NLU.understand(b,UAI.ctx);
+        return {a:aUnknown:!!x.unknown,bUnknown:!!y.unknown,aIntent:x.intent,bIntent:y.intent};
+      });
+      const digits=UAI.normalize('۱۲۳٤ كفش ي');
+      return {parsed,digits,sales:db.sales.length,stock:variantBy(S.v).stock}''')
+    for row in r['parsed']:
+      c.true(not row['aUnknown'] and not row['bUnknown'],'colloquial command is understood: '+row['aIntent'])
+      c.eq(row['aIntent'],row['bIntent'],'colloquial and canonical phrase resolve to the same intent')
+    c.eq(r['digits'],'1234 کفش ی','Persian/Arabic digits and Arabic letter forms normalize consistently')
+    c.eq(r['sales'],0,'intent parsing does not create invoices')
+    c.eq(r['stock'],5,'intent parsing does not mutate inventory')
+    await ctx.close()
+
+
+@test
+async def critical_pages_fit_mobile_viewport_without_horizontal_page_overflow(br,c):
+    pg,ctx=await page(br)
+    await pg.set_viewport_size({"width":360,"height":780})
+    r=await ev(pg,'''const pages=['dashboard','sale','purchase','products','inventory','reports','ai','backup','settings'];
+      const results=[];
+      for(const name of pages){
+        window.page=name;window.render();await new Promise(resolve=>setTimeout(resolve,35));
+        results.push({name,content:!!document.querySelector('#content'),
+          overflow:document.documentElement.scrollWidth>window.innerWidth+1,
+          width:document.documentElement.scrollWidth,viewport:window.innerWidth,
+          error:!!document.querySelector('#content .error-inline,.error-screen')});
+      }
+      return results''')
+    for row in r:
+      c.true(row['content'] and not row['error'],'mobile page renders: '+row['name'])
+      c.true(not row['overflow'],'mobile page has no document-level horizontal overflow: '+row['name']+' ('+str(row['width'])+'/'+str(row['viewport'])+')')
+    c.eq(pg.errs,[],'mobile navigation has no uncaught browser errors')
+    await ctx.close()
+
 asyncio.run(main())
