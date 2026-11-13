@@ -468,16 +468,19 @@ async def cancelled_product_wizard_does_not_mutate_catalog(br,c):
       closeModal();
       const newModelCountAfterCancel=db.models.length;
       productModal(S.m);
-      document.querySelector('#mn').value='نام تغییر موقت';
+      document.querySelector('#mn').value='نام تأییدشده';
       document.querySelector('#mf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
       const existingNameWhileChoosingVariants=modelBy(S.m).name;
-      closeModal();
+      document.querySelector('#customColor').value='آبی آزمایشی';
+      document.querySelector('.vs').checked=true;
+      document.querySelector('#makeVariants').click();
+      await T.sleep(80);
       return{count,newModelCountWhileChoosingVariants,newModelCountAfterCancel,original,existingNameWhileChoosingVariants,finalName:modelBy(S.m).name};
     """)
     c.eq(r['newModelCountWhileChoosingVariants'],r['count'],'new model is not persisted before variant confirmation')
     c.eq(r['newModelCountAfterCancel'],r['count'],'cancelled new model leaves no orphan catalog record')
     c.eq(r['existingNameWhileChoosingVariants'],r['original'],'editing a model is staged until variant confirmation')
-    c.eq(r['finalName'],r['original'],'cancelling model edit preserves the original catalog data')
+    c.eq(r['finalName'],'نام تأییدشده','confirmed model edit is applied together with the variant')
     await ctx.close()
 
 
