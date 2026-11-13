@@ -589,7 +589,7 @@ async def file_transfer_restores_complete_encrypted_snapshot(br,c):
       const dt=new DataTransfer();dt.items.add(new File([raw],'transfer.enc.json',{type:'application/json'}));
       const before=db.customers.length;
       page='sync';render();await T.sleep(80);
-      const input=document.querySelector('#sif');if(!input)throw new Error('sync UI missing: '+JSON.stringify({page,proSync:typeof window.proSync,transferUI:typeof window.UniqueTransferUI,content:!!document.querySelector('#content'),text:document.querySelector('#content')?.innerText?.slice(0,180)}));Object.defineProperty(input,'files',{configurable:true,value:dt.files});
+      const input=document.querySelector('#sif');if(!input)throw new Error('sync UI missing: '+JSON.stringify({page,proSync:typeof window.proSync,transferUI:typeof window.UniqueTransferUI,content:!!document.querySelector('#content'),text:document.querySelector('#content')?.innerText?.slice(0,240),error:document.querySelector('.error-inline pre')?.innerText}));Object.defineProperty(input,'files',{configurable:true,value:dt.files});
       input.dispatchEvent(new Event('change',{bubbles:true}));await T.sleep(250);
       const preview=!!document.querySelector('#sapply');
       const previewText=document.querySelector('#syncResult')?.innerText||'';
@@ -627,7 +627,7 @@ async def file_transfer_rejects_tampered_checksum_without_mutation(br,c):
       const before=db.customers.length;
       const dt=new DataTransfer();dt.items.add(new File([raw],'tampered.enc.json',{type:'application/json'}));
       page='sync';render();await T.sleep(80);
-      const input=document.querySelector('#sif');if(!input)throw new Error('sync UI missing: '+JSON.stringify({page,proSync:typeof window.proSync,transferUI:typeof window.UniqueTransferUI,content:!!document.querySelector('#content'),text:document.querySelector('#content')?.innerText?.slice(0,180)}));Object.defineProperty(input,'files',{configurable:true,value:dt.files});
+      const input=document.querySelector('#sif');if(!input)throw new Error('sync UI missing: '+JSON.stringify({page,proSync:typeof window.proSync,transferUI:typeof window.UniqueTransferUI,content:!!document.querySelector('#content'),text:document.querySelector('#content')?.innerText?.slice(0,240),error:document.querySelector('.error-inline pre')?.innerText}));Object.defineProperty(input,'files',{configurable:true,value:dt.files});
       input.dispatchEvent(new Event('change',{bubbles:true}));await T.sleep(250);
       return{before,after:db.customers.length,preview:!!document.querySelector('#sapply'),
         message:document.querySelector('#syncResult')?.innerText||''}
