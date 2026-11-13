@@ -619,6 +619,40 @@ async def purchase_return_reconciles_inventory_cost_and_supplier_refund(br,c):
 
 
 @test
+async def committed_invoice_drafts_cannot_be_submitted_twice(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      page='purchase';render();await T.sleep(80);addPurchase(S.v);
+      purchaseCart[0].qty=2;purchaseCart[0].price=1000;renderPurchaseCart();
+      document.querySelector('#purSup').value=S.sup;
+      document.querySelector('#purCash').value='2000';renderPurchasePaymentSummary();
+      const p0=db.purchases.length,j0=db.journal.length;
+      savePurchaseV21();
+      const purchaseAfterFirst={count:db.purchases.length,cart:purchaseCart.length,stock:variantBy(S.v).stock};
+      savePurchaseV21();
+      const purchaseAfterRetry={count:db.purchases.length,journals:db.journal.length};
+      page='sale';render();await T.sleep(80);addSale(S.v);
+      saleCart[0].qty=1;window.__salePayments={cash:1500,card:0,bank:0,credit:0};
+      const s0=db.sales.length,sj0=db.journal.length;
+      saveSaleV21();
+      const saleAfterFirst={count:db.sales.length,cart:saleCart.length,stock:variantBy(S.v).stock};
+      saveSaleV21();
+      return{purchaseAfterFirst,purchaseAfterRetry,p0,j0,
+        saleAfterFirst,salesAfterRetry:db.sales.length,journalsAfterRetry:db.journal.length,
+        s0,sj0,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}
+    """)
+    c.eq(r['purchaseAfterFirst'],{'count':r['p0']+1,'cart':0,'stock':2},'purchase draft is cleared after successful commit')
+    c.eq(r['purchaseAfterRetry'],{'count':r['p0']+1,'journals':r['j0']+1},'repeated purchase submit cannot duplicate records')
+    c.eq(r['saleAfterFirst'],{'count':r['s0']+1,'cart':0,'stock':1},'sale draft is cleared after successful commit')
+    c.eq(r['salesAfterRetry'],r['s0']+1,'repeated sale submit cannot duplicate invoices')
+    c.eq(r['journalsAfterRetry'],r['sj0']+1,'repeated sale submit cannot duplicate journal entries')
+    c.eq(r['unb'],0,'journals remain balanced')
+    c.true(r['health'],'business health check remains valid')
+    await ctx.close()
+
+
+@test
 async def file_transfer_restores_complete_encrypted_snapshot(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
