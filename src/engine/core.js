@@ -236,6 +236,7 @@ function createEngine(db, h) {
   }
 
   function createSale(payload) {
+    if (!activeCashSession()) throw new Error('برای ثبت فاکتور فروش ابتدا صندوق را باز کنید');
     const { items = [], customerId = '', payment = 'cash', paid: rawPaid = 0, discount = 0, note = '' } = payload;
     if (!items.length) throw new Error('فاکتور خالی است');
     const saleItems = []; let cost = 0, subTotal = 0;
@@ -334,13 +335,13 @@ function createEngine(db, h) {
   }
 
   function createPurchase(payload) {
+    if (!activeCashSession()) throw new Error('برای ثبت فاکتور خرید ابتدا صندوق را باز کنید');
     const { items = [], supplierId = '', payments = { cash: 0, card: 0, bank: 0, credit: 0 } } = payload;
     if (!items.length) throw new Error('خرید خالی است');
     const cash = num(payments.cash || 0), card = num(payments.card || 0), bank = num(payments.bank || 0), credit = num(payments.credit || 0);
     const total = roundMoney(cash + card + bank + credit);
     if (total <= 0) throw new Error('مبلغ خرید معتبر نیست');
     if (credit > 0 && !supplierId) throw new Error('برای ثبت بدهی، تأمین‌کننده را انتخاب کنید');
-    if (cash > 0 && !activeCashSession()) throw new Error('برای پرداخت نقدی ابتدا صندوق را باز کنید');
     const purchaseItems = [];
     for (const x of items) {
       const v = variantBy(x.variantId); if (!v) throw new Error('یکی از کالاها پیدا نشد');
