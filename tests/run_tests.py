@@ -145,7 +145,7 @@ async def invoice_ocr_review_does_not_write_before_confirmation(br,c):
       showInvoiceResult(parsed,null);await T.sleep(100);
       const after={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
       const review=!!document.querySelector('#invoiceConfirm');
-      document.querySelector('#invoiceConfirm').click();await T.sleep(100);
+      document.querySelector('#invSupplier').value='';document.querySelector('#invoiceConfirm').click();await T.sleep(100);
       const actionPreview=!!document.querySelector('#aiExec');
       const stillUnchanged={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
       if(actionPreview)document.querySelector('#aiExec').click();await T.sleep(120);
