@@ -3,9 +3,9 @@
 Runs the real app in headless Chromium (Playwright) and asserts accounting/inventory/security invariants.
 Setup:  pip install playwright && python -m playwright install chromium      Run:  python3 tests/run_tests.py [name-filter]
 Every test uses a fresh browser context (clean storage) and only synthetic data."""
-import asyncio,sys,json,pathlib,time
+import asyncio,sys,json,pathlib,time,os
 from playwright.async_api import async_playwright
-HERE=pathlib.Path(__file__).resolve().parent;ROOT=HERE.parent;URL='http://127.0.0.1:8765/index.html';HELP=(HERE/'helpers.js').read_text(encoding='utf8')
+HERE=pathlib.Path(__file__).resolve().parent;ROOT=HERE.parent;URL=os.environ.get('UNIQUE_TEST_URL','http://127.0.0.1:8765/index.html');HELP=(HERE/'helpers.js').read_text(encoding='utf8')
 TESTS=[];RES=[]
 def test(f):TESTS.append(f);return f
 class Check:
