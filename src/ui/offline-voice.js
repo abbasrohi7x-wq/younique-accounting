@@ -121,8 +121,22 @@
       return Promise.reject(new Error('این مرورگر دسترسی مستقیم به میکروفون را پشتیبانی نمی‌کند؛ برنامه را در Chrome و از نشانی HTTPS باز کنید.'));
     }
     var sessionNode = byId('yqVStatus');
-    status('در حال درخواست اجازهٔ میکروفون از مرورگر…');
-    /* Request the microphone directly from the button action, before any asynchronous model work. */
+    status('در حال فعال‌کردن پردازش صوت و درخواست اجازهٔ میکروفون…');
+    /* Create and resume AudioContext synchronously inside the real button gesture.
+       Creating it only after the model download can lose Chrome's user activation
+       and leave the context suspended forever on Android. */
+    var AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return Promise.reject(new Error('مرورگر موتور پردازش صوت را پشتیبانی نمی‌کند.'));
+    var resumePromise;
+    try {
+      try { audioContext = new AudioCtx({ sampleRate: 16000 }); }
+      catch (_) { audioContext = new AudioCtx(); }
+      resumePromise = audioContext.state === 'suspended' ? audioContext.resume() : Promise.resolve();
+    } catch (audioError) {
+      stopCapture(false);
+      return Promise.reject(new Error('فعال‌سازی پردازش صوت ناموفق بود: ' + (audioError.message || audioError)));
+    }
+    /* Request the microphone directly from the button action, before model download. */
     return navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
       video: false
@@ -143,13 +157,8 @@
         stopCapture(false);
         throw new Error('پنجرهٔ گفتار بسته شد؛ ضبط شروع نشد.');
       }
-      var AudioCtx = window.AudioContext || window.webkitAudioContext;
-      if (!AudioCtx) throw new Error('مرورگر موتور پردازش صوت را پشتیبانی نمی‌کند.');
-      try { audioContext = new AudioCtx({ sampleRate: 16000 }); }
-      catch (_) { audioContext = new AudioCtx(); }
-      var resume = audioContext.state === 'suspended' ? audioContext.resume() : Promise.resolve();
-      return resume.then(function () {
-        if (audioContext.state !== 'running') throw new Error('پردازش صوت مرورگر فعال نشد؛ صفحه را یک‌بار تازه‌سازی و دوباره امتحان کنید.');
+      return resumePromise.then(function () {
+        if (!audioContext || audioContext.state !== 'running') throw new Error('پردازش صوت مرورگر فعال نشد؛ مجوز پخش/میکروفون را بررسی و صفحه را تازه‌سازی کنید.');
         recognizer = new loaded.KaldiRecognizer();
         var frames = 0, signalFrames = 0, lastStatus = 0;
         recognizer.on('result', function (message) {
