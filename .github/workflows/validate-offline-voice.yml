@@ -42,6 +42,7 @@ jobs:
           test -s dist/vendor/tesseract/lang/fas.traineddata.gz
           test -s dist/vendor/tesseract/lang/eng.traineddata.gz
           test -s dist/vendor/vosk/vosk.js
+          test -n "$(find dist/vendor/vosk -maxdepth 1 -type f -name '*worker*.js' -print -quit)"
           test -s dist/vendor/vosk/model.tar.gz
           tar -tzf dist/vendor/vosk/model.tar.gz | grep -q 'model/am/final.mdl'
           test -s dist/index.html
