@@ -166,13 +166,13 @@
   function applyTranscript(value, context) {
     value = String(value || '').trim();
     if (!value) { if (typeof toast === 'function') toast('متنی برای ارسال وجود ندارد', true); return; }
+    if (context === 'sale' && typeof window.yqApplyVoiceDraft === 'function') {
+      window.yqApplyVoiceDraft(value);
+      return;
+    }
     var assistantUI = window.UAI && window.UAI.ui;
     if (assistantUI && typeof assistantUI.submit === 'function') {
       assistantUI.submit(value, 'voice');
-      return;
-    }
-    if (window.UI && typeof window.UI.submit === 'function') {
-      window.UI.submit(value, 'voice');
       return;
     }
     if (typeof toast === 'function') toast('دستیار محلی در دسترس نیست؛ متن را در صفحهٔ دستیار وارد کنید.', true);
@@ -246,12 +246,12 @@
       if (byId('yqVStatus') && ready) status('مدل فارسی قبلاً دریافت شده و برای استفاده آفلاین آماده است.');
     });
   }
-  window.yqVoiceDraft = function () {
+  window.yqVoiceDraft = function (context) {
     if (!window.isSecureContext && location.hostname !== 'localhost') {
       modal('<div class="modalhead"><h2>دستیار گفتاری</h2><button class="close" data-close>×</button></div><p>برای دسترسی به میکروفون، برنامه باید از HTTPS باز شود.</p>');
       return;
     }
-    showDialog('assistant');
+    showDialog(context === 'sale' ? 'sale' : 'assistant');
   };
   window.voiceRecord = function () { showDialog('assistant'); };
   window.addEventListener('pagehide', function () { stopCapture(true); });
