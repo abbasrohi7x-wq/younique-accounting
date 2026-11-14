@@ -118,57 +118,93 @@
   function startCapture() {
     if (active) return Promise.resolve();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      throw new Error('مرورگر دسترسی امن به میکروفون را پشتیبانی نمی‌کند');
+      return Promise.reject(new Error('این مرورگر دسترسی مستقیم به میکروفون را پشتیبانی نمی‌کند؛ برنامه را در Chrome و از نشانی HTTPS باز کنید.'));
     }
     var sessionNode = byId('yqVStatus');
-    return ensureModel().then(function (loaded) {
-      return navigator.mediaDevices.getUserMedia({
-        audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
-        video: false
-      }).then(function (media) {
-        if (!sessionNode || byId('yqVStatus') !== sessionNode) {
-          media.getTracks().forEach(function (track) { track.stop(); });
-          throw new Error('پنجرهٔ گفتار بسته شد؛ ضبط شروع نشد.');
-        }
-        stream = media;
-        var AudioCtx = window.AudioContext || window.webkitAudioContext;
-        audioContext = new AudioCtx({ sampleRate: 16000 });
-        if (audioContext.state === 'suspended') return audioContext.resume().then(function () { return media; });
-        return media;
-      }).then(function () {
-        if (!sessionNode || byId('yqVStatus') !== sessionNode) {
-          stopCapture(true);
-          throw new Error('پنجرهٔ گفتار بسته شد؛ ضبط شروع نشد.');
-        }
+    status('در حال درخواست اجازهٔ میکروفون از مرورگر…');
+    /* Request the microphone directly from the button action, before any asynchronous model work. */
+    return navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
+      video: false
+    }).then(function (media) {
+      if (!sessionNode || byId('yqVStatus') !== sessionNode) {
+        media.getTracks().forEach(function (track) { track.stop(); });
+        throw new Error('پنجرهٔ گفتار بسته شد؛ ضبط شروع نشد.');
+      }
+      stream = media;
+      var tracks = media.getAudioTracks();
+      if (!tracks.length || tracks[0].readyState !== 'live') {
+        throw new Error('جریان ورودی میکروفون فعال نشد. مجوز میکروفون و تنظیمات سایت را بررسی کنید.');
+      }
+      status('میکروفون مجاز شد؛ در حال آماده‌سازی موتور تشخیص فارسی…');
+      return ensureModel();
+    }).then(function (loaded) {
+      if (!sessionNode || byId('yqVStatus') !== sessionNode) {
+        stopCapture(false);
+        throw new Error('پنجرهٔ گفتار بسته شد؛ ضبط شروع نشد.');
+      }
+      var AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) throw new Error('مرورگر موتور پردازش صوت را پشتیبانی نمی‌کند.');
+      try { audioContext = new AudioCtx({ sampleRate: 16000 }); }
+      catch (_) { audioContext = new AudioCtx(); }
+      var resume = audioContext.state === 'suspended' ? audioContext.resume() : Promise.resolve();
+      return resume.then(function () {
+        if (audioContext.state !== 'running') throw new Error('پردازش صوت مرورگر فعال نشد؛ صفحه را یک‌بار تازه‌سازی و دوباره امتحان کنید.');
         recognizer = new loaded.KaldiRecognizer();
+        var frames = 0, signalFrames = 0, lastStatus = 0;
         recognizer.on('result', function (message) {
           var text = message && message.result && message.result.text || '';
           if (text.trim()) {
             finalText = (finalText + ' ' + text).trim();
             transcript(finalText);
+            status('گفتار تشخیص داده شد؛ می‌توانید ادامه دهید یا توقف ضبط را بزنید.');
           }
         });
         recognizer.on('partialresult', function (message) {
           var partial = message && message.result && message.result.partial || '';
-          status(partial ? 'در حال شنیدن: ' + partial : 'در حال شنیدن… برای پایان، دکمهٔ توقف را بزنید.');
+          status(partial ? 'در حال تشخیص: ' + partial : 'میکروفون فعال است؛ صحبت کنید…');
         });
+        if (typeof recognizer.on === 'function') {
+          recognizer.on('error', function (message) {
+            var detail = message && (message.error || message.message) || 'خطای ناشناخته';
+            status('خطای موتور تشخیص گفتار: ' + detail);
+          });
+        }
         source = audioContext.createMediaStreamSource(stream);
         processor = audioContext.createScriptProcessor(4096, 1, 1);
         muted = audioContext.createGain();
         muted.gain.value = 0;
         processor.onaudioprocess = function (event) {
           if (!active || !recognizer) return;
-          try { recognizer.acceptWaveform(event.inputBuffer); }
-          catch (error) { status('خطا در پردازش صوت محلی: ' + (error.message || error)); }
+          frames++;
+          try {
+            var data = event.inputBuffer.getChannelData(0), sum = 0;
+            for (var i = 0; i < data.length; i += 8) sum += data[i] * data[i];
+            if (sum > 0.000001) signalFrames++;
+            recognizer.acceptWaveform(event.inputBuffer);
+            if (frames >= 12 && Date.now() - lastStatus > 1800) {
+              lastStatus = Date.now();
+              status(signalFrames ? 'میکروفون صدا دریافت می‌کند؛ صحبت کنید…' : 'میکروفون فعال است اما هنوز صدای قابل‌تشخیصی دریافت نشده؛ نزدیک‌تر صحبت کنید و مجوز/ورودی میکروفون را بررسی کنید.');
+            }
+          } catch (error) {
+            status('خطا در پردازش صوت محلی: ' + (error.message || error));
+          }
         };
+        active = true;
         source.connect(processor);
         processor.connect(muted);
         muted.connect(audioContext.destination);
-        active = true;
-        status('میکروفون فعال است؛ صحبت کنید. صدا فقط روی همین دستگاه پردازش می‌شود.');
+        status('ضبط فعال شد؛ اکنون صحبت کنید. برای پایان، «توقف ضبط» را بزنید.');
       });
     }).catch(function (error) {
-      stopCapture(true);
+      stopCapture(false);
+      var name = error && error.name || '';
+      if (name === 'NotAllowedError' || name === 'PermissionDeniedError') {
+        throw new Error('مجوز میکروفون رد شده است. در تنظیمات سایت، Microphone را روی Allow بگذارید و صفحه را دوباره باز کنید.');
+      }
+      if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        throw new Error('هیچ میکروفون فعالی پیدا نشد. اتصال یا ورودی میکروفون گوشی را بررسی کنید.');
+      }
       throw error;
     });
   }
@@ -193,13 +229,13 @@
       '<div class="modalhead"><h2>دستیار گفتاری آفلاین فارسی</h2><button class="close" data-close>×</button></div>' +
       '<p class="muted">تشخیص با موتور Vosk و روی همین دستگاه انجام می‌شود. بار اول باید مدل فارسی (حدود ۵۳ مگابایت) دریافت شود؛ بعد از ذخیره می‌توانید اینترنت را قطع کنید.</p>' +
       '<p id="yqVStatus" class="muted">برای آماده‌سازی، دریافت مدل را انتخاب کنید.</p>' +
-      '<div class="toolbar"><button class="btn" id="yqVInstall" type="button">دریافت / آماده‌سازی مدل فارسی</button><button class="btn" id="yqVStart" type="button">شروع ضبط</button><button class="btn" id="yqVStop" type="button">توقف ضبط</button></div>' +
+      '<div class="toolbar"><button class="btn" id="yqVInstall" type="button">دریافت / آماده‌سازی مدل فارسی</button><button class="btn primary" id="yqVStart" type="button">اجازه میکروفون و شروع ضبط</button><button class="btn" id="yqVStop" type="button">توقف ضبط</button></div>' +
       '<textarea id="yqVTranscript" rows="4" placeholder="متن تشخیص‌داده‌شده اینجا نمایش داده می‌شود؛ قبل از استفاده آن را بررسی کنید."></textarea>' +
       '<div class="modal-actions"><button class="btn" id="yqVText" type="button">ورود متن</button><button class="btn primary" id="yqVApply" type="button">تأیید و افزودن به پیش‌نویس</button></div>'
     );
     byId('yqVInstall').onclick = function () {
       byId('yqVInstall').disabled = true;
-      ensureModel().then(function () { status('مدل آماده است. برای ضبط، شروع ضبط را بزنید.'); })
+      ensureModel().then(function () { status('مدل آماده است. حالا «اجازه میکروفون و شروع ضبط» را بزنید.'); })
         .catch(function (e) { status((e && e.message) || 'آماده‌سازی مدل ناموفق بود.'); })
         .then(function () { if (byId('yqVInstall')) byId('yqVInstall').disabled = false; });
     };
@@ -211,7 +247,7 @@
     byId('yqVStop').onclick = function () {
       byId('yqVStop').disabled = true;
       stopCapture(false, true).then(function () {
-        status('ضبط متوقف شد و متن نهایی آماده است؛ آن را بررسی کنید.');
+        status(finalText ? 'ضبط متوقف شد؛ متن تشخیص‌داده‌شده را بررسی کنید.' : 'ضبط متوقف شد اما متنی تشخیص داده نشد. دوباره شروع کنید و نزدیک میکروفون واضح صحبت کنید.');
         if (byId('yqVStop')) byId('yqVStop').disabled = false;
       });
     };
