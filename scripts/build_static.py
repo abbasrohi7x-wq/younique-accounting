@@ -95,7 +95,7 @@ def main() -> None:
         rollup_config = lib_dir / "rollup.config.js"
         config_text = rollup_config.read_text(encoding="utf-8")
         config_text, patched = re.subn(
-            r"webWorkerLoader\\(\\{\\s*forceInline:\\s*true,\\s*targetPlatform:\\s*'browser'\\s*\\}\\)",
+            r"webWorkerLoader\(\{\s*forceInline:\s*true,\s*targetPlatform:\s*'browser'\s*\}\)",
             "webWorkerLoader({ inline: false, forceInline: false, targetPlatform: 'browser', loadPath: './vendor/vosk/' })",
             config_text,
             count=1
