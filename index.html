@@ -1424,12 +1424,12 @@ $('#sif').onchange=async e=>{const f=e.target.files?.[0];if(!f)return;const box=
  if(env.app!=='unique-pro-sync'||env.schema!==38)throw Error('نسخه یا ساختار بسته انتقال پشتیبانی نمی‌شود');
  if(!env.data||typeof env.data!=='object')throw Error('داده‌های بسته معتبر نیستند');
  const expected=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
- if(!env.checksum||env.checksum!==expected)throw Error('صحت فایل انتقال تأیید نشد؛ فایل ناقص یا دستکاری شده است');
+ if(!env.checksum||env.checksum!==expected)throw Error('صحت فایل انتقال تأیید نشد؛ فایل ناقص یا خراب شده است');
  validateBackupData(env.data);
  const merged=syncMerge(db,env.data);
  box.innerHTML='<div class="successbox">پیش‌نمایش: <b>'+fa(merged.added.length)+'</b> جدید، <b>'+fa(merged.conflicts.length)+'</b> تعارض، <b>'+fa(merged.same.length)+'</b> بدون تغییر.</div><div class="modal-actions"><button class="btn" id="scancel">لغو</button><button class="btn primary" id="sapply">تأیید و اعمال ادغام</button></div>';
  $('#scancel').onclick=()=>{box.innerHTML=''};
- $('#sapply').onclick=()=>{try{Object.keys(merged.data).forEach(k=>{if(k!=='pro'&&k!=='settings')db[k]=merged.data[k]});db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};db.pro.sync.importedAt=now();saveDB(true);invalidate();box.innerHTML='<div class="successbox">ادغام اعمال شد.</div>';toast('ادغام انجام شد');render()}catch(err){toast(err.message,true)}};
+ $('#sapply').onclick=()=>{try{Object.keys(merged.data).forEach(k=>{if(k!=='pro')db[k]=merged.data[k]});db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};db.pro.sync.importedAt=now();saveDB(true);invalidate();box.innerHTML='<div class="successbox">ادغام اعمال شد.</div>';toast('ادغام انجام شد');render()}catch(err){toast(err.message,true)}};
  }catch(err){box.innerHTML='<div class="errorbox">'+esc(err.message||'فایل نامعتبر')+'</div>';toast('فایل انتقال معتبر نیست',true)}finally{e.target.value=''}};
 }
 function proAccounting(){return window.accounting?window.accounting():void 0}window.proInit=proInit;window.proWarehouse=proWarehouse;window.proCRM=proCRM;window.proInsights=proInsights;window.proSecurity=proSecurity;window.proTax=proTax;window.proSync=proSync;window.proAccounting=proAccounting;window.whStock=whStock;window.setWhStock=setWhStock;proInit();})();
