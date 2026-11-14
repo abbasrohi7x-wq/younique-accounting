@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Unique Pro — Service Worker  (cache v1.11.0)
+   Unique Pro — Service Worker  (cache v1.15.0)
    Goals: fully offline, predictable updates, no network traffic to other origins.
 
    Caches
@@ -14,13 +14,14 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = '1.11.0';
+const VERSION = '1.15.0';
 const SHELL_CACHE = 'unique-shell-' + VERSION;
 const OCR_CACHE = 'unique-ocr-v1';
+const VOICE_CACHE = 'unique-voice-v1';
 
 const SHELL_FILES = [
   './', './index.html', './manifest.json', './logo.svg', './icon-192.png', './icon-512.png',
-  './src/engine/core.js', './src/engine/fin.js', './src/ui/upgrade.js', './src/ui/local-nlu.js', './vendor/fonts/vazirmatn-arabic.woff2', './vendor/fonts/vazirmatn-latin.woff2'
+  './src/engine/core.js', './src/engine/fin.js', './src/ui/upgrade.js', './src/ui/local-nlu.js', './src/ui/offline-voice.js', './vendor/fonts/vazirmatn-arabic.woff2', './vendor/fonts/vazirmatn-latin.woff2'
 ];
 /* Everything OCR needs. core/tesseract-core-lstm is the no-SIMD fallback. */
 const OCR_FILES = [
@@ -45,7 +46,7 @@ self.addEventListener('install', (event) => {
 /* ---------- activate: drop old shell caches (never the OCR cache), enable preload ---------- */
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
-    const keep = new Set([SHELL_CACHE, OCR_CACHE]);
+    const keep = new Set([SHELL_CACHE, OCR_CACHE, VOICE_CACHE]);
     for (const key of await caches.keys()) {
       if ((key.startsWith('unique-') || key.startsWith('younique-')) && !keep.has(key)) await caches.delete(key);
     }
@@ -104,12 +105,14 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;          // never touch other origins
   const isOcr = url.pathname.includes('/vendor/tesseract/');
+  const isVoice = url.pathname.includes('/vendor/vosk/');
 
   if (req.method === 'HEAD' && isOcr) { event.respondWith(headFromCache(req)); return; }
   if (req.method !== 'GET') return;
 
   if (req.mode === 'navigate') { event.respondWith(handleNavigation(event)); return; }
   if (isOcr) { event.respondWith(cacheFirst(req, OCR_CACHE)); return; }
+  if (isVoice) { event.respondWith(cacheFirst(req, VOICE_CACHE)); return; }
   event.respondWith(staleWhileRevalidate(event, SHELL_CACHE));
 });
 
