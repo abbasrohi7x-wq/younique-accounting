@@ -14,7 +14,7 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = '1.11.0';
+const VERSION = '1.12.0';
 const SHELL_CACHE = 'unique-shell-' + VERSION;
 const OCR_CACHE = 'unique-ocr-v1';
 const VOICE_CACHE = 'unique-voice-v1';
