@@ -515,6 +515,41 @@ async def purchase_and_sale_use_the_selected_warehouse(br,c):
 
 
 @test
+async def warehouse_void_and_return_cannot_consume_other_warehouse_stock(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      db.warehouses.push({id:'W2',name:'انبار دوم',active:true});saveDB(true);
+      await T.buy(S,S.v,4,1000,{cash:4000});
+      page='purchase';render();await T.sleep(100);
+      document.querySelector('#purWarehouse').value='W2';
+      addPurchase(S.v);purchaseCart[0].qty=2;purchaseCart[0].price=1000;renderPurchaseCart();
+      document.querySelector('#purSup').value=S.sup;
+      for(const [id,value] of [['purCash',2000],['purCard',0],['purBank',0],['purCredit',0]])document.querySelector('#'+id).value=String(value);
+      renderPurchasePaymentSummary();document.querySelector('#savePurchase').click();await T.sleep(180);
+      const p=db.purchases[db.purchases.length-1];
+      stockMove(S.v,-2,'test_transfer_out','test-transfer',1000,'W2');
+      stockMove(S.v,2,'test_transfer_in','test-transfer',1000,'MAIN');
+      const before={journal:db.journal.length,payments:db.payments.length,moves:db.stockMoves.length,returns:db.returns.length};
+      let voidRejected=false,returnRejected=false;
+      try{Fin.voidPurchase(p.number,'warehouse isolation regression')}catch(e){voidRejected=true}
+      try{Fin.purchaseReturn({ref:p.number,qtys:{[p.items[0]]:1},method:'credit'})}catch(e){returnRejected=true}
+      return{voidRejected,returnRejected,status:p.status,
+        main:db.warehouseStocks.MAIN?.[S.v]||0,second:db.warehouseStocks.W2?.[S.v]||0,
+        global:variantBy(S.v).stock,after:{journal:db.journal.length,payments:db.payments.length,moves:db.stockMoves.length,returns:db.returns.length},
+        before,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok};
+    """)
+    c.true(r['voidRejected'],'void purchase cannot consume stock transferred to another warehouse')
+    c.true(r['returnRejected'],'purchase return cannot consume stock from another warehouse')
+    c.eq(r['status'],'confirmed','failed void leaves the purchase confirmed')
+    c.eq([r['main'],r['second'],r['global']],[6,0,6],'stock remains in the warehouse that actually holds it')
+    c.eq(r['after'],r['before'],'failed warehouse operations leave no journal, payment, stock move or return')
+    c.eq(r['unb'],0,'warehouse rollback keeps accounting balanced')
+    c.true(r['health'],'warehouse stock and accounting integrity checks pass')
+    await ctx.close()
+
+
+@test
 async def weighted_average_seeds_cost_for_migrated_stock(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
