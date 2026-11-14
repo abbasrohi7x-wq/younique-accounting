@@ -46,9 +46,15 @@ def verify_tesseract_assets(asset_root: Path) -> None:
         if not path.is_file() or path.stat().st_size < 1024:
             raise RuntimeError(f"Tesseract {language} traineddata is missing or suspiciously small")
         try:
+            expanded = 0
             with gzip.open(path, "rb") as model:
-                if not model.read(16):
-                    raise RuntimeError(f"Tesseract {language} traineddata is empty")
+                while True:
+                    chunk = model.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    expanded += len(chunk)
+            if expanded < 1024:
+                raise RuntimeError(f"Tesseract {language} traineddata is empty or truncated")
         except (OSError, EOFError) as error:
             raise RuntimeError(f"Tesseract {language} traineddata is not a valid gzip archive: {error}") from error
 
