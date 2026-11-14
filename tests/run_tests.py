@@ -200,6 +200,52 @@ async def offline_voice_transcript_reaches_local_assistant(br,c):
     c.true(r['submitted'],'confirmed transcript reaches local assistant')
     await ctx.close()
 
+@test
+async def offline_voice_opens_real_microphone_pipeline(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async() => {
+      let handlers={},accepted=0,permissionRequested=false;
+      const track={readyState:'live',stop(){}};
+      const stream={getTracks:()=>[track],getAudioTracks:()=>[track]};
+      Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{
+        getUserMedia:async()=>{permissionRequested=true;return stream}
+      }});
+      Object.defineProperty(window,'caches',{configurable:true,value:{
+        open:async()=>({match:async()=>({cached:true})})
+      }});
+      window.Vosk={createModel:async()=>({
+        ready:true,
+        KaldiRecognizer:function(){
+          this.on=(name,fn)=>{handlers[name]=fn};
+          this.acceptWaveform=()=>{accepted++;if(handlers.partialresult)handlers.partialresult({result:{partial:'سلام'}})};
+          this.remove=()=>{};
+        },
+        terminate(){}
+      })};
+      window.AudioContext=function(){
+        this.state='running';this.destination={};this.resume=async()=>{};
+        this.createMediaStreamSource=()=>({connect(){}});
+        this.createScriptProcessor=()=>{window.__fakeProcessor={connect(){},disconnect(){},onaudioprocess:null};return window.__fakeProcessor};
+        this.createGain=()=>({gain:{value:1},connect(){},disconnect(){}});
+        this.close=async()=>{};
+      };
+      window.yqVoiceDraft('assistant');
+      await new Promise(r=>setTimeout(r,30));
+      document.querySelector('#yqVStart').click();
+      await new Promise(r=>setTimeout(r,80));
+      if(window.__fakeProcessor&&window.__fakeProcessor.onaudioprocess){
+        const samples=new Float32Array(4096).fill(.02);
+        window.__fakeProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>samples}});
+      }
+      await new Promise(r=>setTimeout(r,30));
+      return {permissionRequested,accepted,status:document.querySelector('#yqVStatus')?.textContent||''};
+    }""")
+    c.true(r['permissionRequested'],'microphone permission requested on start button')
+    c.true(r['accepted']>=1,'audio frames reached Vosk recognizer')
+    c.true('سلام' in r['status'],'partial recognition updates visible status')
+    c.eq(pg.errs,[],'no browser runtime errors')
+    await ctx.close()
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
