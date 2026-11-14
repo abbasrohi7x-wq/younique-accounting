@@ -6,7 +6,7 @@
   var MODEL_URL = './vendor/vosk/model.tar.gz';
   var CACHE_NAME = 'unique-voice-v1';
   var model = null, recognizer = null, stream = null, audioContext = null;
-  var source = null, processor = null, muted = null, active = false, finalText = '';
+  var source = null, processor = null, muted = null, active = false, finalText = '', pendingStop = null;
   var scriptPromise = null;
 
   function byId(id) { return document.getElementById(id); }
@@ -82,6 +82,7 @@
     });
   }
   function stopCapture(releaseModel, finalize) {
+    if (pendingStop) return pendingStop;
     active = false;
     if (processor) { processor.onaudioprocess = null; try { processor.disconnect(); } catch (_) {} processor = null; }
     if (source) { try { source.disconnect(); } catch (_) {} source = null; }
@@ -95,7 +96,7 @@
       if (releaseModel && model) { try { model.terminate(); } catch (_) {} model = null; }
     }
     if (current && finalize && typeof current.retrieveFinalResult === 'function') {
-      return new Promise(function (resolve) {
+      pendingStop = new Promise(function (resolve) {
         var finished = false;
         var timer = setTimeout(finish, 1800);
         function finish() {
@@ -103,11 +104,13 @@
           finished = true;
           clearTimeout(timer);
           releaseResources();
+          pendingStop = null;
           resolve();
         }
         current.on('result', finish);
         try { current.retrieveFinalResult(); } catch (_) { finish(); }
       });
+      return pendingStop;
     }
     releaseResources();
     return Promise.resolve();
