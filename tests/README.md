@@ -1,6 +1,24 @@
-# آزمون‌های UNIQUE
-- `run_tests.py` — ۱۳ آزمون / ۷۷ ادعا روی برنامهٔ واقعی (Chromium بدون سر). نیاز: `pip install playwright numpy opencv-python-headless` و `python -m playwright install chromium`. اجرا: `python3 tests/run_tests.py [بخشی از نام]`.
-- `helpers.js` — ابزار تزریق‌شده به صفحه؛ فقط داده ساختگی.
-- `headless_probe.js` — آزمایش اجرای موتور در Node (`node tests/headless_probe.js`).
-- QR با OpenCV راستی‌آزمایی می‌شود؛ اگر نصب نباشد آن ادعا رد می‌شود (SKIP) و چاپ می‌شود.
-- اعتبار آزمون‌ها با «آزمون جهش» سنجیده شد: بازگرداندن عمدی دو باگ قدیمی، هر دو را شکست داد.
+# آزمون‌های Unique Pro
+
+- `run_tests.py` — ۲۶ آزمون رگرسیون مرورگر با Chromium؛ شامل فروش/خرید و حسابداری، پرداخت چندروش، موجودی و انبار، ذخیره‌سازی IndexedDB، اعتبارسنجی پشتیبان، انتقال فایل‌محور، امنیت PIN، OCR واقعی Tesseract، بارگذاری مدل فارسی Vosk و تشخیص بی‌صدایی میکروفون.
+- `helpers.js` — ابزارهای آزمون با داده‌های ساختگی؛ هیچ دادهٔ واقعی فروشگاه استفاده نمی‌شود.
+- `headless_probe.js` — بررسی مستقل اجرای موتور در Node.
+- برای QR، در صورت نصب نبودن OpenCV، فقط آزمون رمزگشایی مستقل QR رد می‌شود؛ سایر آزمون‌ها اجرا می‌شوند.
+
+## اجرا
+
+```bash
+python -m pip install playwright
+python -m playwright install chromium
+python -m http.server 8765
+# در ترمینال دیگر:
+python tests/run_tests.py
+```
+
+برای اجرای یک آزمون مشخص:
+
+```bash
+python tests/run_tests.py offline_ocr
+```
+
+GitHub Actions علاوه بر آزمون‌های مرورگر، صحت ساخت برنامه و بسته‌های محلی OCR/Vosk را کنترل می‌کند.
