@@ -1731,9 +1731,9 @@ function parseLocalProductCommand(q){
   const color=field(/رنگ\s*[:：]?\s*(.+?)(?=\s+(?:سایز|قیمت|خرید|فروش|بارکد|کد|حداقل)|$)/); if(color)a.colors=color.split(/[،/]+/).map(x=>x.trim()).filter(Boolean);
   const size=field(/سایز\s*[:：]?\s*([\d\s\-تاو،/]+?)(?=\s+(?:با\s+)?(?:قیمت|خرید|فروش|بارکد|کد|حداقل)|$)/);
   if(size){const z=size.replace(/تا/g,'-').replace(/\s*-\s*/g,'-');for(const part of z.split(/[،,/\s]+/).filter(Boolean)){const m=part.match(/^(\d+)-(\d+)$/);if(m){let x=+m[1],y=+m[2];if(y<x)[x,y]=[y,x];if(y-x>31)throw Error('بازه سایز بیش از حد بزرگ است');for(let n=x;n<=y;n++)a.sizes.push(String(n));}else if(/^\d+$/.test(part))a.sizes.push(part)}}
-  const price=(re)=>{const v=field(re).replace(/\s+/g,'');if(!v)return 0;let n=Number(v.replace(/میلیون/g,'000000').replace(/هزار/g,'000'));return Number.isFinite(n)?n:0};
-  a.buyPrice=price(/(?:قیمت\s*خرید|بهای\s*خرید|خرید)\s*[:：]?\s*([\d.]+\s*(?:میلیون|هزار)?)/);
-  a.sellPrice=price(/(?:قیمت\s*فروش|فروش)\s*[:：]?\s*([\d.]+\s*(?:میلیون|هزار)?)/);
+  const price=(re)=>{const rawValue=field(re).replace(/\s+/g,'');if(!rawValue)return 0;const isRial=/ریال/.test(rawValue);const n=Number(rawValue.replace(/تومان|تومن|ریال/g,'').replace(/میلیون/g,'000000').replace(/هزار/g,'000'));if(!Number.isFinite(n))return 0;const unit=isRial||db.settings?.ai?.spokenUnit==='rial'?1:10;return Math.round(n*unit)};
+  a.buyPrice=price(/(?:قیمت\s*خرید|بهای\s*خرید|خرید)\s*[:：]?\s*([\d.]+\s*(?:میلیون|هزار)?\s*(?:تومان|تومن|ریال)?)/);
+  a.sellPrice=price(/(?:قیمت\s*فروش|فروش)\s*[:：]?\s*([\d.]+\s*(?:میلیون|هزار)?\s*(?:تومان|تومن|ریال)?)/);
   const barcode=field(/بارکد\s*[:：]?\s*([\w-]+)/);if(barcode)a.barcode=barcode;
   const min=field(/حداقل(?:\s*موجودی)?\s*[:：]?\s*(\d+)/);if(min)a.minStock=Number(min);
   let name=raw.split(/\s+(?:قیمت\s*خرید|بهای\s*خرید|قیمت\s*فروش|خرید|فروش|بارکد|حداقل(?:\s*موجودی)?|برند|مارک|مدل|رنگ|سایز)\s*[:：]?/)[0];
