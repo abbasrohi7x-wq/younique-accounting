@@ -451,8 +451,7 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
       const secretsStripped=!JSON.stringify(env).includes('CLOUD_SECRET')&&!JSON.stringify(env).includes('AI_SECRET')&&
         !JSON.stringify(backup).includes('CLOUD_SECRET')&&!JSON.stringify(backup).includes('AI_SECRET');
       const incoming=JSON.parse(JSON.stringify(env.data));
-      const local=incoming.customers.find(x=>x.id===S.cus);
-      local.name='نام محلی';
+      db.customers.find(x=>x.id===S.cus).name='نام محلی';
       const remote=JSON.parse(JSON.stringify(incoming));
       remote.customers.find(x=>x.id===S.cus).name='نام دستگاه دیگر';
       remote.customers.push({id:'REMOTE-CUSTOMER-1',name:'مشتری دستگاه دوم',phone:'000',createdAt:'2026-11-14T00:00:00Z'});
