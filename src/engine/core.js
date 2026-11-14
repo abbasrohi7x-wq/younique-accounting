@@ -362,7 +362,8 @@ function createEngine(db, h) {
     const itemsTotal = roundMoney(purchaseItems.reduce(function (sum, item) { return sum + item.total; }, 0));
     if (Math.abs(roundMoney(itemsTotal - total)) > 0.01) throw new Error('جمع مبلغ اقلام با مجموع پرداخت و بدهی فاکتور خرید برابر نیست');
     const no = typeof nextNumber === 'function' ? nextNumber('purchase') : ('P-' + Date.now());
-    const paymentType = (cash && (card || bank || credit)) ? 'mixed' : cash ? 'cash' : card ? 'card' : bank ? 'bank' : 'credit';
+    const paymentMethodCount = [cash, card, bank, credit].filter(function (amount) { return amount > 0; }).length;
+    const paymentType = paymentMethodCount > 1 ? 'mixed' : cash ? 'cash' : card ? 'card' : bank ? 'bank' : 'credit';
     const row = { id: uid(), number: no, date: now(), supplierId: supplierId || '', status: 'confirmed', payment: paymentType, total, paid: cash + card + bank, due: credit, items: purchaseItems.map(x => x.id),
       payments: [{ account: 'cash', amount: cash }, { account: 'card', amount: card }, { account: 'bank', amount: bank }, { account: 'credit', amount: credit }].filter(x => x.amount > 0) };
     db.purchases = db.purchases || []; db.purchaseItems = db.purchaseItems || []; db.payments = db.payments || [];
