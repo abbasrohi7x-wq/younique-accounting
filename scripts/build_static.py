@@ -94,11 +94,15 @@ def main() -> None:
         extract_vosk_source(source_archive, lib_dir, asset_dir)
         rollup_config = lib_dir / "rollup.config.js"
         config_text = rollup_config.read_text(encoding="utf-8")
-        inline_config = "webWorkerLoader({ forceInline: true })"
-        external_config = "webWorkerLoader({ inline: false, forceInline: false, loadPath: './vendor/vosk/' })"
-        if inline_config not in config_text:
+        config_text, patched = re.subn(
+            r"webWorkerLoader\\(\\{\\s*forceInline:\\s*true,\\s*targetPlatform:\\s*'browser'\\s*\\}\\)",
+            "webWorkerLoader({ inline: false, forceInline: false, targetPlatform: 'browser', loadPath: './vendor/vosk/' })",
+            config_text,
+            count=1
+        )
+        if patched != 1:
             raise RuntimeError("Pinned Vosk Rollup worker configuration changed unexpectedly")
-        rollup_config.write_text(config_text.replace(inline_config, external_config), encoding="utf-8")
+        rollup_config.write_text(config_text, encoding="utf-8")
         subprocess.run(["npm", "ci", "--no-audit", "--no-fund"], cwd=lib_dir, check=True)
         dist_dir = lib_dir / "dist"
         if dist_dir.exists():
