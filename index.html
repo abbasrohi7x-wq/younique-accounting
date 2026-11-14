@@ -4423,7 +4423,7 @@ V.start=function(){
       V.onFinal(V.pickBest(full),full)}};
   r.onend=()=>{V.listening=false;V.setBtn(false)};
   r.onerror=e=>{V.listening=false;V.setBtn(false);if(e&&e.error==='language-not-supported'){useVosk();return}const m=e&&e.error==='not-allowed'?'دسترسی به میکروفون داده نشد':e&&e.error==='no-speech'?'صدایی شنیده نشد':'تشخیص صدا ناموفق بود';window.toast(m,true)};
-  try{r.start()}catch(e){V.listening=false;V.setBtn(false);window.toast('شروع تشخیص صدا ممکن نشد',true);return false}
+  try{r.start()}catch(e){V.listening=false;V.setBtn(false);if(e&&(/NotSupportedError|language/i.test(e.name+' '+e.message))){useVosk();return false}window.toast('شروع تشخیص صدا ممکن نشد',true);return false}
   return true;
 };
 
