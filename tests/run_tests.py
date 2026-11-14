@@ -245,6 +245,34 @@ async def offline_voice_transcript_reaches_local_assistant(br,c):
     await ctx.close()
 
 @test
+async def offline_voice_model_initialization_is_single_flight(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async()=> {
+      let modelCalls=0,micCalls=0;
+      Object.defineProperty(window,'caches',{configurable:true,value:{
+        open:async()=>({match:async()=>({cached:true})})
+      }});
+      Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{
+        getUserMedia:async()=>{micCalls++;const track={readyState:'live',stop(){}};return {getTracks:()=>[track],getAudioTracks:()=>[track]}}
+      }});
+      window.Vosk={createModel:()=>{modelCalls++;return new Promise(()=>{})}};
+      window.AudioContext=function(){
+        this.state='running';this.sampleRate=48000;this.destination={};
+        this.resume=async()=>{};this.close=async()=>{};
+      };
+      window.yqVoiceDraft('assistant');
+      document.querySelector('#yqVInstall').click();
+      document.querySelector('#yqVStart').click();
+      await new Promise(resolve=>setTimeout(resolve,80));
+      return {modelCalls,micCalls};
+    }""")
+    c.eq(r['modelCalls'],1,'concurrent install and microphone startup share one Vosk model initialization')
+    c.eq(r['micCalls'],1,'microphone startup is requested once')
+    c.eq(pg.errs,[],'no browser runtime errors')
+    await ctx.close()
+
+
+@test
 async def offline_voice_opens_real_microphone_pipeline(br,c):
     pg,ctx=await page(br)
     r=await pg.evaluate("""async() => {
