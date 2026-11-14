@@ -818,7 +818,7 @@ function parseLocalInvoiceTextBase(text,barcodes=[],ocrConfidence=.55){
  const supplierName=label(/(?:فروشنده|تامین.?کننده|تأمین.?کننده|نام فروشگاه|شرکت|seller|supplier)[\s:#-]*(.{2,})/i);
  const totalLine=lines.find(l=>/(?:مبلغ (?:قابل\s+)?(?:پرداخت|برداخت)|قابل\s+(?:پرداخت|برداخت)|خالص\s+پرداخت|amount due)/i.test(l))||lines.find(l=>/(?:جمع کل|grand total|total)/i.test(l));
  const discountLine=lines.find(l=>/(?:تخفیف|discount)/i.test(l));const taxLine=lines.find(l=>/(?:مالیات|tax)/i.test(l));
- let sourceCurrency=/تومان|irt/i.test(text)?'IRT':/ریال|irr/i.test(text)?'IRR':'unknown';
+ let sourceCurrency=/تومان|ومان|toman|irt/i.test(text)?'IRT':/ریال|irr/i.test(text)?'IRR':'unknown';
  const scale=sourceCurrency==='IRT'?10:1;
  const total=totalLine?((ocrNumbers(totalLine).at(-1)||0)*scale):0,discount=discountLine?((ocrNumbers(discountLine).at(-1)||0)*scale):0,tax=taxLine?((ocrNumbers(taxLine).at(-1)||0)*scale):0;
  const colors=(db.colors||[]).slice().sort((a,b)=>String(b).length-String(a).length);const sizeRx=/(?:سایز|size)?\s*\b(1[7-9]|[2-4][0-9])\b/i;
