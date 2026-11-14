@@ -5,7 +5,7 @@ The model is deliberately downloaded at deploy time, not committed to Git.
 No runtime API/server is introduced; the deployed files are static assets.
 """
 from __future__ import annotations
-import hashlib, json, os, shutil, subprocess, tarfile, tempfile, urllib.request, zipfile
+import hashlib, json, os, re, shutil, subprocess, tarfile, tempfile, urllib.request, zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -107,6 +107,23 @@ def main() -> None:
     )
     for js_file in ("src/ui/offline-voice.js", "src/ui/upgrade.js", "src/ui/local-nlu.js"):
         subprocess.run(["node", "--check", str(DIST / js_file)], check=True)
+    # The main app contains substantial inline JavaScript; validate it too,
+    # not only the separately maintained modules.
+    html = (DIST / "index.html").read_text(encoding="utf-8")
+    with tempfile.TemporaryDirectory(prefix="unique-inline-js-") as check_dir:
+        for number, match in enumerate(re.finditer(r"<script\\b([^>]*)>(.*?)</script\\s*>", html, re.I | re.S)):
+            attrs, code = match.group(1), match.group(2)
+            if re.search(r"\\bsrc\\s*=", attrs, re.I):
+                continue
+            type_match = re.search(r"""\\btype\\s*=\\s*["']([^"']+)["']""", attrs, re.I)
+            script_type = type_match.group(1).lower() if type_match else ""
+            if script_type and "javascript" not in script_type and "ecmascript" not in script_type and script_type != "module":
+                continue
+            if not code.strip():
+                continue
+            check_file = Path(check_dir) / f"inline-{number}.js"
+            check_file.write_text(code, encoding="utf-8")
+            subprocess.run(["node", "--check", str(check_file)], check=True)
 
     manifest = {
         "voskBrowserVersion": VOSK_VERSION,
