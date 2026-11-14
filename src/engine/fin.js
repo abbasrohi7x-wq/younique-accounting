@@ -123,31 +123,91 @@ function createFin(db, h, core) {
       if (p.status !== 'confirmed') throw new Error('فاکتور باطل‌شده قابل برگشت نیست');
       if (method === 'credit' && !p.supplierId) throw new Error('برای ثبت در حساب، فاکتور باید تأمین‌کننده داشته باشد');
       if (method === 'cash' && !activeCashSession()) throw new Error('برای دریافت نقدی ابتدا صندوق را باز کنید');
+
+      const warehouseId = p.warehouseId || 'MAIN';
+      const warehouse = (db.warehouses || []).find(w => w.id === warehouseId && w.active !== false);
+      if (!warehouse) throw new Error('انبار فاکتور خرید پیدا نشد');
       const items = (p.items || []).map(id => (db.purchaseItems || []).find(x => x.id === id)).filter(Boolean);
-      let total = 0; const out = [];
+      const previous = (db.returns || []).filter(r => r.type === 'purchase' && r.ref === ref);
+      let netTotal = 0, costTotal = 0;
+      const out = [];
+
       for (const i of items) {
-        const q = num(qtys[i.id]); if (!q) continue;
+        const q = num(qtys[i.id]);
+        if (!q) continue;
         if (!Number.isInteger(q) || q < 0) throw new Error('تعداد برگشت باید عدد صحیح مثبت باشد');
         const already = returnedQty('purchase', 'purchaseItemId', i.id);
         if (q + already > num(i.qty) + 1e-9) throw new Error('تعداد برگشت بیشتر از مقدار قابل برگشت است');
-        const v = variantBy(i.variantId); if (!v) throw new Error('تنوع کالا پیدا نشد');
-        if (num(v.stock) < q) throw new Error('موجودی برای برگشت کافی نیست');
-        const lineTotal = R(num(i.unitPrice) * q);
-        stockMove(i.variantId, -q, 'purchase_return', ref, num(i.unitPrice), p.warehouseId || 'MAIN');
-        total += lineTotal;
-        out.push({ variantId: i.variantId, qty: q, purchaseItemId: i.id, unitPrice: i.unitPrice, total: lineTotal });
+        const v = variantBy(i.variantId);
+        if (!v) throw new Error('تنوع کالا پیدا نشد');
+        const priorRows = previous.flatMap(r => r.items || []).filter(x => x.purchaseItemId === i.id);
+        const alreadyNet = priorRows.reduce((sum, x) => sum + num(x.net !== undefined ? x.net : x.total), 0);
+        const remainingNet = Math.max(0, R(num(i.total) - alreadyNet));
+        const lineNet = q + already >= num(i.qty) - 1e-9
+          ? remainingNet
+          : R(num(i.total) * q / num(i.qty));
+        const moved = stockMove(i.variantId, -q, 'purchase_return', ref, num(i.unitPrice), warehouseId);
+        const lineCost = R(moved && moved.totalCost !== undefined ? moved.totalCost : q * num(i.unitPrice));
+        netTotal = R(netTotal + lineNet);
+        costTotal = R(costTotal + lineCost);
+        out.push({
+          variantId: i.variantId, qty: q, purchaseItemId: i.id,
+          unitPrice: i.unitPrice, net: lineNet,
+          cost: q ? R(lineCost / q) : 0, costTotal: lineCost
+        });
       }
       if (!out.length) throw new Error('حداقل یک قلم برای برگشت انتخاب کنید');
-      total = R(total);
-      const row = { id: uid(), date: now(), type: 'purchase', ref, total, note: note || '', method, supplierId: p.supplierId || '', customerId: '', warehouseId: p.warehouseId || 'MAIN', items: out };
-      db.returns = db.returns || []; db.returns.push(row);
+      if (netTotal <= 0) throw new Error('مبلغ برگشت معتبر نیست');
+
+      const doneNet = previous.reduce((sum, r) => sum + num(r.netTotal !== undefined ? r.netTotal : num(r.total) - num(r.vat)), 0);
+      const doneVat = previous.reduce((sum, r) => sum + num(r.vat), 0);
+      const originalNet = num(p.netTotal !== undefined ? p.netTotal : num(p.total) - num(p.vat));
+      const originalVat = num(p.vat);
+      const vat = originalVat > 0 && originalNet > 0
+        ? ((doneNet + netTotal >= originalNet - 0.01)
+          ? R(Math.max(0, originalVat - doneVat))
+          : R(Math.min(originalVat - doneVat, originalVat * netTotal / originalNet)))
+        : 0;
+      const gross = R(netTotal + vat);
+      const row = {
+        id: uid(), date: now(), type: 'purchase', ref, total: gross,
+        netTotal, vat, warehouseId, note: note || '', method,
+        supplierId: p.supplierId || '', customerId: '', costTotal, items: out
+      };
+      db.returns = db.returns || [];
+      db.returns.push(row);
+
       const lines = [];
-      if (method === 'credit') lines.push({ account: 'payable', debit: total, credit: 0, partyType: 'supplier', partyId: p.supplierId });
-      else lines.push({ account: paymentAccount(method), debit: total, credit: 0 });
-      lines.push({ account: 'inventory', debit: 0, credit: total });
-      postJournal(ref + '-PR' + row.id.slice(-4), 'برگشت از خرید', lines, { returnId: row.id });
-      if (method === 'cash') { const cs = activeCashSession(); if (cs) cashMove(cs.id, total, 'purchase_return', ref, 'دریافت برگشت خرید'); }
-      audit('ثبت برگشت خرید', ref, String(total)); saveDB(true); return row;
+      if (method === 'credit') lines.push({ account: 'payable', debit: gross, credit: 0, partyType: 'supplier', partyId: p.supplierId });
+      else lines.push({ account: paymentAccount(method), debit: gross, credit: 0 });
+      if (vat) lines.push({ account: 'vatReceivable', debit: 0, credit: vat });
+      if (costTotal) lines.push({ account: 'inventory', debit: 0, credit: costTotal });
+      const variance = R(netTotal - costTotal);
+      if (variance > 0) lines.push({ account: 'purchaseReturnVariance', debit: 0, credit: variance });
+      else if (variance < 0) lines.push({ account: 'purchaseReturnVariance', debit: -variance, credit: 0 });
+      const journalRef = ref + '-PR' + row.id.slice(-4);
+      postJournal(journalRef, 'برگشت از خرید', lines, {
+        returnId: row.id, costTotal, purchaseVatReturn: vat,
+        returnVariance: variance, warehouseId
+      });
+
+      if (method !== 'credit') {
+        db.payments = db.payments || [];
+        db.payments.push({
+          id: uid(), date: now(), direction: 'in',
+          partyType: p.supplierId ? 'supplier' : 'other',
+          partyId: p.supplierId || '', amount: gross,
+          account: paymentAccount(method), ref: journalRef,
+          embedded: true, note: 'دریافت برگشت خرید'
+        });
+        if (method === 'cash') {
+          const cs = activeCashSession();
+          if (cs) cashMove(cs.id, gross, 'purchase_return', ref, 'دریافت برگشت خرید');
+        }
+      }
+      audit('ثبت برگشت خرید', ref, 'net ' + netTotal + ' · VAT ' + vat);
+      saveDB(true);
+      return row;
     });
   }
 
