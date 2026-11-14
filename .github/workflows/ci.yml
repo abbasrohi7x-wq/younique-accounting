@@ -48,6 +48,8 @@ jobs:
           node --check src/ui/offline-voice.js
           node --check src/ui/upgrade.js
           node --check src/ui/local-nlu.js
+          node --check tests/headless_probe.js
+          node tests/headless_probe.js
 
       - name: Build the real offline-first distribution
         run: python scripts/build_static.py
