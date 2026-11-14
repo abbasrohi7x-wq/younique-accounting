@@ -238,8 +238,14 @@ function createEngine(db, h) {
   }
 
   function createSale(payload) {
-    const { items = [], customerId = '', payment = 'cash', paid: rawPaid = 0, discount = 0, note = '' } = payload;
+    const { items = [], customerId = '', payment = 'cash', paid: rawPaid = 0, discount = 0, note = '', warehouseId = '' } = payload;
     if (!items.length) throw new Error('فاکتور خالی است');
+    ensureWarehouseState();
+    const defaultWarehouse = db.warehouses.find(function (w) { return w.id === 'MAIN' && w.active !== false; }) || db.warehouses.find(function (w) { return w.active !== false; });
+    const selectedWarehouseId = warehouseId || (defaultWarehouse && defaultWarehouse.id);
+    const selectedWarehouse = db.warehouses.find(function (w) { return w.id === selectedWarehouseId && w.active !== false; });
+    if (!selectedWarehouse) throw new Error('انبار مبدأ معتبر نیست');
+    const selectedWarehouseStocks = db.warehouseStocks[selectedWarehouseId] || {};
     const saleItems = []; let cost = 0, subTotal = 0;
     for (const x of items) {
       const v = variantBy(x.variantId); if (!v) throw new Error('یکی از کالاها پیدا نشد');
@@ -248,7 +254,10 @@ function createEngine(db, h) {
       if (!Number.isInteger(qty)) throw new Error('تعداد باید عدد صحیح باشد');
       if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('قیمت فروش نامعتبر است');
       if (!Number.isFinite(itemDiscount) || itemDiscount < 0 || itemDiscount > qty * unitPrice) throw new Error('تخفیف ردیف نامعتبر است');
-      if (qty > num(v.stock)) throw new Error('موجودی «' + variantName(v) + '» کافی نیست');
+      const warehouseQty = selectedWarehouseStocks[x.variantId] !== undefined
+        ? Math.max(0, num(selectedWarehouseStocks[x.variantId]))
+        : (selectedWarehouseId === 'MAIN' ? Math.max(0, num(v.stock)) : 0);
+      if (qty > warehouseQty) throw new Error('موجودی کالا در انبار انتخاب‌شده کافی نیست: ' + variantName(v));
       const lineTotal = roundMoney(qty * unitPrice - itemDiscount);
       saleItems.push({ id: uid(), variantId: x.variantId, qty, unitPrice, discount: itemDiscount, total: lineTotal, cost: num(v.buyPrice || 0) });
       cost += qty * num(v.buyPrice || 0); subTotal += lineTotal;
@@ -309,13 +318,13 @@ function createEngine(db, h) {
     const no = typeof nextNumber === 'function' ? nextNumber('sale') : ('S-' + Date.now());
     const profit = roundMoney(saleItems.reduce((a, i) => a + i.total - i.qty * i.cost, 0) - num(discount));
     const seller = db.currentUserId || (Array.isArray(db.users) && db.users[0] && db.users[0].id) || '';
-    const sale = { id: uid(), number: no, date: now(), customerId: customerId || '', userId: seller, status: 'confirmed', payment: payMethod, total, paid, due, discount: num(discount), profit, vat, vatMode, items: saleItems.map(i => i.id), note: note || '', payments: splitRows || (paid > 0 ? [{ account: paymentAccount(payment), amount: paid }] : []) };
+    const sale = { id: uid(), number: no, date: now(), customerId: customerId || '', userId: seller, warehouseId: selectedWarehouseId, status: 'confirmed', payment: payMethod, total, paid, due, discount: num(discount), profit, vat, vatMode, items: saleItems.map(i => i.id), note: note || '', payments: splitRows || (paid > 0 ? [{ account: paymentAccount(payment), amount: paid }] : []) };
     db.sales = db.sales || []; db.saleItems = db.saleItems || []; db.payments = db.payments || [];
     db.sales.push(sale);
     let actualCogs = 0;
     saleItems.forEach(i => {
       db.saleItems.push(i);
-      const moved = stockMove(i.variantId, -i.qty, 'sale', no, i.cost);
+      const moved = stockMove(i.variantId, -i.qty, 'sale', no, i.cost, selectedWarehouseId);
       const lineCost = moved && moved.totalCost !== undefined ? moved.totalCost : roundMoney(i.qty * i.cost);
       i.costTotal = lineCost;
       i.cost = i.qty ? roundMoney(lineCost / i.qty) : i.cost;
