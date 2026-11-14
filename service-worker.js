@@ -14,14 +14,14 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = '1.13.0';
+const VERSION = '1.14.0';
 const SHELL_CACHE = 'unique-shell-' + VERSION;
 const OCR_CACHE = 'unique-ocr-v1';
 const VOICE_CACHE = 'unique-voice-v1';
 
 const SHELL_FILES = [
   './', './index.html', './manifest.json', './logo.svg', './icon-192.png', './icon-512.png',
-  './src/engine/core.js', './src/engine/fin.js', './src/sync/supabase-sync.js', './src/ui/upgrade.js', './src/ui/local-nlu.js', './src/ui/offline-voice.js', './vendor/fonts/vazirmatn-arabic.woff2', './vendor/fonts/vazirmatn-latin.woff2'
+  './src/engine/core.js', './src/engine/fin.js', './src/ui/upgrade.js', './src/ui/local-nlu.js', './src/ui/offline-voice.js', './vendor/fonts/vazirmatn-arabic.woff2', './vendor/fonts/vazirmatn-latin.woff2'
 ];
 /* Everything OCR needs. core/tesseract-core-lstm is the no-SIMD fallback. */
 const OCR_FILES = [
