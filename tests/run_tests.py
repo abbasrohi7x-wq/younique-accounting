@@ -567,6 +567,63 @@ async def mobile_core_pages_fit_phone_viewport(br,c):
     await ctx.close()
 
 
+@test
+async def navigation_routes_render_without_runtime_errors(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async()=> {
+      const routes=[...new Set([...document.querySelectorAll('.nav [data-page]')].map(x=>x.getAttribute('data-page')).filter(Boolean))];
+      const failed=[];
+      for(const route of routes){
+        window.page=route;
+        try{
+          render();
+          await new Promise(resolve=>setTimeout(resolve,25));
+          const content=document.querySelector('#content');
+          if(!content||!content.innerText.trim())failed.push(route+':empty');
+          if(window.page!==route)failed.push(route+':redirected');
+        }catch(e){failed.push(route+':'+String(e.message||e))}
+      }
+      return {count:routes.length,failed};
+    }""")
+    c.true(r['count']>=20,'navigation exposes the expected breadth of app modules')
+    c.eq(r['failed'],[],'every navigation route renders content without a runtime exception')
+    c.eq(pg.errs,[],'no uncaught browser errors across navigation routes')
+    await ctx.close()
+
+
+@test
+async def manual_supplier_creation_and_purchase_quick_add(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async()=> {
+      window.page='people';render();people('supplier');
+      const add=document.querySelector('#newPerson');
+      if(!add)throw Error('manual supplier add button is missing');
+      add.click();
+      document.querySelector('#pn').value='تأمین‌کننده دستی تست';
+      document.querySelector('#pp').value='09120000000';
+      document.querySelector('#pf').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));
+      await new Promise(resolve=>setTimeout(resolve,30));
+      const manual=db.suppliers.find(x=>x.name==='تأمین‌کننده دستی تست');
+      window.page='purchase';purchase();
+      const quick=document.querySelector('#purNewSup');
+      if(!quick)throw Error('quick supplier add in purchase is missing');
+      quick.click();await new Promise(resolve=>setTimeout(resolve,30));
+      document.querySelector('#qsn').value='تأمین‌کننده سریع تست';
+      document.querySelector('#qsp').value='09121111111';
+      document.querySelector('#qsf').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));
+      await new Promise(resolve=>setTimeout(resolve,30));
+      const quickRow=db.suppliers.find(x=>x.name==='تأمین‌کننده سریع تست');
+      return {manual:!!manual,manualPhone:manual&&manual.phone,quick:!!quickRow,
+        selected:document.querySelector('#purSup')?.value===quickRow?.id};
+    }""")
+    c.true(r['manual'],'supplier can be created manually from the suppliers page')
+    c.eq(r['manualPhone'],'09120000000','manual supplier contact is saved')
+    c.true(r['quick'],'supplier can be added directly from purchase without leaving the workflow')
+    c.true(r['selected'],'new quick supplier is selected in the purchase form')
+    c.eq(pg.errs,[],'no runtime errors in either supplier workflow')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
