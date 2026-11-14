@@ -251,7 +251,7 @@
       modal('<div class="modalhead"><h2>دستیار گفتاری</h2><button class="close" data-close>×</button></div><p>برای دسترسی به میکروفون، برنامه باید از HTTPS باز شود.</p>');
       return;
     }
-    showDialog('sale');
+    showDialog('assistant');
   };
   window.voiceRecord = function () { showDialog('assistant'); };
   window.addEventListener('pagehide', function () { stopCapture(true); });
