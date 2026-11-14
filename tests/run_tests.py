@@ -204,7 +204,7 @@ async def offline_voice_transcript_reaches_local_assistant(br,c):
 async def offline_voice_opens_real_microphone_pipeline(br,c):
     pg,ctx=await page(br)
     r=await pg.evaluate("""async() => {
-      let handlers={},accepted=0,permissionRequested=false;
+      let handlers={},accepted=0,permissionRequested=false,recognizerSampleRate=0;
       const track={readyState:'live',stop(){}};
       const stream={getTracks:()=>[track],getAudioTracks:()=>[track]};
       Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{
@@ -215,7 +215,8 @@ async def offline_voice_opens_real_microphone_pipeline(br,c):
       }});
       window.Vosk={createModel:async()=>({
         ready:true,
-        KaldiRecognizer:function(){
+        KaldiRecognizer:function(rate){
+          recognizerSampleRate=rate;
           this.on=(name,fn)=>{handlers[name]=fn};
           this.acceptWaveform=()=>{accepted++;if(handlers.partialresult)handlers.partialresult({result:{partial:'سلام'}})};
           this.remove=()=>{};
@@ -223,7 +224,7 @@ async def offline_voice_opens_real_microphone_pipeline(br,c):
         terminate(){}
       })};
       window.AudioContext=function(){
-        this.state='running';this.destination={};this.resume=async()=>{};
+        this.state='running';this.sampleRate=48000;this.destination={};this.resume=async()=>{};
         this.createMediaStreamSource=()=>({connect(){}});
         this.createScriptProcessor=()=>{window.__fakeProcessor={connect(){},disconnect(){},onaudioprocess:null};return window.__fakeProcessor};
         this.createGain=()=>({gain:{value:1},connect(){},disconnect(){}});
@@ -238,9 +239,10 @@ async def offline_voice_opens_real_microphone_pipeline(br,c):
         window.__fakeProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>samples}});
       }
       await new Promise(r=>setTimeout(r,30));
-      return {permissionRequested,accepted,status:document.querySelector('#yqVStatus')?.textContent||''};
+      return {permissionRequested,accepted,recognizerSampleRate,status:document.querySelector('#yqVStatus')?.textContent||''};
     }""")
     c.true(r['permissionRequested'],'microphone permission requested on start button')
+    c.eq(r['recognizerSampleRate'],48000,'Vosk recognizer receives actual AudioContext sample rate')
     c.true(r['accepted']>=1,'audio frames reached Vosk recognizer')
     c.true('سلام' in r['status'],'partial recognition updates visible status')
     c.eq(pg.errs,[],'no browser runtime errors')
