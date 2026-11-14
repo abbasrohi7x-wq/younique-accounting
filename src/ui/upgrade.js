@@ -674,7 +674,29 @@
         catch (err) { askText('شروع تشخیص گفتار محلی ناموفق بود. می‌توانید متن را وارد کنید.'); }
       }
       if (state === 'available') { startLocal(); return; }
-      askText('بستهٔ زبان فارسی برای تشخیص آفلاین هنوز نصب نیست. پس از نصب زبان در تنظیمات مرورگر، دوباره امتحان کنید.');
+      if (state === 'downloadable') {
+        modal(
+          '<div class="modalhead"><h2>آماده‌سازی گفتار آفلاین</h2><button class="close" data-close>×</button></div>' +
+          '<p class="muted">مرورگر می‌تواند بستهٔ زبان فارسی را برای تشخیص روی همین دستگاه دریافت کند. این کار فقط با تأیید شما شروع می‌شود؛ پس از نصب، تشخیص بدون ارسال صدا به سرور انجام می‌شود.</p>' +
+          '<div class="modal-actions"><button class="btn" id="yqVoiceInstall" type="button">دریافت بستهٔ فارسی</button><button class="btn" id="yqVoiceText" type="button">ورود متن</button></div>'
+        );
+        $('#yqVoiceText').onclick = function () { closeModal(); askText(); };
+        $('#yqVoiceInstall').onclick = function () {
+          var b = $('#yqVoiceInstall');
+          b.disabled = true;
+          b.textContent = 'در حال آماده‌سازی…';
+          Promise.resolve().then(function () { return R.install(opts); }).then(function (ok) {
+            closeModal();
+            if (ok) startLocal();
+            else askText('نصب بستهٔ فارسی انجام نشد. برای حفظ حریم خصوصی، مسیر آنلاین فعال نمی‌شود.');
+          }).catch(function () {
+            closeModal();
+            askText('دریافت بستهٔ فارسی ناموفق بود. می‌توانید متن را وارد کنید؛ صدا به اینترنت ارسال نمی‌شود.');
+          });
+        };
+        return;
+      }
+      askText('بستهٔ زبان فارسی هنوز برای تشخیص آفلاین آماده نیست. می‌توانید متن را وارد کنید؛ مسیر آنلاین فعال نمی‌شود.');
     }).catch(function () {
       askText('وضعیت موتور گفتار آفلاین قابل بررسی نیست. برای جلوگیری از ارسال صدا به سرویس آنلاین، ورودی متنی فعال شد.');
     });
