@@ -1,4 +1,4 @@
-name: Validate offline Persian voice
+name: Validate Unique Pro offline-first app
 on:
   push:
     branches:
@@ -29,8 +29,14 @@ jobs:
           node --check src/ui/local-nlu.js
       - name: Build static site and Vosk assets
         run: python scripts/build_static.py
-      - name: Verify packaged Vosk runtime and Persian model
+      - name: Verify packaged offline OCR and voice runtimes
         run: |
+          test -s dist/vendor/tesseract/tesseract.min.js
+          test -s dist/vendor/tesseract/worker.min.js
+          test -s dist/vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js
+          test -s dist/vendor/tesseract/core/tesseract-core-lstm.wasm.js
+          test -s dist/vendor/tesseract/lang/fas.traineddata.gz
+          test -s dist/vendor/tesseract/lang/eng.traineddata.gz
           test -s dist/vendor/vosk/vosk.js
           test -s dist/vendor/vosk/model.tar.gz
           tar -tzf dist/vendor/vosk/model.tar.gz | grep -q 'model/am/final.mdl'
