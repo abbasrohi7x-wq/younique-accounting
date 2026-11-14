@@ -1417,7 +1417,7 @@ $('#content').innerHTML=pageHead('انتقال بین دستگاه‌ها','ان
 <div id="syncResult"></div>
 <small>آخرین انتقال: ${s.lastSync?esc(s.lastSync):'—'} · آخرین ادغام: ${s.importedAt?esc(s.importedAt):'—'}</small>
 </div>
-<div class="card section"><h3>روش کار</h3><ol><li>از دستگاه اول «ساخت بسته انتقال» را بزنید.</li><li>فایل `.unique.json` را با کابل، پیام‌رسان یا حافظهٔ جانبی به دستگاه دوم ببرید.</li><li>در دستگاه دوم «دریافت و ادغام بسته» را بزنید و ابتدا پیش‌نمایش تعارض‌ها را بررسی کنید.</li><li>فقط پس از تأیید، ادغام اعمال می‌شود.</li></ol><p class="muted">این روش به اینترنت یا حساب ابری نیاز ندارد؛ فایل انتقال را مانند نسخهٔ پشتیبان محرمانه نگهداری کنید.</p></div>`;
+<div class="card section"><h3>روش کار</h3><ol><li>از دستگاه اول «ساخت بسته انتقال» را بزنید.</li><li>فایل «unique.json» را با کابل، پیام‌رسان یا حافظهٔ جانبی به دستگاه دوم ببرید.</li><li>در دستگاه دوم «دریافت و ادغام بسته» را بزنید و ابتدا پیش‌نمایش تعارض‌ها را بررسی کنید.</li><li>فقط پس از تأیید، ادغام اعمال می‌شود.</li></ol><p class="muted">این روش به اینترنت یا حساب ابری نیاز ندارد؛ فایل انتقال را مانند نسخهٔ پشتیبان محرمانه نگهداری کنید.</p></div>`;
 $('#sx').onclick=()=>{try{const env=syncEnvelope();db.pro.sync.lastSync=env.createdAt;saveDB(true);download('unique-pro-transfer-'+today()+'.unique.json',JSON.stringify(env,null,2));toast('بسته انتقال آماده شد')}catch(e){toast('ساخت بسته ناموفق بود: '+e.message,true)}};
 $('#si').onclick=()=>$('#sif').click();
 $('#sif').onchange=async e=>{const f=e.target.files?.[0];if(!f)return;const box=$('#syncResult');try{
@@ -1522,7 +1522,7 @@ const ActionEngine=(()=>{
   }
   pro39Init();
   function reports39(){
-    pro39Init(); const s=db.sales.filter(x=>x.status==='confirmed'), salesTotal=s.reduce((a,x)=>a+num(x.total),0), cost=s.reduce((a,x)=>a+num(x.costTotal),0), gross=salesTotal-cost;
+    pro39Init(); const s=db.sales.filter(x=>x.status==='confirmed'), salesTotal=s.reduce((a,x)=>a+num(x.total),0), cost=s.reduce((a,x)=>a+(x.costTotal!==undefined&&x.costTotal!==null?num(x.costTotal):Math.max(0,num(x.total)-num(x.profit))),0), gross=salesTotal-cost;
     const top={};s.forEach(x=>(x.items||[]).forEach(i0=>{/* v42.1: sale.items holds item ids, not objects */const i=typeof i0==='string'?(db.saleItems||[]).find(y=>y.id===i0):i0;if(!i)return;const v=i.variantId||i.id,k=v;top[k]??={name:variantName(variantBy(k))||i.name||'کالا',qty:0,total:0};top[k].qty+=num(i.qty);top[k].total+=num(i.total)}));
     const low=stockAlerts(), dead=activeVariants().filter(v=>num(v.stock)>0&&!s.some(x=>(x.items||[]).some(i=>i.variantId===v.id&&new Date(x.date)>new Date(Date.now()-60*86400000))));
     const rows=Object.values(top).sort((a,b)=>b.qty-a.qty).slice(0,15);
