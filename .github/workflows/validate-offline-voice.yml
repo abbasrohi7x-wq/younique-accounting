@@ -11,7 +11,7 @@ permissions:
 jobs:
   build-and-validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -35,3 +35,17 @@ jobs:
           test -s dist/vendor/vosk/model.tar.gz
           tar -tzf dist/vendor/vosk/model.tar.gz | grep -q 'model/am/final.mdl'
           test -s dist/index.html
+      - name: Install Playwright
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+      - name: Run full browser regression suite against built output
+        run: |
+          python -m http.server 8765 --directory dist >/tmp/unique-http.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/index.html >/dev/null; then break; fi
+            sleep 1
+          done
+          python tests/run_tests.py
