@@ -471,6 +471,23 @@ async def cash_sale_without_open_session_does_not_fall_back_to_legacy(br,c):
 
 
 @test
+async def purchase_classifies_card_and_bank_as_mixed(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const p=await T.buy(S,S.v,5,1000,{card:3000,bank:2000});
+      return{saved:!!p,payment:p&&p.payment,channels:p&&(p.payments||[]).map(x=>x.account).sort(),
+        stock:variantBy(S.v).stock,unb:T.unbalanced()};
+    """)
+    c.true(r['saved'],'purchase with card and bank is saved')
+    c.eq(r['payment'],'mixed','card plus bank is classified as mixed')
+    c.eq(r['channels'],['bank','card'],'both payment channels are preserved')
+    c.eq(r['stock'],5,'purchase inventory is received')
+    c.eq(r['unb'],0,'purchase journal remains balanced')
+    await ctx.close()
+
+
+@test
 async def multi_method_purchase_and_sale_payments(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,'''const S=await T.seed({});
