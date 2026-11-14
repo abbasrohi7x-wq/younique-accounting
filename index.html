@@ -5755,9 +5755,8 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
         if (typeof render === 'function') render();
         return result.sale;
       } catch (e) {
-        console.error('[YQ Bridge] saveSale error, fallback', e);
+        console.error('[YQ Bridge] saveSale rejected', e);
         if (typeof toast === 'function') toast((e && e.message) || 'ثبت فروش ناموفق بود', true);
-        if (origSaveSale) return origSaveSale.apply(this, arguments);
         return null;
       }
     };
@@ -5795,9 +5794,8 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
         if (typeof render === 'function') render();
         return result.purchase;
       } catch (e) {
-        console.error('[YQ Bridge] savePurchase error, fallback', e);
+        console.error('[YQ Bridge] savePurchase rejected', e);
         if (typeof toast === 'function') toast((e && e.message) || 'ثبت خرید ناموفق بود', true);
-        if (origSavePurchase) return origSavePurchase.apply(this, arguments);
         return null;
       }
     };
