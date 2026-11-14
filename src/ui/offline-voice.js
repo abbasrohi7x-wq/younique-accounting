@@ -6,7 +6,7 @@
   var MODEL_URL = './vendor/vosk/model.tar.gz';
   var CACHE_NAME = 'unique-voice-v1';
   var model = null, recognizer = null, stream = null, audioContext = null;
-  var source = null, processor = null, muted = null, active = false, finalText = '', pendingStop = null;
+  var source = null, processor = null, muted = null, active = false, finalText = '', pendingStop = null, captureWatchdog = null;
   var scriptPromise = null;
 
   function byId(id) { return document.getElementById(id); }
@@ -84,6 +84,7 @@
   function stopCapture(releaseModel, finalize) {
     if (pendingStop) return releaseModel ? pendingStop.then(function () { return stopCapture(true, false); }) : pendingStop;
     active = false;
+    if (captureWatchdog) { clearTimeout(captureWatchdog); captureWatchdog = null; }
     if (processor) { processor.onaudioprocess = null; try { processor.disconnect(); } catch (_) {} processor = null; }
     if (source) { try { source.disconnect(); } catch (_) {} source = null; }
     if (muted) { try { muted.disconnect(); } catch (_) {} muted = null; }
@@ -187,6 +188,7 @@
         processor.onaudioprocess = function (event) {
           if (!active || !recognizer) return;
           frames++;
+          if (frames === 1 && captureWatchdog) { clearTimeout(captureWatchdog); captureWatchdog = null; }
           try {
             var data = event.inputBuffer.getChannelData(0), sum = 0;
             for (var i = 0; i < data.length; i += 8) sum += data[i] * data[i];
@@ -204,6 +206,13 @@
         source.connect(processor);
         processor.connect(muted);
         muted.connect(audioContext.destination);
+        captureWatchdog = setTimeout(function () {
+          captureWatchdog = null;
+          if (active && frames === 0) {
+            status('میکروفون مجاز شده اما مرورگر هیچ فریم صوتی به برنامه نداد. ورودی میکروفون را بررسی کنید، دسترسی سایت را دوباره بدهید و صفحه را تازه‌سازی کنید.');
+            stopCapture(false);
+          }
+        }, 5000);
         status('ضبط فعال شد؛ اکنون صحبت کنید. برای پایان، «توقف ضبط» را بزنید.');
       });
     }).catch(function (error) {
