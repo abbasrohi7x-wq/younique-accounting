@@ -574,13 +574,13 @@ async def navigation_routes_render_without_runtime_errors(br,c):
       const routes=[...new Set([...document.querySelectorAll('.nav [data-page]')].map(x=>x.getAttribute('data-page')).filter(Boolean))];
       const failed=[];
       for(const route of routes){
-        window.page=route;
+        page=route;
         try{
           render();
           await new Promise(resolve=>setTimeout(resolve,25));
           const content=document.querySelector('#content');
           if(!content||!content.innerText.trim())failed.push(route+':empty');
-          if(window.page!==route)failed.push(route+':redirected');
+          if(page!==route)failed.push(route+':redirected');
         }catch(e){failed.push(route+':'+String(e.message||e))}
       }
       return {count:routes.length,failed};
