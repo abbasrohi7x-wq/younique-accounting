@@ -111,7 +111,7 @@ function createEngine(db, h) {
     db.warehouseStocks = db.warehouseStocks && typeof db.warehouseStocks === 'object' ? db.warehouseStocks : {};
   }
 
-  function stockMove(variantId, qty, type, ref, cost = 0, warehouseId) {
+  function stockMove(variantId, qty, type, ref, cost = 0, warehouseId, totalValue) {
     const v = variantBy(variantId); if (!v) throw new Error('تنوع کالا پیدا نشد');
     const q = num(qty);
     const next = num(v.stock) + q;
@@ -134,7 +134,9 @@ function createEngine(db, h) {
     let actualCost = Math.max(0, num(cost));
     let totalCost = 0;
     if (q > 0) {
-      const addedValue = roundMoney(q * (actualCost || num(v.buyPrice)));
+      const addedValue = totalValue !== undefined && totalValue !== null
+        ? roundMoney(Math.max(0, num(totalValue)))
+        : roundMoney(q * (actualCost || num(v.buyPrice)));
       addCostLayer(variantId, q, actualCost || num(v.buyPrice), type, ref, addedValue);
       totalCost = addedValue;
       actualCost = q ? addedValue / q : 0;
@@ -342,50 +344,114 @@ function createEngine(db, h) {
   }
 
   function createPurchase(payload) {
-    const { items = [], supplierId = '', payments = { cash: 0, card: 0, bank: 0, credit: 0 } } = payload;
+    const { items = [], supplierId = '', warehouseId = '', payments = { cash: 0, card: 0, bank: 0, credit: 0 } } = payload;
     if (!items.length) throw new Error('خرید خالی است');
     const cash = num(payments.cash || 0), card = num(payments.card || 0), bank = num(payments.bank || 0), credit = num(payments.credit || 0);
     const paymentParts = [cash, card, bank, credit];
     if (paymentParts.some(function (amount) { return !Number.isFinite(amount) || amount < 0; })) throw new Error('مبلغ یکی از روش‌های پرداخت نامعتبر است');
-    const total = roundMoney(cash + card + bank + credit);
-    if (total <= 0) throw new Error('مبلغ خرید معتبر نیست');
+    const paymentTotal = roundMoney(cash + card + bank + credit);
+    if (paymentTotal <= 0) throw new Error('مبلغ خرید معتبر نیست');
     if (credit > 0 && !supplierId) throw new Error('برای ثبت بدهی، تأمین‌کننده را انتخاب کنید');
     if (cash > 0 && !activeCashSession()) throw new Error('برای پرداخت نقدی ابتدا صندوق را باز کنید');
+
+    ensureWarehouseState();
+    const defaultWarehouse = db.warehouses.find(function (w) { return w.id === 'MAIN' && w.active !== false; }) || db.warehouses.find(function (w) { return w.active !== false; });
+    const selectedWarehouseId = warehouseId || (defaultWarehouse && defaultWarehouse.id);
+    const selectedWarehouse = db.warehouses.find(function (w) { return w.id === selectedWarehouseId && w.active !== false; });
+    if (!selectedWarehouse) throw new Error('انبار مقصد معتبر نیست');
+
+    const tax = db.taxProfile || {};
+    const taxRate = tax.enabled ? num(tax.vatRate) : 0;
+    const taxOn = taxRate > 0 && taxRate < 100;
+    const taxMode = tax.vatMode === 'inclusive' ? 'inclusive' : 'exclusive';
     const purchaseItems = [];
+    let enteredTotal = 0;
     for (const x of items) {
       const v = variantBy(x.variantId); if (!v) throw new Error('یکی از کالاها پیدا نشد');
       const qty = num(x.qty), unitPrice = num(x.unitPrice);
       if (!Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) throw new Error('تعداد خرید باید عدد صحیح و مثبت باشد');
       if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('قیمت خرید نامعتبر است');
-      purchaseItems.push({ id: uid(), variantId: x.variantId, qty, unitPrice, total: roundMoney(qty * unitPrice) });
+      const enteredLine = roundMoney(qty * unitPrice);
+      enteredTotal = roundMoney(enteredTotal + enteredLine);
+      const netLine = taxOn && taxMode === 'inclusive'
+        ? roundMoney(enteredLine * 100 / (100 + taxRate))
+        : enteredLine;
+      purchaseItems.push({
+        id: uid(), variantId: x.variantId, qty,
+        unitPrice: qty ? roundMoney(netLine / qty) : 0,
+        enteredUnitPrice: unitPrice, total: netLine
+      });
     }
-    const itemsTotal = roundMoney(purchaseItems.reduce(function (sum, item) { return sum + item.total; }, 0));
-    if (Math.abs(roundMoney(itemsTotal - total)) > 0.01) throw new Error('جمع مبلغ اقلام با مجموع پرداخت و بدهی فاکتور خرید برابر نیست');
+
+    let netTotal = enteredTotal, vat = 0, grossTotal = enteredTotal;
+    if (taxOn) {
+      if (taxMode === 'inclusive') {
+        vat = roundMoney(enteredTotal - enteredTotal * 100 / (100 + taxRate));
+        netTotal = roundMoney(enteredTotal - vat);
+        grossTotal = enteredTotal;
+      } else {
+        vat = roundMoney(enteredTotal * taxRate / 100);
+        netTotal = enteredTotal;
+        grossTotal = roundMoney(netTotal + vat);
+      }
+    }
+    const netItemsTotal = roundMoney(purchaseItems.reduce(function (sum, item) { return sum + item.total; }, 0));
+    const adjustment = roundMoney(netTotal - netItemsTotal);
+    if (purchaseItems.length && Math.abs(adjustment) > 0.0001) {
+      const last = purchaseItems[purchaseItems.length - 1];
+      last.total = roundMoney(last.total + adjustment);
+      last.unitPrice = roundMoney(last.total / last.qty);
+    }
+    if (Math.abs(roundMoney(grossTotal - paymentTotal)) > 0.01) {
+      throw new Error('جمع اقلام به‌همراه مالیات با مجموع پرداخت و بدهی فاکتور خرید برابر نیست');
+    }
+
     const no = typeof nextNumber === 'function' ? nextNumber('purchase') : ('P-' + Date.now());
-    const paymentMethodCount = [cash, card, bank, credit].filter(function (amount) { return amount > 0; }).length;
+    const paymentMethodCount = paymentParts.filter(function (amount) { return amount > 0; }).length;
     const paymentType = paymentMethodCount > 1 ? 'mixed' : cash ? 'cash' : card ? 'card' : bank ? 'bank' : 'credit';
-    const row = { id: uid(), number: no, date: now(), supplierId: supplierId || '', status: 'confirmed', payment: paymentType, total, paid: cash + card + bank, due: credit, items: purchaseItems.map(x => x.id),
-      payments: [{ account: 'cash', amount: cash }, { account: 'card', amount: card }, { account: 'bank', amount: bank }, { account: 'credit', amount: credit }].filter(x => x.amount > 0) };
+    const row = {
+      id: uid(), number: no, date: now(), supplierId: supplierId || '', warehouseId: selectedWarehouseId,
+      status: 'confirmed', payment: paymentType, total: grossTotal, netTotal, vat,
+      vatMode: vat ? taxMode : '', vatRate: vat ? taxRate : 0,
+      paid: cash + card + bank, due: credit, items: purchaseItems.map(function (x) { return x.id; }),
+      payments: [
+        { account: 'cash', amount: cash }, { account: 'card', amount: card },
+        { account: 'bank', amount: bank }, { account: 'credit', amount: credit }
+      ].filter(function (x) { return x.amount > 0; })
+    };
     db.purchases = db.purchases || []; db.purchaseItems = db.purchaseItems || []; db.payments = db.payments || [];
     db.purchases.push(row);
-    purchaseItems.forEach(i => {
-      db.purchaseItems.push(i);
-      const v = variantBy(i.variantId); const oldQty = Math.max(0, num(v.stock)), oldCost = Math.max(0, num(v.buyPrice));
-      const qty = Math.max(0, num(i.qty)), price = Math.max(0, num(i.unitPrice));
-      stockMove(i.variantId, qty, 'purchase', no, price);
-      v.buyPrice = (oldQty + qty) > 0 ? roundMoney(((oldQty * oldCost) + (qty * price)) / (oldQty + qty)) : price;
+    purchaseItems.forEach(function (item) {
+      db.purchaseItems.push(item);
+      const v = variantBy(item.variantId);
+      const oldQty = Math.max(0, num(v.stock)), oldCost = Math.max(0, num(v.buyPrice));
+      const moved = stockMove(item.variantId, item.qty, 'purchase', no, item.unitPrice, selectedWarehouseId, item.total);
+      v.buyPrice = oldQty + item.qty > 0
+        ? roundMoney(((oldQty * oldCost) + moved.totalCost) / (oldQty + item.qty))
+        : item.unitPrice;
     });
-    [{ account: 'cash', amount: cash }, { account: 'card', amount: card }, { account: 'bank', amount: bank }].filter(x => x.amount > 0).forEach(x => {
-      db.payments.push({ id: uid(), date: now(), direction: 'out', partyType: supplierId ? 'supplier' : 'other', partyId: supplierId || '', amount: x.amount, account: x.account, ref: no, embedded: true, note: 'پرداخت همراه خرید' });
-      if (x.account === 'cash') { const cs = activeCashSession(); if (cs) cashMove(cs.id, -x.amount, 'purchase', no, 'پرداخت نقدی خرید'); }
+    [
+      { account: 'cash', amount: cash }, { account: 'card', amount: card }, { account: 'bank', amount: bank }
+    ].filter(function (x) { return x.amount > 0; }).forEach(function (x) {
+      db.payments.push({
+        id: uid(), date: now(), direction: 'out', partyType: supplierId ? 'supplier' : 'other',
+        partyId: supplierId || '', amount: x.amount, account: x.account, ref: no,
+        embedded: true, note: 'پرداخت همراه خرید'
+      });
+      if (x.account === 'cash') {
+        const cs = activeCashSession();
+        if (cs) cashMove(cs.id, -x.amount, 'purchase', no, 'پرداخت نقدی خرید');
+      }
     });
-    const lines = [{ account: 'inventory', debit: total, credit: 0 }];
+    const lines = [{ account: 'inventory', debit: netTotal, credit: 0 }];
+    if (vat) lines.push({ account: 'vatReceivable', debit: vat, credit: 0 });
     if (cash) lines.push({ account: 'cash', debit: 0, credit: cash });
     if (card) lines.push({ account: 'card', debit: 0, credit: card });
     if (bank) lines.push({ account: 'bank', debit: 0, credit: bank });
     if (credit) lines.push({ account: 'payable', debit: 0, credit: credit, partyType: 'supplier', partyId: supplierId });
-    postJournal(no, 'خرید', lines, { purchaseId: row.id });
-    audit('ثبت خرید', no, ''); saveDB(true);
+    postJournal(no, 'خرید', lines, { purchaseId: row.id, purchaseVat: vat, warehouseId: selectedWarehouseId });
+    audit('ثبت خرید', no, '');
+    saveDB(true);
     return { purchase: row, items: purchaseItems, number: no };
   }
 
