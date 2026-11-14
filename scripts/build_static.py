@@ -102,9 +102,9 @@ def main() -> None:
     apache_license = asset_dir / "APACHE-2.0.txt"
     download("https://www.apache.org/licenses/LICENSE-2.0.txt", apache_license)
     (asset_dir / "MODEL-SOURCE.txt").write_text(
-        "Persian acoustic model: " + MODEL_NAME + "\\n"
-        "Source: https://alphacephei.com/vosk/models\\n"
-        "License: Apache License 2.0; see APACHE-2.0.txt\\n",
+        "Persian acoustic model: " + MODEL_NAME + "\n"
+        "Source: https://alphacephei.com/vosk/models\n"
+        "License: Apache License 2.0; see APACHE-2.0.txt\n",
         encoding="utf-8"
     )
     for js_file in ("src/ui/offline-voice.js", "src/ui/upgrade.js", "src/ui/local-nlu.js"):
