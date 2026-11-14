@@ -166,8 +166,9 @@
   function applyTranscript(value, context) {
     value = String(value || '').trim();
     if (!value) { if (typeof toast === 'function') toast('متنی برای ارسال وجود ندارد', true); return; }
-    if (context === 'sale' && window.page === 'sale' && typeof window.yqApplyVoiceDraft === 'function') {
-      window.yqApplyVoiceDraft(value);
+    var assistantUI = window.UAI && window.UAI.ui;
+    if (assistantUI && typeof assistantUI.submit === 'function') {
+      assistantUI.submit(value, 'voice');
       return;
     }
     if (window.UI && typeof window.UI.submit === 'function') {
