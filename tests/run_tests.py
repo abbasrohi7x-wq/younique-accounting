@@ -491,7 +491,7 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
       db.customers.find(x=>x.id===S.cus).name='نام محلی';
       let captured=null;
       window.download=(name,content)=>{captured={name,content}};
-      proSync();
+      window.page='sync';proSync();
       document.querySelector('#sx').click();
       const env=captured?JSON.parse(captured.content):null;
       const backup=JSON.parse(exportData());
