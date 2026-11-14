@@ -424,6 +424,53 @@ async def inventory_purchase_precedes_sale_and_split_payment(br,c):
 
 
 @test
+async def purchase_rejects_payment_total_mismatch_without_side_effects(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const before={purchases:db.purchases.length,stock:variantBy(S.v).stock,journal:db.journal.length,payments:db.payments.length};
+      const purchase=await T.buy(S,S.v,1,100,{cash:90});
+      return{wired:!!window.__YQ_WIRED,purchase:!!purchase,purchases:db.purchases.length-before.purchases,
+        stock:variantBy(S.v).stock-before.stock,journals:db.journal.length-before.journal,
+        payments:db.payments.length-before.payments,unb:T.unbalanced()};
+    """)
+    c.true(r['wired'],'new engine bridge is active for the transaction test')
+    c.true(not r['purchase'],'purchase with mismatched item and payment totals is rejected')
+    c.eq(r['purchases'],0,'no purchase invoice is written')
+    c.eq(r['stock'],0,'rejected purchase does not add inventory')
+    c.eq(r['journals'],0,'rejected purchase creates no journal')
+    c.eq(r['payments'],0,'rejected purchase creates no payment rows')
+    c.eq(r['unb'],0,'ledger remains balanced')
+    c.eq(pg.errs,[],'page has no uncaught errors')
+    await ctx.close()
+
+
+@test
+async def cash_sale_without_open_session_does_not_fall_back_to_legacy(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      await T.buy(S,S.v,2,1000,{card:2000});
+      closeCashSession(cashSessionExpected(activeCashSession()),'test close');
+      const before={sales:db.sales.length,stock:variantBy(S.v).stock,journal:db.journal.length,payments:db.payments.length};
+      const sale=await T.sell(S,S.v,1,1500,{cash:1500});
+      return{wired:!!window.__YQ_WIRED,sale:!!sale,sales:db.sales.length-before.sales,
+        stock:variantBy(S.v).stock-before.stock,journals:db.journal.length-before.journal,
+        payments:db.payments.length-before.payments,open:!!activeCashSession(),unb:T.unbalanced()};
+    """)
+    c.true(r['wired'],'new engine bridge is active for the transaction test')
+    c.true(not r['sale'],'cash sale without an open session is rejected')
+    c.eq(r['sales'],0,'rejected cash sale does not create an invoice')
+    c.eq(r['stock'],0,'rejected cash sale does not reduce stock')
+    c.eq(r['journals'],0,'rejected cash sale creates no journal')
+    c.eq(r['payments'],0,'rejected cash sale creates no payment rows')
+    c.true(not r['open'],'cash session remains closed')
+    c.eq(r['unb'],0,'ledger remains balanced')
+    c.eq(pg.errs,[],'page has no uncaught errors')
+    await ctx.close()
+
+
+@test
 async def multi_method_purchase_and_sale_payments(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,'''const S=await T.seed({});
