@@ -769,6 +769,11 @@ async def ocr_invoice_requires_review_and_only_creates_purchase_draft(br,c):
       const before={p:db.purchases.length,j:db.journal.length,pay:db.payments.length,stock:variantBy(S.v).stock};
       const name=variantName(variantBy(S.v));
       showInvoiceResult({documentType:'purchase_invoice',confidence:.95,total:1000,subtotal:1000,
+        discount:0,tax:0,shipping:0,items:[{name,qty:2,unitPrice:1000,lineTotal:1000,confidence:.95}]},null);
+      document.querySelector('#invoiceConfirm').click();await T.sleep(40);
+      const mismatchBlocked=!!document.querySelector('#invoiceConfirm')&&db.purchases.length===before.p;
+      closeModal();
+      showInvoiceResult({documentType:'purchase_invoice',confidence:.95,total:1000,subtotal:1000,
         discount:0,tax:0,shipping:0,items:[{name,qty:1,unitPrice:1000,lineTotal:1000,confidence:.95}]},null);
       const review=document.querySelector('.modalbox h2')?.textContent||'';
       const rows=document.querySelectorAll('#invoiceRows tr').length;
@@ -776,10 +781,11 @@ async def ocr_invoice_requires_review_and_only_creates_purchase_draft(br,c):
       const draft=document.querySelector('.modalbox h2')?.textContent||'';
       const afterReview={p:db.purchases.length,j:db.journal.length,pay:db.payments.length,stock:variantBy(S.v).stock};
       document.querySelector('#aiExec').click();await T.sleep(100);
-      return{review,rows,draft,before,afterReview,
+      return{review,rows,draft,before,afterReview,mismatchBlocked,
         afterDraft:{p:db.purchases.length,j:db.journal.length,pay:db.payments.length,stock:variantBy(S.v).stock},
         cart:purchaseCart.length,form:!!document.querySelector('#purWarehouse')}
     """)
+    c.true(r['mismatchBlocked'],'OCR approval blocks a line amount that differs from quantity times unit price')
     c.eq(r['review'],'بررسی و تأیید فاکتور','OCR opens an editable invoice review before any purchase')
     c.eq(r['rows'],1,'OCR review shows the extracted invoice line')
     c.eq(r['draft'],'پیش‌نویس خرید','confirming OCR opens a purchase draft preview')
