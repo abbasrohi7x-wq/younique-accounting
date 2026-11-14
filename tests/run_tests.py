@@ -271,6 +271,38 @@ async def offline_voice_button_uses_local_vosk_dialog_not_browser_speech(br,c):
     await ctx.close()
 
 
+@test
+async def offline_voice_resumes_audio_context_before_model_load(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async() => {
+      let requested=false,modelPending=false;
+      const track={readyState:'live',stop(){}};
+      const stream={getTracks:()=>[track],getAudioTracks:()=>[track]};
+      Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{
+        getUserMedia:()=>{requested=true;return Promise.resolve(stream)}
+      }});
+      Object.defineProperty(window,'caches',{configurable:true,value:{
+        open:async()=>({match:async()=>({cached:true})})
+      }});
+      window.Vosk={createModel:()=>{modelPending=true;return new Promise(()=>{})}};
+      window.AudioContext=function(){
+        window.__audioContextCreated=true;
+        this.state='suspended';this.destination={};
+        this.resume=async()=>{this.state='running'};
+        this.close=async()=>{};
+      };
+      window.yqVoiceDraft('assistant');
+      document.querySelector('#yqVStart').click();
+      await new Promise(resolve=>setTimeout(resolve,20));
+      return {created:!!window.__audioContextCreated,requested,modelPending};
+    }""")
+    c.true(r['created'],'AudioContext is created synchronously from the microphone tap')
+    c.true(r['requested'],'microphone permission request starts')
+    c.true(r['modelPending'],'model loading can continue asynchronously after audio resume')
+    c.eq(pg.errs,[],'no browser runtime errors')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
