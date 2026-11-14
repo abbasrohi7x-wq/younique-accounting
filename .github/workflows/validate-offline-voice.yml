@@ -1,0 +1,37 @@
+name: Validate offline Persian voice
+on:
+  push:
+    branches:
+      - chatgpt-push-test-2026-11-13
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Check Python build script
+        run: python -m py_compile scripts/build_static.py
+      - name: Check browser JavaScript syntax
+        run: |
+          node --check src/ui/offline-voice.js
+          node --check src/ui/upgrade.js
+          node --check src/ui/local-nlu.js
+      - name: Build static site and Vosk assets
+        run: python scripts/build_static.py
+      - name: Verify packaged Vosk runtime and Persian model
+        run: |
+          test -s dist/vendor/vosk/vosk.js
+          test -s dist/vendor/vosk/model.tar.gz
+          tar -tzf dist/vendor/vosk/model.tar.gz | grep -q 'model/am/final.mdl'
+          test -s dist/index.html
