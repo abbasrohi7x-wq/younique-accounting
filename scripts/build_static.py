@@ -5,7 +5,7 @@ The model is deliberately downloaded at deploy time, not committed to Git.
 No runtime API/server is introduced; the deployed files are static assets.
 """
 from __future__ import annotations
-import hashlib, json, os, shutil, tarfile, tempfile, urllib.request, zipfile
+import hashlib, json, os, shutil, subprocess, tarfile, tempfile, urllib.request, zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -63,6 +63,15 @@ def main() -> None:
                     raise RuntimeError(f"Cannot read {member.name}")
                 with source, target.open("wb") as out:
                     shutil.copyfileobj(source, out)
+            for license_path in ("package/LICENSE", "package/NOTICE"):
+                try:
+                    member = package.getmember(license_path)
+                except KeyError:
+                    continue
+                source = package.extractfile(member)
+                if source:
+                    with source, (asset_dir / Path(license_path).name).open("wb") as out:
+                        shutil.copyfileobj(source, out)
         if not (asset_dir / "vosk.js").is_file():
             raise RuntimeError("vosk-browser dist/vosk.js is missing")
 
@@ -89,6 +98,17 @@ def main() -> None:
             conf.write_text("--beam=13.0\n--max-active=7000\n--lattice-beam=6.0\n", encoding="utf-8")
         with tarfile.open(asset_dir / "model.tar.gz", "w:gz", compresslevel=6) as package:
             package.add(model_dir, arcname="model")
+
+    apache_license = asset_dir / "APACHE-2.0.txt"
+    download("https://www.apache.org/licenses/LICENSE-2.0.txt", apache_license)
+    (asset_dir / "MODEL-SOURCE.txt").write_text(
+        "Persian acoustic model: " + MODEL_NAME + "\\n"
+        "Source: https://alphacephei.com/vosk/models\\n"
+        "License: Apache License 2.0; see APACHE-2.0.txt\\n",
+        encoding="utf-8"
+    )
+    for js_file in ("src/ui/offline-voice.js", "src/ui/upgrade.js", "src/ui/local-nlu.js"):
+        subprocess.run(["node", "--check", str(DIST / js_file)], check=True)
 
     manifest = {
         "voskBrowserVersion": VOSK_VERSION,
