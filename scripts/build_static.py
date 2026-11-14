@@ -111,11 +111,11 @@ def main() -> None:
     # not only the separately maintained modules.
     html = (DIST / "index.html").read_text(encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="unique-inline-js-") as check_dir:
-        for number, match in enumerate(re.finditer(r"<script\\b([^>]*)>(.*?)</script\\s*>", html, re.I | re.S)):
+        for number, match in enumerate(re.finditer(r"<script\b([^>]*)>(.*?)</script\s*>", html, re.I | re.S)):
             attrs, code = match.group(1), match.group(2)
-            if re.search(r"\\bsrc\\s*=", attrs, re.I):
+            if re.search(r"\bsrc\s*=", attrs, re.I):
                 continue
-            type_match = re.search(r"""\\btype\\s*=\\s*["']([^"']+)["']""", attrs, re.I)
+            type_match = re.search(r"""\btype\s*=\s*["']([^"']+)["']""", attrs, re.I)
             script_type = type_match.group(1).lower() if type_match else ""
             if script_type and "javascript" not in script_type and "ecmascript" not in script_type and script_type != "module":
                 continue
