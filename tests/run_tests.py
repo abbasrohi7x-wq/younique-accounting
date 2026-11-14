@@ -488,17 +488,22 @@ async def purchase_and_sale_use_the_selected_warehouse(br,c):
       document.querySelector('#saleCustomer').value=S.cus;window.__salePayments={cash:3000,card:0,bank:0,credit:0};
       const before=db.sales.length;saveSale();await T.sleep(180);
       const sale=db.sales.length>before?db.sales[db.sales.length-1]:null;
+      const saleReturn=Fin.saleReturn({ref:sale.number,qtys:{[sale.items[0]]:1},method:'credit',note:'warehouse return test'});
+      const purchaseReturn=Fin.purchaseReturn({ref:p.number,qtys:{[p.items[0]]:1},method:'credit',note:'warehouse return test'});
       return{purchaseWarehouse:p&&p.warehouseId,saleWarehouse:sale&&sale.warehouseId,
+        saleReturnWarehouse:saleReturn&&saleReturn.warehouseId,purchaseReturnWarehouse:purchaseReturn&&purchaseReturn.warehouseId,
         main:db.warehouseStocks.MAIN?.[S.v]||0,second:db.warehouseStocks.W2?.[S.v]||0,
         global:variantBy(S.v).stock,moves:db.stockMoves.filter(x=>x.variantId===S.v).map(x=>x.warehouseId),
         unb:T.unbalanced(),health:runYouniqueHealthCheck().ok};
     """)
     c.eq(r['purchaseWarehouse'],'W2','purchase is assigned to the selected warehouse')
     c.eq(r['saleWarehouse'],'W2','sale is assigned to the selected warehouse')
+    c.eq(r['saleReturnWarehouse'],'W2','sale return retains the source warehouse')
+    c.eq(r['purchaseReturnWarehouse'],'W2','purchase return retains the source warehouse')
     c.eq(r['main'],0,'main warehouse stock is unchanged')
-    c.eq(r['second'],2,'selected warehouse retains the unsold quantity')
+    c.eq(r['second'],2,'returns and sale movements leave the correct selected-warehouse balance')
     c.eq(r['global'],2,'global stock equals the sum of warehouse stock')
-    c.eq(r['moves'],['W2','W2'],'purchase and sale movements retain warehouse identity')
+    c.eq(r['moves'],['W2','W2','W2','W2'],'purchase, sale and both returns retain warehouse identity')
     c.eq(r['unb'],0,'warehouse transactions keep the ledger balanced')
     c.true(r['health'],'warehouse stock and accounting integrity checks pass')
     await ctx.close()
