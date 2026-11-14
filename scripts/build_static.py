@@ -111,8 +111,21 @@ def main() -> None:
     # not only the separately maintained modules.
     html = (DIST / "index.html").read_text(encoding="utf-8")
     with tempfile.TemporaryDirectory(prefix="unique-inline-js-") as check_dir:
-        for number, match in enumerate(re.finditer(r"<script\b([^>]*)>(.*?)</script\s*>", html, re.I | re.S)):
-            attrs, code = match.group(1), match.group(2)
+        cursor = 0
+        number = 0
+        while True:
+            opening = re.search(r"<script\b([^>]*)>", html[cursor:], re.I)
+            if not opening:
+                break
+            attrs = opening.group(1)
+            body_start = cursor + opening.end()
+            closing = re.search(r"</script\s*>", html[body_start:], re.I)
+            if not closing:
+                raise RuntimeError("Unclosed script element in index.html")
+            code = html[body_start:body_start + closing.start()]
+            cursor = body_start + closing.end()
+            current = number
+            number += 1
             if re.search(r"\bsrc\s*=", attrs, re.I):
                 continue
             type_match = re.search(r"""\btype\s*=\s*["']([^"']+)["']""", attrs, re.I)
@@ -121,7 +134,7 @@ def main() -> None:
                 continue
             if not code.strip():
                 continue
-            check_file = Path(check_dir) / f"inline-{number}.js"
+            check_file = Path(check_dir) / f"inline-{current}.js"
             check_file.write_text(code, encoding="utf-8")
             subprocess.run(["node", "--check", str(check_file)], check=True)
 
