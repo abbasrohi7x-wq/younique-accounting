@@ -476,6 +476,30 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
     await ctx.close()
 
 
+@test
+async def offline_vosk_model_loads_from_bundled_assets(br,c):
+    pg,ctx=await page(br)
+    external=[]
+    pg.on('request',lambda req: external.append(req.url) if not req.url.startswith('http://127.0.0.1:8765/') else None)
+    r=await pg.evaluate("""async()=> {
+      const s=document.createElement('script');
+      s.src='./vendor/vosk/vosk.js';
+      await new Promise((resolve,reject)=>{s.onload=resolve;s.onerror=()=>reject(Error('Vosk runtime script failed')) ;document.head.appendChild(s)});
+      if(!window.Vosk||typeof window.Vosk.createModel!=='function')throw Error('Vosk API is missing');
+      const model=await window.Vosk.createModel('./vendor/vosk/model.tar.gz');
+      try{
+        const recognizer=new model.KaldiRecognizer(16000);
+        const ok=!!model.ready&&typeof recognizer.acceptWaveform==='function';
+        recognizer.remove();
+        return {loaded:ok,ready:!!model.ready};
+      }finally{model.terminate()}
+    }""")
+    c.true(r['loaded'],'real Persian Vosk model and WASM recognizer initialize from bundled files')
+    c.eq(external,[],'Vosk model loading makes no cross-origin requests')
+    c.eq(pg.errs,[],'no browser runtime errors during model initialization')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
