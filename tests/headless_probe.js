@@ -29,6 +29,7 @@ const engine=createEngine(financeDB,helpers);
 const fin=createFin(financeDB,helpers,engine);
 engine.openCashSession(1000000,'headless test','test');
 const purchase=engine.createPurchase({
+  supplierId:'supplier-1',
   items:[{variantId:'v1',qty:4,unitPrice:1000}],
   payments:{cash:4400,card:0,bank:0,credit:0},warehouseId:'W2'
 });
