@@ -627,38 +627,57 @@
 
   window.yqVoiceDraft = function () {
     var R = window.SpeechRecognition || window.webkitSpeechRecognition;
-    var local = R && location.protocol !== 'file:' && ('processLocally' in R.prototype);
-    function askText() {
+    var supported = !!(R && R.prototype && ('processLocally' in R.prototype) &&
+      typeof R.available === 'function' && typeof R.install === 'function' &&
+      location.protocol !== 'file:');
+    function askText(message) {
       modal(
         '<div class="modalhead"><h2>پیش‌نویس گفتاری</h2><button class="close" data-close>×</button></div>' +
-        '<p class="muted">تشخیص گفتار روی خود این دستگاه نیست. جمله را بنویسید. مثال: دو تا کفش مشکی ۴۰ برای علی</p>' +
-        '<textarea id="yqSay" rows="3" placeholder="دو تا کفش مشکی ۴۰ برای علی"></textarea>' +
+        '<p class="muted">' + esc(message || 'در این مرورگر موتور تشخیص گفتار فارسیِ آفلاین در دسترس نیست. صدا به سرویس آنلاین ارسال نمی‌شود؛ می‌توانید جمله را تایپ کنید.') + '</p>' +
+        '<textarea id="yqSay" rows="3" placeholder="مثال: دو جفت کتونی مشکی سایز ۴۲ برای علی"></textarea>' +
         '<div class="modal-actions"><button class="btn primary" id="yqSayOk" type="button">افزودن به پیش‌نویس</button></div>'
       );
       $('#yqSayOk').onclick = function () {
         var v = $('#yqSay').value;
         closeModal();
-        window.yqApplyVoiceDraft(v);
+        if (v && v.trim()) window.yqApplyVoiceDraft(v);
       };
     }
-    if (!local) { askText(); return; }
-    var r = new R();
-    r.processLocally = true;
-    r.lang = 'fa-IR';
-    r.interimResults = false;
-    r.continuous = false;
-    r.onresult = function (e) {
-      var t = '';
-      for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
-      window.yqApplyVoiceDraft(t);
-    };
-    r.onerror = function (e) {
-      var code = e && e.error;
-      if (code === 'not-allowed') toast('دسترسی به میکروفون داده نشد', true);
-      else askText();
-    };
-    try { r.start(); toast('بگویید چه چیزی و برای چه کسی. ثبت فروش جداست.'); }
-    catch (err) { askText(); }
+    if (!supported) {
+      askText('این مرورگر قابلیت تشخیص گفتار محلیِ فارسی را ارائه نمی‌کند (در Chrome اندروید معمولاً پشتیبانی نمی‌شود). هیچ صدایی به اینترنت فرستاده نمی‌شود؛ فعلاً جمله را تایپ کنید.');
+      return;
+    }
+    var opts = { langs: ['fa-IR'], processLocally: true };
+    Promise.resolve().then(function () { return R.available(opts); }).then(function (state) {
+      if (state === 'unavailable') {
+        askText('بستهٔ زبان فارسی برای تشخیص آفلاین این دستگاه در دسترس نیست. هیچ مسیر آنلاین جایگزینی فعال نمی‌شود.');
+        return;
+      }
+      function startLocal() {
+        var r = new R();
+        r.processLocally = true;
+        r.lang = 'fa-IR';
+        r.interimResults = false;
+        r.continuous = false;
+        r.onresult = function (e) {
+          var t = '';
+          for (var i = 0; i < e.results.length; i++) t += e.results[i][0].transcript;
+          if (t.trim()) window.yqApplyVoiceDraft(t);
+        };
+        r.onerror = function (e) {
+          var code = e && e.error;
+          if (code === 'not-allowed') toast('دسترسی میکروفون داده نشد', true);
+          else askText('تشخیص آفلاین شروع نشد (' + esc(code || 'خطای نامشخص') + '). صدا به سرویس آنلاین ارسال نمی‌شود؛ متن را وارد کنید.');
+        };
+        r.onend = function () {};
+        try { r.start(); toast('تشخیص محلی فعال شد؛ بگویید چه چیزی و برای چه کسی. ثبت نهایی جداگانه است.'); }
+        catch (err) { askText('شروع تشخیص گفتار محلی ناموفق بود. می‌توانید متن را وارد کنید.'); }
+      }
+      if (state === 'available') { startLocal(); return; }
+      askText('بستهٔ زبان فارسی برای تشخیص آفلاین هنوز نصب نیست. پس از نصب زبان در تنظیمات مرورگر، دوباره امتحان کنید.');
+    }).catch(function () {
+      askText('وضعیت موتور گفتار آفلاین قابل بررسی نیست. برای جلوگیری از ارسال صدا به سرویس آنلاین، ورودی متنی فعال شد.');
+    });
   };
 
   if (typeof purchase === 'function' && !purchase.__yqScan) {
