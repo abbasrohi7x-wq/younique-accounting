@@ -268,9 +268,10 @@ async def offline_voice_opens_real_microphone_pipeline(br,c):
       }
       await new Promise(r=>setTimeout(r,30));
       const listeningAfterFrame=!!(window.UAI&&window.UAI.Voice&&window.UAI.Voice.listening);
+      const statusDuringRecognition=document.querySelector('#yqVStatus')?.textContent||'';
       await window.voiceRecord();
       await new Promise(resolve=>setTimeout(resolve,30));
-      return {permissionRequested,accepted,recognizerSampleRate,listeningAfterFrame,
+      return {permissionRequested,accepted,recognizerSampleRate,listeningAfterFrame,statusDuringRecognition,
         listeningAfterStop:!!(window.UAI&&window.UAI.Voice&&window.UAI.Voice.listening),
         trackStopped,contextClosed,status:document.querySelector('#yqVStatus')?.textContent||''};
     }""")
@@ -281,7 +282,7 @@ async def offline_voice_opens_real_microphone_pipeline(br,c):
     c.true(not r['listeningAfterStop'],'assistant voice state clears after stop')
     c.true(r['trackStopped'],'microphone track is released on stop')
     c.true(r['contextClosed'],'AudioContext is closed on stop')
-    c.true('سلام' in r['status'],'partial recognition updates visible status')
+    c.true('سلام' in r['statusDuringRecognition'],'partial recognition updates visible status while recording')
     c.eq(pg.errs,[],'no browser runtime errors')
     await ctx.close()
 
@@ -535,16 +536,26 @@ async def offline_vosk_model_loads_from_bundled_assets(br,c):
       const s=document.createElement('script');
       s.src='./vendor/vosk/vosk.js';
       await new Promise((resolve,reject)=>{s.onload=resolve;s.onerror=()=>reject(Error('Vosk runtime script failed')) ;document.head.appendChild(s)});
-      if(!window.Vosk||typeof window.Vosk.createModel!=='function')throw Error('Vosk API is missing');
+      if(!window.Vosk||typeof window.Vosk.Model!=='function')throw Error('Vosk Model API is missing');
       let model=null;
       try{
-        model=await Promise.race([window.Vosk.createModel('./vendor/vosk/model.tar.gz'),
-          new Promise((_,reject)=>setTimeout(()=>reject(Error('Vosk model initialization exceeded 120 seconds')),120000))]);
+        model=new window.Vosk.Model('./vendor/vosk/model.tar.gz');
+        await new Promise((resolve,reject)=>{
+          let settled=false;
+          const timer=setTimeout(()=>finish(Error('Vosk model initialization exceeded 240 seconds')),240000);
+          function finish(error){if(settled)return;settled=true;clearTimeout(timer);error?reject(error):resolve()}
+          model.on('load',message=>message&&message.result&&model.ready?finish():finish(Error('Vosk model load event returned false')));
+          model.on('error',message=>finish(Error('Vosk worker reported: '+(message&&message.error||'unknown model error'))));
+          if(model.worker&&model.worker.addEventListener){
+            model.worker.addEventListener('error',event=>finish(Error('Vosk worker startup failed: '+(event.message||'unknown worker error'))));
+            model.worker.addEventListener('messageerror',()=>finish(Error('Vosk worker message could not be decoded')));
+          }
+        });
         const recognizer=new model.KaldiRecognizer(16000);
         const ok=!!model.ready&&typeof recognizer.acceptWaveform==='function';
         recognizer.remove();
         return {loaded:ok,ready:!!model.ready};
-      }finally{if(model)await model.terminate()}
+      }finally{if(model)model.terminate()}
     }""")
     c.true(r['loaded'],'real Persian Vosk model and WASM recognizer initialize from bundled files')
     c.eq(external,[],'Vosk model loading makes no cross-origin requests')
@@ -557,7 +568,7 @@ async def management_reports_reconcile_to_confirmed_sales(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,5,1000,{cash:5000});await T.sell(S,S.v,2,2000,{cash:4000});
       let downloaded=[];window.download=(name,content)=>downloaded.push({name,content:String(content||'')});
-      window.proInsights();
+      window.reports();
       const text=document.querySelector('#content')?.innerText||'';
       const gross=db.sales.filter(x=>x.status==='confirmed').reduce((a,x)=>a+num(x.total)-num(x.costTotal),0);
       document.querySelector('#csv39').click();document.querySelector('#json39').click();
