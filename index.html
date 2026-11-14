@@ -5744,7 +5744,8 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
             discount: Number(x.discount || 0)
           };
         });
-        var payload = { items: items, customerId: customerId, payment: payment, paid: paid, discount: discount };
+        var warehouseId = ($el('#saleWarehouse') && $el('#saleWarehouse').value) || '';
+        var payload = { items: items, customerId: customerId, payment: payment, paid: paid, discount: discount, warehouseId: warehouseId };
         if (split && (split.cash + split.card + split.bank + split.credit) > 0) payload.payments = split;
         var result = engine.atomic('ثبت فروش', function () {
           return engine.createSale(payload);
@@ -5786,7 +5787,8 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
           return { variantId: x.id || x.variantId, qty: Number(x.qty), unitPrice: Number(x.price || x.unitPrice) };
         });
         var result = engine.atomic('ثبت خرید', function () {
-          return engine.createPurchase({ items: items, supplierId: supplierId, payments: payments });
+          var warehouseId = ($el('#purWarehouse') && $el('#purWarehouse').value) || '';
+          return engine.createPurchase({ items: items, supplierId: supplierId, payments: payments, warehouseId: warehouseId });
         });
         if (typeof toast === 'function') toast('خرید ' + result.number + ' با موفقیت ثبت شد');
         if (typeof purchaseCart !== 'undefined') purchaseCart.length = 0;
