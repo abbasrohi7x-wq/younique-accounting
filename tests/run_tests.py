@@ -151,12 +151,13 @@ async def invoice_ocr_review_does_not_write_before_confirmation(br,c):
       if(actionPreview)document.querySelector('#aiExec').click();await T.sleep(120);
       const draft={page,purchaseRows:document.querySelectorAll('#purRows tr').length,
         hasFinalButton:!!document.querySelector('#savePurchase'),cartCount:purchaseCart.length,
+        invoiceNumber:document.querySelector('#purInvoiceNumber')?.value,invoiceDate:document.querySelector('#purInvoiceDate')?.value,
         purchases:db.purchases.length,stock:variantBy(S.v).stock};
       const card=document.querySelector('#purCard');if(card){card.value='2000000';card.dispatchEvent(new Event('input',{bubbles:true}))}
       document.querySelector('#savePurchase')?.click();await T.sleep(180);
       const committed={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
       return{before,after,review,total:parsed.total,items:parsed.items.length,number:parsed.invoiceNumber,
-        actionPreview,stillUnchanged,draft,committed}''')
+        actionPreview,stillUnchanged,draft,committed,posted:db.purchases.at(-1)}''')
     c.eq(r['after'],r['before'],'OCR review must not write purchase, journal or stock')
     c.true(r['review'],'manual invoice confirmation is visible')
     c.eq(r['total'],2000000,'invoice total parsed')
@@ -166,12 +167,16 @@ async def invoice_ocr_review_does_not_write_before_confirmation(br,c):
     c.eq(r['stillUnchanged'],r['before'],'confirming OCR review alone still does not post purchase')
     c.eq(r['draft']['page'],'purchase','approved OCR result opens the standard purchase workflow')
     c.eq(r['draft']['cartCount'],1,'OCR line is transferred to the purchase cart')
+    c.eq(r['draft']['invoiceNumber'],'INV-123','OCR invoice number reaches purchase form')
+    c.eq(r['draft']['invoiceDate'],'1405/08/20','OCR invoice date reaches purchase form')
     c.true(r['draft']['hasFinalButton'],'final purchase confirmation is required')
     c.eq(r['draft']['purchases'],r['before']['p'],'opening purchase draft does not post a purchase')
     c.eq(r['draft']['stock'],r['before']['stock'],'opening purchase draft does not change stock')
     c.eq(r['committed']['p'],r['before']['p']+1,'final purchase confirmation creates exactly one purchase')
     c.eq(r['committed']['stock'],r['before']['stock']+2,'confirmed OCR purchase updates inventory quantity')
     c.true(r['committed']['j']>r['before']['j'],'confirmed OCR purchase posts journal entries')
+    c.eq(r['posted']['supplierInvoiceNumber'],'INV-123','supplier invoice number is persisted with purchase')
+    c.eq(r['posted']['supplierInvoiceDate'],'1405/08/20','supplier invoice date is persisted with purchase')
     await ctx.close()
 
 @test
