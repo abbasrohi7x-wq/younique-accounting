@@ -256,7 +256,7 @@ async def offline_voice_button_uses_local_vosk_dialog_not_browser_speech(br,c):
       window.page='ai';window.render();
       let nativeStarts=0;
       function NativeSpeech(){nativeStarts++;this.start=()=>nativeStarts++;}
-      NativeSpeech.prototype.processLocally=false;
+      NativeSpeech.prototype.processLocally=true;
       Object.defineProperty(window,'SpeechRecognition',{configurable:true,value:NativeSpeech});
       Object.defineProperty(window,'webkitSpeechRecognition',{configurable:true,value:NativeSpeech});
       window.__voiceDialogContext=null;
@@ -268,7 +268,7 @@ async def offline_voice_button_uses_local_vosk_dialog_not_browser_speech(br,c):
     }""")
     c.true(r['button'],'assistant microphone button exists')
     c.eq(r['context'],'assistant','microphone opens the local Vosk dialog')
-    c.eq(r['nativeStarts'],0,'browser speech-recognition UI is never launched')
+    c.eq(r['nativeStarts'],0,'browser native speech UI is never launched even when processLocally is supported')
     c.eq(pg.errs,[],'no browser runtime errors')
     await ctx.close()
 
