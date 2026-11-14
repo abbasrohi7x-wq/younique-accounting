@@ -68,7 +68,7 @@ function createFin(db, h, core) {
         const costAll = num(i.costTotal) || R(num(i.cost) * num(i.qty));
         const cst = R(costAll * (q / num(i.qty)));
 
-        stockMove(i.variantId, q, 'sale_return', ref, cst / q);
+        stockMove(i.variantId, q, 'sale_return', ref, cst / q, s.warehouseId || 'MAIN');
         total += rev; costTotal += cst;
         out.push({ variantId: i.variantId, qty: q, saleItemId: i.id, unitPrice: i.unitPrice, net: rev, cost: cst / q, costTotal: cst });
       }
@@ -92,7 +92,7 @@ function createFin(db, h, core) {
 
       const row = {
         id: uid(), date: now(), type: 'sale', ref, total, vat: vatRet, refund,
-        note: note || '', method, customerId: s.customerId || '', supplierId: '', costTotal, items: out
+        note: note || '', method, customerId: s.customerId || '', supplierId: '', warehouseId: s.warehouseId || 'MAIN', costTotal, items: out
       };
       db.returns = db.returns || []; db.returns.push(row);
 
@@ -133,13 +133,13 @@ function createFin(db, h, core) {
         const v = variantBy(i.variantId); if (!v) throw new Error('تنوع کالا پیدا نشد');
         if (num(v.stock) < q) throw new Error('موجودی برای برگشت کافی نیست');
         const lineTotal = R(num(i.unitPrice) * q);
-        stockMove(i.variantId, -q, 'purchase_return', ref, num(i.unitPrice));
+        stockMove(i.variantId, -q, 'purchase_return', ref, num(i.unitPrice), p.warehouseId || 'MAIN');
         total += lineTotal;
         out.push({ variantId: i.variantId, qty: q, purchaseItemId: i.id, unitPrice: i.unitPrice, total: lineTotal });
       }
       if (!out.length) throw new Error('حداقل یک قلم برای برگشت انتخاب کنید');
       total = R(total);
-      const row = { id: uid(), date: now(), type: 'purchase', ref, total, note: note || '', method, supplierId: p.supplierId || '', customerId: '', items: out };
+      const row = { id: uid(), date: now(), type: 'purchase', ref, total, note: note || '', method, supplierId: p.supplierId || '', customerId: '', warehouseId: p.warehouseId || 'MAIN', items: out };
       db.returns = db.returns || []; db.returns.push(row);
       const lines = [];
       if (method === 'credit') lines.push({ account: 'payable', debit: total, credit: 0, partyType: 'supplier', partyId: p.supplierId });
@@ -227,7 +227,7 @@ function createFin(db, h, core) {
       for (const id of (pur.items || [])) {
         const i = (db.purchaseItems || []).find(x => x.id === id);
         if (!i) continue;
-        stockMove(i.variantId, -num(i.qty), 'void_purchase', no, num(i.unitPrice));
+        stockMove(i.variantId, -num(i.qty), 'void_purchase', no, num(i.unitPrice), pur.warehouseId || 'MAIN');
       }
       for (const pm of (db.payments || []).filter(x => x.ref === no && x.embedded && x.direction === 'out')) {
         db.payments.push({
