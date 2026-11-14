@@ -8,7 +8,7 @@
 |---|---|
 | مخزن | `abbasrohi7x-wq/younique-accounting` |
 | شاخهٔ اصلی | `main` |
-| آخرین commit کد/آزمون تأییدشده | `034ca25b0a5d323040742fc58acfaffed5fd476a` |
+| آخرین commit شاخهٔ اصلی بررسی‌شده | `df6510eae8cce907f9f38574d9d8eb375e6c330e` |
 | نوع برنامه | وب‌اپ استاتیک / PWA |
 | زبان رابط | فارسی، RTL |
 | میزبان هدف | GitHub Pages |
@@ -42,7 +42,7 @@
 | مورد | نتیجه |
 |---|---|
 | شاخه | `main` |
-| commit | `034ca25b0a5d323040742fc58acfaffed5fd476a` |
+| commit | `df6510eae8cce907f9f38574d9d8eb375e6c330e` |
 | Regression tests | **موفق** |
 | تعداد آزمون‌ها | **54/54** |
 | Assertionها | **370** |
@@ -51,8 +51,10 @@
 | آزمون نهایی فروشگاه | خرید، فروش، برگشت، موجودی، سود/درآمد خالص، گزارش، پشتیبان و سلامت دفتر موفق |
 | CodeQL | اجرای متصل به همین commit موفق |
 
-- [Regression tests — commit 034ca25](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43594228854)
-- CodeQL برای commit جدید در این مرحله اجرا نشده است؛ اجرای قدیمی روی `89f65f3` موفق بود.
+- [Regression tests — commit df6510e](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43594487602)
+- [CodeQL — commit df6510e](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43594487660)
+
+اجرای کامل Regression روی خود commit `df6510e` نیز با **54/54 آزمون و 370 assertion** موفق شد.
 
 نتیجهٔ بالا از گزارش واقعی GitHub Actions خوانده شده است. این موفقیت، عکس واقعی فاکتور روی Android، کیفیت میکروفون، مجوزهای دوربین یا انتشار زندهٔ GitHub Pages را تأیید نمی‌کند.
 
@@ -80,7 +82,7 @@
 ## 8. آخرین بررسی
 
 - تاریخ بررسی: 2026-11-14
-- مبنای کد و آزمون: commit `034ca25b0a5d323040742fc58acfaffed5fd476a`؛ 54 آزمون و 370 assertion موفق.
+- مبنای کد و آزمون: commit `df6510eae8cce907f9f38574d9d8eb375e6c330e`؛ 54 آزمون و 370 assertion موفق؛ CodeQL نیز موفق.
 - تنظیم CI: commit `8ff72fbab7cdbe4ee62ac558272f8caf4fba9d64`؛ اجرای تکراری آزمون‌های سنگین برای یک شاخه با concurrency کنترل می‌شود.
 - روش: خواندن فایل‌های اصلی، تاریخچهٔ commit، وضعیت شاخه‌ها، اجرای GitHub Actions و لاگ کامل آزمون مرورگری.
 - محدودیت: اتصال فعلی امکان خواندن و تغییر فایل‌های مخزن را دارد، اما ابزار نوشتن تنظیمات مدیریتی، تغییر نام مخزن، Topics، Branch Protection و حذف شاخه را ارائه نمی‌کند.
@@ -95,13 +97,17 @@
 - بنابراین «تشخیص گفتار فارسی آفلاین روی Android» هنوز قابلیت قابل اتکای نسخهٔ اصلی نیست.
 
 ### شاخهٔ Vosk
-- شاخهٔ آزمایشی `chatgpt-push-test-2026-11-13` شامل `src/ui/offline-voice.js`، آزمون‌های میکروفون و `scripts/build_static.py` است.
+- شاخهٔ آزمایشی `chatgpt-push-test-2026-11-13` در commit `2a8f0d79a8ed1f19466286197c638589ae0eb501` شامل `src/ui/offline-voice.js`، آزمون‌های میکروفون و `scripts/build_static.py` است. CI آن commit با build واقعی توزیع، دریافت Vosk و مدل و اجرای مرورگر، **41/41 آزمون و 278 assertion** را با موفقیت گذرانده است؛ [گزارش CI شاخهٔ آزمایشی](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43576885301).
 - نام مدل در اسکریپت build، `vosk-model-small-fa-0.42` است و با فهرست رسمی Vosk مطابقت دارد؛ مدل فارسی کوچک حدود 53 مگابایت و دارای مجوز Apache 2.0 است. ادعای قبلی دربارهٔ اشتباه بودن نام مدل دقیق نبود.
 - اسکریپت build، کد Vosk و مدل فارسی را هنگام build از منابع بیرونی می‌گیرد و `vendor/vosk/model.tar.gz` می‌سازد؛ این فایل‌ها در tree شاخه ثبت نشده‌اند. SHA-256 در manifest ثبت می‌شود، اما هنوز با مقدار از پیش pinned مقایسه نمی‌شود.
-- ادغام این پیاده‌سازی مستلزم انتقال کنترل‌شدهٔ UI، Service Worker، build reproducibility، مجوزها، حجم artifact و آزمون مرورگر روی خروجی ساخته‌شده است. صرف کپی فایل JS کافی نیست.
+- ممیزی کد نشان داد `ensureModel()` و `downloadModel()` هنوز single-flight نیستند؛ کلیک هم‌زمان روی «دریافت مدل» و «شروع ضبط» می‌تواند بیش از یک بار Worker/مدل ایجاد کند. همچنین مسیر Cache API بدون بررسی پشتیبانی آن اجرا می‌شود. این دو مورد باید پیش از ادغام اصلاح و آزمون شوند.
+- فایل `service-worker.js` شاخهٔ آزمایشی cache مجزای Vosk و فایل صوتی را دارد، اما `main` هنوز `offline-voice.js` را بارگذاری نمی‌کند و Service Worker فعلی آن نیز مسیر Vosk را cache نمی‌کند.
+- شاخهٔ آزمایشی دارای `.github/workflows/static.yml` است که با push روی `main` به‌صورت خودکار GitHub Pages را منتشر می‌کند. این workflow نباید ادغام شود؛ ادغام کد باید با workflow آزمون/build بدون deploy انجام شود.
+- بنابراین با وجود موفقیت build و تست شاخهٔ آزمایشی، ادغام در `main` هنوز ایمن نیست. انتقال باید پس از رفع single-flight، Cache API fallback، اتصال UI و Service Worker، و افزودن build/test-only workflow انجام شود.
 - به دلیل واگرایی حدود 185/148 commit و تغییرات مالی/مخزن در همان شاخه، ادغام کامل یا cherry-pick گسترده انجام نشده است.
 
 ### وضعیت انتشار
-- فایل workflow موجود در `.github/workflows/` فقط `regression-tests.yml` است.
+- فایل workflow انتشار Pages در `main` وجود ندارد؛ workflow آزمایشی `static.yml` نباید به `main` منتقل شود، زیرا روی push به `main` انتشار خودکار انجام می‌دهد.
+- هیچ انتشار Vercel یا GitHub Pages در این مرحله انجام نشده است.
 - هیچ workflow انتشار GitHub Pages در `main` وجود ندارد؛ نشانی Pages در README صرفاً نشانی مورد انتظار است، نه تأیید انتشار فعال.
 - هیچ انتشار Vercel انجام نمی‌شود. ایجاد workflow انتشار GitHub Pages باید جدا از CI و پس از تأیید کاربر انجام شود.
