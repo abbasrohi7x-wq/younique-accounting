@@ -54,7 +54,11 @@ function createEngine(db, h) {
     if (costingMethod() === 'weighted_average') {
       const v = variantBy(variantId);
       const oldQty = Math.max(0, num(v && v.stock));
-      const oldValue = layerValue(variantId);
+      const existingLayers = layerList(variantId);
+      /* Migrated stock may predate costLayers; seed its carrying value from the saved buyPrice. */
+      const oldValue = existingLayers.length
+        ? layerValue(variantId)
+        : roundMoney(oldQty * Math.max(0, num(v && v.buyPrice)));
       const newQty = oldQty + q;
       const newValue = roundMoney(oldValue + value);
       db.costLayers[variantId] = [{
