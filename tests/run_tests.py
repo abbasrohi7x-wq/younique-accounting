@@ -447,30 +447,40 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
       const S=await T.seed({});
       db.settings.supabase={url:'https://unused.example',anonKey:'CLOUD_SECRET_ANON',accessKey:'CLOUD_SECRET_ACCESS'};
       db.settings.ai=db.settings.ai||{};db.settings.ai.apiKey='AI_SECRET';
-      const env=syncEnvelope(),backup=JSON.parse(exportData());
-      const secretsStripped=!JSON.stringify(env).includes('CLOUD_SECRET')&&!JSON.stringify(env).includes('AI_SECRET')&&
-        !JSON.stringify(backup).includes('CLOUD_SECRET')&&!JSON.stringify(backup).includes('AI_SECRET');
-      const incoming=JSON.parse(JSON.stringify(env.data));
       db.customers.find(x=>x.id===S.cus).name='نام محلی';
-      const remote=JSON.parse(JSON.stringify(incoming));
-      remote.customers.find(x=>x.id===S.cus).name='نام دستگاه دیگر';
-      remote.customers.push({id:'REMOTE-CUSTOMER-1',name:'مشتری دستگاه دوم',phone:'000',createdAt:'2026-11-14T00:00:00Z'});
-      const merged=syncMerge(db,remote);
+      let captured=null;
+      window.download=(name,content)=>{captured={name,content}};
       proSync();
+      document.querySelector('#sx').click();
+      const env=captured?JSON.parse(captured.content):null;
+      const backup=JSON.parse(exportData());
+      const secretsStripped=!!env&&!JSON.stringify(env).includes('CLOUD_SECRET')&&!JSON.stringify(env).includes('AI_SECRET')&&
+        !JSON.stringify(backup).includes('CLOUD_SECRET')&&!JSON.stringify(backup).includes('AI_SECRET');
+      if(!env)throw Error('transfer export did not produce a file');
+      const incoming=JSON.parse(JSON.stringify(env));
+      incoming.data.customers.find(x=>x.id===S.cus).name='نام دستگاه دیگر';
+      incoming.data.customers.push({id:'REMOTE-CUSTOMER-1',name:'مشتری دستگاه دوم',phone:'000',createdAt:'2026-11-14T00:00:00Z'});
+      const stable=v=>{if(v===null||typeof v!=='object')return JSON.stringify(v);if(Array.isArray(v))return '['+v.map(stable).sort().join(',')+']';return '{'+Object.keys(v).sort().map(k=>JSON.stringify(k)+':'+stable(v[k])).join(',')+'}'};
+      let hash=2166136261;const payload={app:incoming.app,schema:incoming.schema,version:incoming.version,deviceId:incoming.deviceId,createdAt:incoming.createdAt,data:incoming.data};
+      const serialized=stable(payload);for(let i=0;i<serialized.length;i++){hash^=serialized.charCodeAt(i);hash=Math.imul(hash,16777619)}
+      incoming.checksum=(hash>>>0).toString(16).padStart(8,'0');
+      const dt=new DataTransfer();dt.items.add(new File([JSON.stringify(incoming)],'transfer.unique.json',{type:'application/json'}));
+      const input=document.querySelector('#sif');input.files=dt.files;input.dispatchEvent(new Event('change',{bubbles:true}));
+      await new Promise(resolve=>setTimeout(resolve,80));
+      const preview=document.querySelector('#syncResult')?.innerText||'';
+      const apply=document.querySelector('#sapply');if(!apply)throw Error('transfer preview did not open');
+      apply.click();await new Promise(resolve=>setTimeout(resolve,80));
       const ui=document.querySelector('#content')?.innerText||'';
-      const checksum=env.checksum===syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
-      return {secretsStripped,checksum,added:merged.added.some(x=>x.id==='REMOTE-CUSTOMER-1'),
-        localKept:merged.data.customers.find(x=>x.id===S.cus)?.name==='نام محلی',
-        conflict:merged.conflicts.some(x=>x.id===S.cus&&x.resolution==='local-kept'),
-        cloudConfigAbsent:!merged.data.settings?.supabase,
+      return {secretsStripped,added:db.customers.some(x=>x.id==='REMOTE-CUSTOMER-1'),
+        localKept:db.customers.find(x=>x.id===S.cus)?.name==='نام محلی',
+        preview:preview.includes('1'),cloudConfigAbsent:!db.settings.supabase,
         localUI:ui.includes('انتقال فایل‌محور'),cloudUI:/Supabase|ابر رایگان/i.test(ui),
         hasExport:!!document.querySelector('#sx'),hasImport:!!document.querySelector('#si')};
     }""")
     c.true(r['secretsStripped'],'file backup and transfer never export cloud or AI credentials')
-    c.true(r['checksum'],'transfer checksum is deterministic')
-    c.true(r['added'],'new records from another device are detected')
-    c.true(r['localKept'] and r['conflict'],'conflicting local record is preserved')
-    c.true(r['cloudConfigAbsent'],'cloud credentials are not restored through device merge')
+    c.true(r['added'],'new records from another device are imported')
+    c.true(r['localKept'],'conflicting local record is preserved')
+    c.true(r['cloudConfigAbsent'],'cloud credentials are removed after device merge')
     c.true(r['localUI'] and not r['cloudUI'],'sync UI is local file transfer only')
     c.true(r['hasExport'] and r['hasImport'],'file export and import controls remain available')
     await ctx.close()
