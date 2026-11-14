@@ -470,7 +470,7 @@ function createEngine(db, h) {
     return { purchase: row, items: purchaseItems, number: no };
   }
 
-  return { postJournal, stockMove, accountBalance, atomic, cashMove, activeCashSession, cashSessionExpected, openCashSession, closeCashSession, createSale, createPurchase, costingMethod, version: '1.4.0-engine' };
+  return { postJournal, stockMove, accountBalance, atomic, cashMove, activeCashSession, cashSessionExpected, openCashSession, closeCashSession, createSale, createPurchase, costingMethod, version: '1.5.0-engine' };
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { createEngine };
 else window.UniqueEngine = { createEngine };
