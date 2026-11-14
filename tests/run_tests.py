@@ -868,7 +868,7 @@ async def local_tesseract_worker_loads_and_recognizes_invoice_text(br,c):
         const cx=canvas.getContext('2d');cx.fillStyle='#fff';cx.fillRect(0,0,1400,300);
         cx.fillStyle='#000';cx.font='bold 140px Arial';cx.fillText('INVOICE 12345',40,190);
         const result=await Promise.race([worker.recognize(canvas),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Tesseract OCR recognition timed out')),40000))]);
-        return{loaded:true,text:String(result.data.text||''),confidence:Number(result.data.confidence)||0};
+        return{loaded:true,sameWorker,text:String(result.data.text||''),confidence:Number(result.data.confidence)||0};
       }finally{await worker.terminate()}
     """)
     c.true(r['loaded'],'local Tesseract worker and core initialize successfully')
