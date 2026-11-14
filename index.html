@@ -4406,11 +4406,13 @@ V.speak=function(text,onend){
 };
 V.start=function(){
   const R=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!R)return V.fallback();
+  const useVosk=function(){if(typeof window.yqVoiceDraft==='function'){window.yqVoiceDraft();return true}return V.fallback()};
   if(location.protocol==='file:'){window.toast('فرمان صوتی در اجرای مستقیم فایل توسط بعضی مرورگرها مسدود است. برنامه را با HTTPS یا localhost اجرا کنید.',true);return false}
   if(V.listening)return true;
   try{speechSynthesis&&speechSynthesis.cancel()}catch(_){}
-  if(!('processLocally' in R.prototype)){window.toast('تشخیص گفتار روی خود دستگاه در این مرورگر پشتیبانی نمی‌شود؛ برای حفظ حالت کاملاً محلی، فرمان را تایپ کنید.',true);return false}const r=new R();r.processLocally=true;r.lang='fa-IR';r.interimResults=true;r.continuous=false;r.maxAlternatives=5;V.rec=r;V.listening=true;V.setBtn(true);
+  /* Prefer the browser's on-device API when available; otherwise use the bundled Vosk/WASM engine. */
+  if(!R||!('processLocally' in R.prototype))return useVosk();
+  const r=new R();r.processLocally=true;r.lang='fa-IR';r.interimResults=true;r.continuous=false;r.maxAlternatives=5;V.rec=r;V.listening=true;V.setBtn(true);
   r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;V.lastHeard=t;const box=document.querySelector('#prompt,#dockPrompt');if(box)box.value=t;
     const last=e.results[e.results.length-1];
     if(last.isFinal){V.listening=false;V.setBtn(false);if(box)box.value='';
@@ -4420,7 +4422,7 @@ V.start=function(){
       const full=alts.map(a=>(prefix+a).trim());
       V.onFinal(V.pickBest(full),full)}};
   r.onend=()=>{V.listening=false;V.setBtn(false)};
-  r.onerror=e=>{V.listening=false;V.setBtn(false);const m=e&&e.error==='not-allowed'?'دسترسی به میکروفون داده نشد':e&&e.error==='no-speech'?'صدایی شنیده نشد':e&&e.error==='language-not-supported'?'بستهٔ زبان فارسی برای تشخیص گفتار روی این دستگاه نصب نیست':'تشخیص صدا ناموفق بود';window.toast(m,true)};
+  r.onerror=e=>{V.listening=false;V.setBtn(false);if(e&&e.error==='language-not-supported'){useVosk();return}const m=e&&e.error==='not-allowed'?'دسترسی به میکروفون داده نشد':e&&e.error==='no-speech'?'صدایی شنیده نشد':'تشخیص صدا ناموفق بود';window.toast(m,true)};
   try{r.start()}catch(e){V.listening=false;V.setBtn(false);window.toast('شروع تشخیص صدا ممکن نشد',true);return false}
   return true;
 };
