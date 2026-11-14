@@ -524,6 +524,49 @@ async def offline_vosk_model_loads_from_bundled_assets(br,c):
     await ctx.close()
 
 
+@test
+async def management_reports_reconcile_to_confirmed_sales(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,5,1000,{cash:5000});await T.sell(S,S.v,2,2000,{cash:4000});
+      let downloaded=[];window.download=(name,content)=>downloaded.push({name,content:String(content||'')});
+      window.proInsights();
+      const text=document.querySelector('#content')?.innerText||'';
+      const gross=profit().gross;
+      document.querySelector('#csv39').click();document.querySelector('#json39').click();
+      return {gross,report:text.includes('سود ناخالص')&&text.includes('پرفروش‌ترین تنوع‌ها')&&text.includes('هشدار موجودی'),
+        top:text.includes('کتونی تست'),downloads:downloaded.map(x=>x.name),csv:downloaded[0]?.content.includes('کتونی تست'),
+        json:downloaded[1]?.content.includes('"gross":2000')};
+    ''')
+    c.eq(r['gross'],2000,'gross profit is reconciled to confirmed sales and cost')
+    c.true(r['report'] and r['top'],'management report renders KPI and top-selling variant')
+    c.eq(r['downloads'],['گزارش-فروش-'+r['downloads'][0].split('-')[-1],'گزارش-مدیریتی-'+r['downloads'][1].split('-')[-1]] if len(r['downloads'])==2 else [],'CSV and JSON exports are generated')
+    c.true(r['csv'] and r['json'],'report exports contain the expected transaction data')
+    await ctx.close()
+
+
+@test
+async def mobile_core_pages_fit_phone_viewport(br,c):
+    ctx=await br.new_context(viewport={'width':390,'height':844},device_scale_factor=1,is_mobile=True,has_touch=True)
+    pg=await ctx.new_page();errs=[]
+    pg.on('pageerror',lambda e:errs.append(str(e)[:200]))
+    await pg.goto(URL);await pg.wait_for_timeout(1500);await pg.evaluate(HELP)
+    r=await pg.evaluate("""async()=> {
+      const routes=[...new Set([...document.querySelectorAll('[data-page]')].map(x=>x.getAttribute('data-page')).filter(Boolean))];
+      const out=[];
+      for(const p of routes){
+        page=p;render();await new Promise(resolve=>setTimeout(resolve,25));
+        out.push({page:p,width:document.documentElement.scrollWidth,viewport:window.innerWidth,
+          content:document.querySelector('#content')?.getBoundingClientRect().width||0});
+      }
+      return {routes:out,viewport:window.innerWidth};
+    }""")
+    overflow=[x for x in r['routes'] if x['width']>r['viewport']+2]
+    c.true(len(r['routes'])>=5,'mobile navigation exposes core pages')
+    c.eq(overflow,[],'core pages do not force horizontal page scrolling on a 390px phone')
+    c.eq(errs,[],'no JavaScript errors while rendering mobile pages')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
