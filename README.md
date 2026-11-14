@@ -9,10 +9,10 @@ Unique Pro برای مدیریت گردش روزانهٔ فروشگاه طراح
 
 - مخزن کد: [abbasrohi7x-wq/younique-accounting](https://github.com/abbasrohi7x-wq/younique-accounting)
 - توسعه، نسخه‌بندی و آزمون‌ها از طریق GitHub و GitHub Actions انجام می‌شوند.
-- میزبان استاتیک هدف: GitHub Pages
-- نشانی مورد انتظار: [abbasrohi7x-wq.github.io/younique-accounting](https://abbasrohi7x-wq.github.io/younique-accounting/)
-- هیچ Deploy یا انتشار روی Vercel انجام نمی‌شود.
-- وضعیت زندهٔ GitHub Pages باید با بررسی مستقیم سایت و آزمون مرورگر تأیید شود؛ وجود تنظیم Pages به‌تنهایی اثبات سلامت انتشار نیست.
+- میزبان استاتیک پیشنهادی: GitHub Pages؛ اما در حال حاضر workflow انتشار Pages در شاخهٔ `main` وجود ندارد.
+- نشانی مورد انتظار پس از فعال‌سازی انتشار: [abbasrohi7x-wq.github.io/younique-accounting](https://abbasrohi7x-wq.github.io/younique-accounting/)
+- GitHub Actions فعلاً آزمون رگرسیون را اجرا می‌کند، نه انتشار برنامه.
+- هیچ Deploy یا انتشار روی Vercel انجام نمی‌شود. انتشار GitHub Pages نیز تا زمان تأیید جداگانه فعال نمی‌شود.
 
 ## قابلیت‌ها و محدودهٔ پروژه
 
