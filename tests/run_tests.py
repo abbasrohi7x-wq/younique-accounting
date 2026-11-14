@@ -137,6 +137,22 @@ async def receipt_qr_and_no_photo(br,c):
     await ctx.close()
 
 @test
+async def invoice_ocr_recognizes_toman_currency_variants(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""() => {
+      const persian=parseLocalInvoiceText('فروشنده: فروشگاه نمونه\\nکفش نایک مشکی سایز 42 2 100000 200000\\nجمع کل: 200000 تومان',[],.95);
+      const latin=parseLocalInvoiceText('Seller: Sample Store\\nNike black size 42 2 100000 200000\\nGrand total: 200000 Toman',[],.95);
+      return {persian:{currency:persian.currency,total:persian.total,unit:persian.items[0]?.unitPrice,line:persian.items[0]?.lineTotal},
+        latin:{currency:latin.currency,total:latin.total,unit:latin.items[0]?.unitPrice,line:latin.items[0]?.lineTotal}};
+    }""")
+    expected={'currency':'IRR','total':2000000,'unit':1000000,'line':2000000}
+    c.eq(r['persian'],expected,'Persian toman invoices are normalized to rial')
+    c.eq(r['latin'],expected,'Latin Toman invoices are normalized to rial')
+    c.eq(pg.errs,[],'no runtime errors during currency parsing')
+    await ctx.close()
+
+
+@test
 async def invoice_ocr_review_does_not_write_before_confirmation(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({});
       const before={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
