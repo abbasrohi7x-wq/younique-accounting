@@ -7,7 +7,7 @@
   var CACHE_NAME = 'unique-voice-v1';
   var model = null, recognizer = null, stream = null, audioContext = null;
   var source = null, processor = null, muted = null, active = false, finalText = '', pendingStop = null, captureWatchdog = null;
-  var scriptPromise = null;
+  var scriptPromise = null, downloadPromise = null, modelPromise = null, capturePromise = null;
 
   function byId(id) { return document.getElementById(id); }
   function status(message) {
@@ -39,7 +39,7 @@
     return caches.open(CACHE_NAME).then(function (cache) { return cache.match(MODEL_URL); })
       .then(function (hit) { return !!hit; }).catch(function () { return false; });
   }
-  function downloadModel() {
+  function downloadModelOnce() {
     status('در حال بررسی بستهٔ فارسی…');
     return caches.open(CACHE_NAME).then(function (cache) {
       return cache.match(MODEL_URL).then(function (hit) {
@@ -69,6 +69,24 @@
         });
       });
     });
+  }
+  function downloadModel() {
+    if (downloadPromise) return downloadPromise;
+    if (!('caches' in window) || !window.caches || typeof window.caches.open !== 'function') {
+      /* Cache API is an optimization only. Vosk's worker downloads and persists the
+         model in its own IndexedDB filesystem, so unsupported Cache API must not
+         block first-time setup or later offline use. */
+      status('ذخیره‌سازی مرورگر در دسترس نیست؛ موتور Vosk مدل را در فضای محلی خودش ذخیره می‌کند…');
+      return Promise.resolve(true);
+    }
+    downloadPromise = downloadModelOnce().then(function (result) {
+      downloadPromise = null;
+      return result;
+    }, function (error) {
+      downloadPromise = null;
+      throw error;
+    });
+    return downloadPromise;
   }
   function createModelWithDiagnostics(Vosk) {
     var modelUrl = new URL(MODEL_URL, window.location.href).href;
@@ -124,14 +142,22 @@
   }
   function ensureModel() {
     if (model && model.ready) return Promise.resolve(model);
+    if (modelPromise) return modelPromise;
     status('در حال آماده‌سازی موتور محلی…');
-    return loadLibrary().then(function (Vosk) {
+    modelPromise = loadLibrary().then(function (Vosk) {
       return downloadModel().then(function () { return createModelWithDiagnostics(Vosk); });
     }).then(function (loaded) {
       model = loaded;
       status('موتور گفتار فارسی آماده است. برای شروع ضبط، دکمهٔ میکروفون را بزنید.');
       return model;
+    }).then(function (loaded) {
+      modelPromise = null;
+      return loaded;
+    }, function (error) {
+      modelPromise = null;
+      throw error;
     });
+    return modelPromise;
   }
   function stopCapture(releaseModel, finalize) {
     if (pendingStop) return releaseModel ? pendingStop.then(function () { return stopCapture(true, false); }) : pendingStop;
@@ -173,7 +199,7 @@
     releaseResources();
     return Promise.resolve();
   }
-  function startCapture() {
+  function startCaptureOnce() {
     if (active) return Promise.resolve();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       return Promise.reject(new Error('این مرورگر دسترسی مستقیم به میکروفون را پشتیبانی نمی‌کند؛ برنامه را در Chrome و از نشانی HTTPS باز کنید.'));
@@ -288,6 +314,18 @@
       }
       throw error;
     });
+  }
+  function startCapture() {
+    if (active) return Promise.resolve();
+    if (capturePromise) return capturePromise;
+    capturePromise = startCaptureOnce().then(function (result) {
+      capturePromise = null;
+      return result;
+    }, function (error) {
+      capturePromise = null;
+      throw error;
+    });
+    return capturePromise;
   }
   function applyTranscript(value, context) {
     value = String(value || '').trim();
