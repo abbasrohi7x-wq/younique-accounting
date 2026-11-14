@@ -1522,15 +1522,42 @@ const ActionEngine=(()=>{
   }
   pro39Init();
   function reports39(){
-    pro39Init(); const s=db.sales.filter(x=>x.status==='confirmed'), salesTotal=s.reduce((a,x)=>a+num(x.total),0), cost=s.reduce((a,x)=>a+(num(x.costTotal)>0?num(x.costTotal):Math.max(0,num(x.total)-num(x.profit))),0), gross=salesTotal-cost;
-    const top={};s.forEach(x=>(x.items||[]).forEach(i0=>{/* v42.1: sale.items holds item ids, not objects */const i=typeof i0==='string'?(db.saleItems||[]).find(y=>y.id===i0):i0;if(!i)return;const v=i.variantId||i.id,k=v;top[k]??={name:variantName(variantBy(k))||i.name||'کالا',qty:0,total:0};top[k].qty+=num(i.qty);top[k].total+=num(i.total)}));
+    pro39Init();
+    const s=db.sales.filter(x=>x.status==='confirmed');
+    const salesTotal=s.reduce((a,x)=>a+num(x.total),0);
+    const salesVat=s.reduce((a,x)=>a+num(x.vat),0);
+    const returns=(db.returns||[]).filter(x=>x.type==='sale');
+    const returnsTotal=returns.reduce((a,x)=>a+num(x.refund),0);
+    const returnsVat=returns.reduce((a,x)=>a+num(x.vat),0);
+    const saleCost=s.reduce((a,x)=>a+(num(x.costTotal)>0?num(x.costTotal):Math.max(0,num(x.total)-num(x.profit))),0);
+    const returnCost=returns.reduce((a,x)=>a+num(x.costTotal),0);
+    const cost=Math.max(0,saleCost-returnCost);
+    const netSales=Math.max(0,salesTotal-returnsTotal);
+    const netSalesExVat=Math.max(0,(salesTotal-salesVat)-(returnsTotal-returnsVat));
+    const gross=netSalesExVat-cost;
+    const top={};
+    s.forEach(x=>(x.items||[]).forEach(i0=>{
+      const i=typeof i0==='string'?(db.saleItems||[]).find(y=>y.id===i0):i0;
+      if(!i)return;
+      const v=i.variantId||i.id,k=v;
+      top[k]??={name:variantName(variantBy(k))||i.name||'کالا',qty:0,total:0};
+      top[k].qty+=num(i.qty);top[k].total+=num(i.total);
+    }));
+    returns.forEach(r=>(r.items||[]).forEach(i=>{
+      const k=i.variantId||i.saleItemId;
+      if(!top[k])return;
+      top[k].qty=Math.max(0,top[k].qty-num(i.qty));
+      top[k].total=Math.max(0,top[k].total-num(i.net));
+    }));
     const low=stockAlerts(), dead=activeVariants().filter(v=>num(v.stock)>0&&!s.some(x=>(x.items||[]).some(i=>i.variantId===v.id&&new Date(x.date)>new Date(Date.now()-60*86400000))));
     const rows=Object.values(top).sort((a,b)=>b.qty-a.qty).slice(0,15);
-    $('#content').innerHTML=pageHead('گزارش‌های مدیریتی','سود واقعی، فروش، موجودی، مطالبات و کالاهای راکد',`<button class="btn primary" id="csv39">خروجی CSV</button><button class="btn" id="json39">گزارش JSON</button>`)+
-    `<div class="grid">${metricCard('فروش',money(salesTotal),`${s.length} فاکتور`)}${metricCard('بهای تمام‌شده',money(cost),'واقعی')}${metricCard('سود ناخالص',money(gross),'فروش منهای بهای تمام‌شده',gross>=0?'green':'red')}${metricCard('کالای راکد',dead.length,'بیش از ۶۰ روز','amber')}</div>`+
-    `<div class="grid2 section"><div class="card"><div class="section-title"><h3>پرفروش‌ترین تنوع‌ها</h3></div><div class="rowlist">${rows.map(x=>`<div class="listrow"><div class="grow"><b>${esc(x.name)}</b><small>${x.qty} واحد</small></div><em>${money(x.total)}</em></div>`).join('')||'<div class="empty">اطلاعاتی وجود ندارد.</div>'}</div></div><div class="card"><div class="section-title"><h3>هشدار موجودی</h3></div><div class="rowlist">${low.slice(0,12).map(v=>`<div class="listrow"><div class="grow"><b>${esc(variantName(v))}</b><small>موجودی ${v.stock} · حداقل ${v.minStock}</small></div><em>${money(v.sellPrice)}</em></div>`).join('')||'<div class="empty">موردی نیست.</div>'}</div></div></div>`;
-    $('#csv39').onclick=()=>{const out=[['کالا','تعداد فروش','مبلغ فروش'],...rows.map(x=>[x.name,x.qty,x.total])];download('گزارش-فروش-'+today()+'.csv',out.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\n'),'text/csv;charset=utf-8');toast('گزارش CSV آماده شد')};
-    $('#json39').onclick=()=>download('گزارش-مدیریتی-'+today()+'.json',JSON.stringify({generatedAt:now(),sales:salesTotal,cost,gross,top,low:low.map(v=>({name:variantName(v),stock:v.stock,minStock:v.minStock})),dead:dead.map(v=>variantName(v)),receivable:accountBalance('receivable'),payable:-accountBalance('payable')},null,2));
+    const returnRows=returns.slice().reverse().slice(0,10);
+    $('#content').innerHTML=pageHead('گزارش‌های مدیریتی','فروش خالص، برگشت، سود، موجودی، مطالبات و کالاهای راکد',`<button class="btn primary" id="csv39">خروجی CSV</button><button class="btn" id="json39">گزارش JSON</button>`)+
+    `<div class="grid">${metricCard('فروش ناخالص',money(salesTotal),`${s.length} فاکتور`)}${metricCard('برگشت فروش',money(returnsTotal),`${returns.length} برگشت`)}${metricCard('فروش خالص',money(netSales),'پس از برگشت')}${metricCard('بهای تمام‌شده خالص',money(cost),'پس از برگشت')}${metricCard('سود ناخالص',money(gross),'بدون مالیات ارزش افزوده',gross>=0?'green':'red')}${metricCard('کالای راکد',dead.length,'بیش از ۶۰ روز','amber')}</div>`+
+    `<div class="card section"><div class="section-title"><h3>برگشت فروش</h3></div><div class="rowlist">${returnRows.map(r=>`<div class="listrow"><div class="grow"><b>برگشت فروش ${esc(r.ref||'')}</b><small>${esc(r.method||'')}</small></div><em>${money(r.refund)}</em></div>`).join('')||'<div class="empty">برگشتی ثبت نشده است.</div>'}</div></div>`+
+    `<div class="grid2 section"><div class="card"><div class="section-title"><h3>پرفروش‌ترین تنوع‌ها</h3></div><div class="rowlist">${rows.map(x=>`<div class="listrow"><div class="grow"><b>${esc(x.name)}</b><small>${x.qty} واحد خالص</small></div><em>${money(x.total)}</em></div>`).join('')||'<div class="empty">اطلاعاتی وجود ندارد.</div>'}</div></div><div class="card"><div class="section-title"><h3>هشدار موجودی</h3></div><div class="rowlist">${low.slice(0,12).map(v=>`<div class="listrow"><div class="grow"><b>${esc(variantName(v))}</b><small>موجودی ${v.stock} · حداقل ${v.minStock}</small></div><em>${money(v.sellPrice)}</em></div>`).join('')||'<div class="empty">موردی نیست.</div>'}</div></div></div>`;
+    $('#csv39').onclick=()=>{const out=[['کالا','تعداد فروش خالص','مبلغ فروش خالص'],...rows.map(x=>[x.name,x.qty,x.total])];download('گزارش-فروش-'+today()+'.csv',out.map(r=>r.map(v=>`"${String(v).replaceAll('"','""')}"`).join(',')).join('\\n'),'text/csv;charset=utf-8');toast('گزارش CSV آماده شد')};
+    $('#json39').onclick=()=>download('گزارش-مدیریتی-'+today()+'.json',JSON.stringify({generatedAt:now(),sales:salesTotal,returns:returnsTotal,netSales,saleCost,returnCost,cost,gross,top,returns:returnRows,low:low.map(v=>({name:variantName(v),stock:v.stock,minStock:v.minStock})),dead:dead.map(v=>variantName(v)),receivable:accountBalance('receivable'),payable:-accountBalance('payable')},null,2));
   }
   function diagnostics39(){
     pro39Init(); const issues=[]; const seen=new Set();
