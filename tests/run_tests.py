@@ -496,13 +496,15 @@ async def offline_vosk_model_loads_from_bundled_assets(br,c):
       s.src='./vendor/vosk/vosk.js';
       await new Promise((resolve,reject)=>{s.onload=resolve;s.onerror=()=>reject(Error('Vosk runtime script failed')) ;document.head.appendChild(s)});
       if(!window.Vosk||typeof window.Vosk.createModel!=='function')throw Error('Vosk API is missing');
-      const model=await window.Vosk.createModel('./vendor/vosk/model.tar.gz');
+      let model=null;
       try{
+        model=await Promise.race([window.Vosk.createModel('./vendor/vosk/model.tar.gz'),
+          new Promise((_,reject)=>setTimeout(()=>reject(Error('Vosk model initialization exceeded 120 seconds')),120000))]);
         const recognizer=new model.KaldiRecognizer(16000);
         const ok=!!model.ready&&typeof recognizer.acceptWaveform==='function';
         recognizer.remove();
         return {loaded:ok,ready:!!model.ready};
-      }finally{model.terminate()}
+      }finally{if(model)await model.terminate()}
     }""")
     c.true(r['loaded'],'real Persian Vosk model and WASM recognizer initialize from bundled files')
     c.eq(external,[],'Vosk model loading makes no cross-origin requests')
