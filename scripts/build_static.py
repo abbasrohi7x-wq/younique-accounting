@@ -5,7 +5,7 @@ The model is deliberately downloaded at deploy time, not committed to Git.
 No runtime API/server is introduced; the deployed files are static assets.
 """
 from __future__ import annotations
-import hashlib, json, os, re, shutil, subprocess, tarfile, tempfile, urllib.request, zipfile
+import gzip, hashlib, json, os, re, shutil, subprocess, tarfile, tempfile, urllib.request, zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -27,6 +27,30 @@ def download(url: str, target: Path) -> str:
             out.write(chunk)
             digest.update(chunk)
     return digest.hexdigest()
+
+def verify_tesseract_assets(asset_root: Path) -> None:
+    """Fail the build early if the offline Persian/English OCR bundle is incomplete."""
+    required_js = (
+        "tesseract.min.js",
+        "worker.min.js",
+        "core/tesseract-core-simd-lstm.wasm.js",
+        "core/tesseract-core-lstm.wasm.js",
+    )
+    for relative in required_js:
+        path = asset_root / relative
+        if not path.is_file() or path.stat().st_size == 0:
+            raise RuntimeError(f"Offline Tesseract asset is missing or empty: {path.relative_to(DIST)}")
+
+    for language in ("fas", "eng"):
+        path = asset_root / "lang" / f"{language}.traineddata.gz"
+        if not path.is_file() or path.stat().st_size < 1024:
+            raise RuntimeError(f"Tesseract {language} traineddata is missing or suspiciously small")
+        try:
+            with gzip.open(path, "rb") as model:
+                if not model.read(16):
+                    raise RuntimeError(f"Tesseract {language} traineddata is empty")
+        except (OSError, EOFError) as error:
+            raise RuntimeError(f"Tesseract {language} traineddata is not a valid gzip archive: {error}") from error
 
 def safe_extract_zip(archive: Path, destination: Path) -> None:
     root = destination.resolve()
@@ -82,6 +106,8 @@ def main() -> None:
         shutil.rmtree(DIST)
     ignored = shutil.ignore_patterns(".git", ".github", ".vercel", "dist", "tests", "scripts", "__pycache__", "*.pyc")
     shutil.copytree(ROOT, DIST, ignore=ignored)
+
+    verify_tesseract_assets(DIST / "vendor" / "tesseract")
 
     asset_dir = DIST / "vendor" / "vosk"
     asset_dir.mkdir(parents=True, exist_ok=True)
