@@ -568,7 +568,7 @@ async def management_reports_reconcile_to_confirmed_sales(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,5,1000,{cash:5000});await T.sell(S,S.v,2,2000,{cash:4000});
       let downloaded=[];window.download=(name,content)=>downloaded.push({name,content:String(content||'')});
-      window.reports();
+      window.reports39();
       const text=document.querySelector('#content')?.innerText||'';
       const gross=db.sales.filter(x=>x.status==='confirmed').reduce((a,x)=>a+num(x.total)-num(x.costTotal),0);
       document.querySelector('#csv39').click();document.querySelector('#json39').click();
@@ -660,6 +660,68 @@ async def manual_supplier_creation_and_purchase_quick_add(br,c):
     c.true(r['quick'],'supplier can be added directly from purchase without leaving the workflow')
     c.true(r['selected'],'new quick supplier is selected in the purchase form')
     c.eq(pg.errs,[],'no runtime errors in either supplier workflow')
+    await ctx.close()
+
+
+@test
+async def assistant_open_cash_session_requires_confirmation(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async()=> {
+      const S=await T.seed({});
+      db.settings.ai=Object.assign({},db.settings.ai||{},{provider:'local',mode:'local'});
+      window.page='ai';render();
+      const before=(db.cashSessions||[]).length;
+      const prompt=await window.UAI.ui.submit('صندوق را باز کن با موجودی اولیه ۵ میلیون تومان','text');
+      const pending=window.UAI.ctx.pending;
+      const afterPrompt=(db.cashSessions||[]).length;
+      const approved=await window.UAI.ui.submit('تأیید','text');
+      await new Promise(resolve=>setTimeout(resolve,60));
+      const session=(db.cashSessions||[]).slice(-1)[0];
+      return {before,afterPrompt,tool:pending&&pending.tool,kind:prompt[0]&&prompt[0].kind,
+        afterConfirm:(db.cashSessions||[]).length,opening:session&&session.openingCash,
+        status:session&&session.status,approved:approved[0]&&approved[0].kind};
+    }""")
+    c.eq(r['tool'],'open_cash_session','natural Persian cash-open command resolves to the cash-session tool')
+    c.eq(r['kind'],'confirm','opening a cash session asks for explicit confirmation')
+    c.eq(r['afterPrompt'],r['before'],'no cash session is created before approval')
+    c.eq(r['afterConfirm'],r['before']+1,'approval opens exactly one cash session')
+    c.eq(r['opening'],50000000,'five million toman is stored as fifty million rial')
+    c.eq(r['status'],'open','the newly opened session is active')
+    c.eq(pg.errs,[],'no runtime errors during assistant cash opening')
+    await ctx.close()
+
+
+@test
+async def assistant_product_command_previews_before_creation(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async()=> {
+      const S=await T.seed({});
+      window.page='ai';render();
+      const beforeModels=db.models.length,beforeVariants=db.variants.length;
+      await window.askAI('یک کفش نایک مشکی سایز ۴۲ با قیمت خرید ۲ میلیون تومان و قیمت فروش ۳ میلیون تومان ثبت کن');
+      const modal=document.querySelector('#modal');
+      const preview=modal&&modal.innerText||'';
+      const afterPreview={models:db.models.length,variants:db.variants.length};
+      const confirm=document.querySelector('#aiCreateConfirm');
+      if(!confirm)throw Error('AI product review confirmation button missing: '+preview);
+      confirm.click();await new Promise(resolve=>setTimeout(resolve,60));
+      const created=db.models.slice(beforeModels);
+      const variants=db.variants.slice(beforeVariants);
+      return {preview,afterPreview,beforeModels,beforeVariants,models:created.length,variants:variants.length,
+        name:created[0]&&created[0].name,brand:created[0]&&created[0].brand,
+        colors:variants.map(v=>v.color),sizes:variants.map(v=>v.size),buy:variants[0]&&variants[0].buyPrice,
+        sell:variants[0]&&variants[0].sellPrice,source:created[0]&&created[0].source};
+    }""")
+    c.eq(r['afterPreview']['models'],r['beforeModels'],'AI product command previews without creating a model')
+    c.eq(r['afterPreview']['variants'],r['beforeVariants'],'AI product command previews without creating variants')
+    c.true(r['models']==1 and r['variants']==1,'confirmation creates exactly one product and one size/color variant')
+    c.true('کفش' in (r['name'] or ''),'product name is parsed from natural Persian')
+    c.eq(r['colors'],['مشکی'],'black color is extracted')
+    c.eq(r['sizes'],['42'],'size 42 is extracted')
+    c.eq(r['buy'],20000000,'two million toman purchase price is stored in rial')
+    c.eq(r['sell'],30000000,'three million toman sale price is stored in rial')
+    c.eq(r['source'],'ai','AI-created product is marked as AI-originated')
+    c.eq(pg.errs,[],'no runtime errors during AI product creation')
     await ctx.close()
 
 
