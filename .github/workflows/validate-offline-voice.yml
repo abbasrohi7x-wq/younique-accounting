@@ -5,6 +5,10 @@ on:
       - chatgpt-push-test-2026-11-13
   workflow_dispatch:
 
+concurrency:
+  group: unique-pro-validation-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
@@ -44,7 +48,7 @@ jobs:
       - name: Install Playwright
         run: |
           python -m pip install --upgrade pip
-          python -m pip install playwright
+          python -m pip install playwright opencv-python-headless
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
       - name: Run full browser regression suite against built output
