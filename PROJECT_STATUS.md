@@ -8,7 +8,7 @@
 |---|---|
 | مخزن | `abbasrohi7x-wq/younique-accounting` |
 | شاخهٔ اصلی | `main` |
-| آخرین commit کد/آزمون تأییدشده | `89f65f3d50d14bc62772b637d4cefb557114ed5a` |
+| آخرین commit کد/آزمون تأییدشده | `034ca25b0a5d323040742fc58acfaffed5fd476a` |
 | نوع برنامه | وب‌اپ استاتیک / PWA |
 | زبان رابط | فارسی، RTL |
 | میزبان هدف | GitHub Pages |
@@ -42,17 +42,17 @@
 | مورد | نتیجه |
 |---|---|
 | شاخه | `main` |
-| commit | `89f65f3d50d14bc62772b637d4cefb557114ed5a` |
+| commit | `034ca25b0a5d323040742fc58acfaffed5fd476a` |
 | Regression tests | **موفق** |
 | تعداد آزمون‌ها | **54/54** |
-| Assertionها | **368** |
-| مدت اجرا | حدود 125 ثانیه |
+| Assertionها | **370** |
+| مدت اجرا | حدود 126 ثانیه |
 | OCR فارسی/انگلیسی | بارگذاری worker، مدل فارسی، متن ترکیبی و کش آفلاین در CI موفق |
 | آزمون نهایی فروشگاه | خرید، فروش، برگشت، موجودی، سود/درآمد خالص، گزارش، پشتیبان و سلامت دفتر موفق |
 | CodeQL | اجرای متصل به همین commit موفق |
 
-- [Regression tests — commit 89f65f3](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43521022593)
-- [CodeQL — commit 89f65f3](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43521021313)
+- [Regression tests — commit 034ca25](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43594228854)
+- CodeQL برای commit جدید در این مرحله اجرا نشده است؛ اجرای قدیمی روی `89f65f3` موفق بود.
 
 نتیجهٔ بالا از گزارش واقعی GitHub Actions خوانده شده است. این موفقیت، عکس واقعی فاکتور روی Android، کیفیت میکروفون، مجوزهای دوربین یا انتشار زندهٔ GitHub Pages را تأیید نمی‌کند.
 
@@ -80,7 +80,8 @@
 ## 8. آخرین بررسی
 
 - تاریخ بررسی: 2026-11-14
-- مبنای کد: commit `89f65f3d50d14bc62772b637d4cefb557114ed5a`
+- مبنای کد و آزمون: commit `034ca25b0a5d323040742fc58acfaffed5fd476a`؛ 54 آزمون و 370 assertion موفق.
+- تنظیم CI: commit `8ff72fbab7cdbe4ee62ac558272f8caf4fba9d64`؛ اجرای تکراری آزمون‌های سنگین برای یک شاخه با concurrency کنترل می‌شود.
 - روش: خواندن فایل‌های اصلی، تاریخچهٔ commit، وضعیت شاخه‌ها، اجرای GitHub Actions و لاگ کامل آزمون مرورگری.
 - محدودیت: اتصال فعلی امکان خواندن و تغییر فایل‌های مخزن را دارد، اما ابزار نوشتن تنظیمات مدیریتی، تغییر نام مخزن، Topics، Branch Protection و حذف شاخه را ارائه نمی‌کند.
 
@@ -95,9 +96,10 @@
 
 ### شاخهٔ Vosk
 - شاخهٔ آزمایشی `chatgpt-push-test-2026-11-13` شامل `src/ui/offline-voice.js`، آزمون‌های میکروفون و `scripts/build_static.py` است.
-- اسکریپت build، کد Vosk و مدل فارسی را هنگام build از منابع بیرونی می‌گیرد و `vendor/vosk/model.tar.gz` می‌سازد؛ این فایل‌ها در tree شاخه ثبت نشده‌اند.
+- نام مدل در اسکریپت build، `vosk-model-small-fa-0.42` است و با فهرست رسمی Vosk مطابقت دارد؛ مدل فارسی کوچک حدود 53 مگابایت و دارای مجوز Apache 2.0 است. ادعای قبلی دربارهٔ اشتباه بودن نام مدل دقیق نبود.
+- اسکریپت build، کد Vosk و مدل فارسی را هنگام build از منابع بیرونی می‌گیرد و `vendor/vosk/model.tar.gz` می‌سازد؛ این فایل‌ها در tree شاخه ثبت نشده‌اند. SHA-256 در manifest ثبت می‌شود، اما هنوز با مقدار از پیش pinned مقایسه نمی‌شود.
 - ادغام این پیاده‌سازی مستلزم انتقال کنترل‌شدهٔ UI، Service Worker، build reproducibility، مجوزها، حجم artifact و آزمون مرورگر روی خروجی ساخته‌شده است. صرف کپی فایل JS کافی نیست.
-- به دلیل واگرایی 185/149 commit و تغییرات مالی/مخزن در همان شاخه، ادغام کامل یا cherry-pick گسترده انجام نشده است.
+- به دلیل واگرایی حدود 185/148 commit و تغییرات مالی/مخزن در همان شاخه، ادغام کامل یا cherry-pick گسترده انجام نشده است.
 
 ### وضعیت انتشار
 - فایل workflow موجود در `.github/workflows/` فقط `regression-tests.yml` است.
