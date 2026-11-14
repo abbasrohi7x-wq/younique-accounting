@@ -151,6 +151,44 @@ async def invoice_ocr_review_does_not_write_before_confirmation(br,c):
     c.eq(r['number'],'INV-123','invoice number parsed')
     await ctx.close()
 
+@test
+async def offline_voice_routes_to_assistant_and_sale_draft(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""() => ({
+      voice:typeof window.yqVoiceDraft==='function' && typeof window.voiceRecord==='function',
+      assistant:!!(window.UAI&&window.UAI.ui&&typeof window.UAI.ui.submit==='function')
+    })""")
+    c.true(r['voice'],'offline voice entry points exposed')
+    c.true(r['assistant'],'assistant submit controller exposed to voice module')
+
+    await pg.evaluate("""() => {
+      window.page='ai';window.render();
+      window.__voiceCapture=null;
+      window.UAI.ui.submit=(text,source)=>{window.__voiceCapture={text,source};return Promise.resolve([])};
+    }""")
+    await pg.locator('#voiceBtn').click()
+    await pg.locator('#yqVText').click()
+    await pg.locator('#yqVManual').fill('گزارش فروش امروز')
+    await pg.locator('#yqVManualApply').click()
+    await pg.wait_for_timeout(80)
+    a=await pg.evaluate("window.__voiceCapture")
+    c.eq(a,{'text':'گزارش فروش امروز','source':'voice'},'assistant voice reaches local assistant API')
+
+    await pg.evaluate("""() => {
+      window.page='sale';window.render();
+      window.__saleVoice=null;
+      window.yqApplyVoiceDraft=(text)=>{window.__saleVoice=text;return {ok:true}};
+    }""")
+    await pg.locator('#voiceSale').click()
+    await pg.locator('#yqVText').click()
+    await pg.locator('#yqVManual').fill('دو جفت کتونی مشکی سایز ۴۲')
+    await pg.locator('#yqVManualApply').click()
+    await pg.wait_for_timeout(80)
+    v=await pg.evaluate("window.__saleVoice")
+    c.eq(v,'دو جفت کتونی مشکی سایز ۴۲','sale voice reaches sale draft parser')
+    c.eq(pg.errs,[],'no browser runtime errors')
+    await ctx.close()
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
