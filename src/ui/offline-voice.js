@@ -139,7 +139,21 @@
       throw error;
     });
   }
-  function showDialog() {
+  function applyTranscript(value, context) {
+    value = String(value || '').trim();
+    if (!value) { if (typeof toast === 'function') toast('متنی برای ارسال وجود ندارد', true); return; }
+    if (context === 'sale' && window.page === 'sale' && typeof window.yqApplyVoiceDraft === 'function') {
+      window.yqApplyVoiceDraft(value);
+      return;
+    }
+    if (window.UI && typeof window.UI.submit === 'function') {
+      window.UI.submit(value, 'voice');
+      return;
+    }
+    if (typeof toast === 'function') toast('دستیار محلی در دسترس نیست؛ متن را در صفحهٔ دستیار وارد کنید.', true);
+  }
+  function showDialog(context) {
+    context = context || 'assistant';
     finalText = '';
     modal(
       '<div class="modalhead"><h2>دستیار گفتاری آفلاین فارسی</h2><button class="close" data-close>×</button></div>' +
@@ -177,14 +191,14 @@
       byId('yqVManualApply').onclick = function () {
         var value = byId('yqVManual').value.trim();
         closeModal();
-        if (value) window.yqApplyVoiceDraft(value);
+        if (value) applyTranscript(value, context);
       };
     };
     byId('yqVApply').onclick = function () {
       stopCapture(true);
       var value = byId('yqVTranscript').value.trim();
       closeModal();
-      if (value) window.yqApplyVoiceDraft(value);
+      if (value) applyTranscript(value, context);
       else if (typeof toast === 'function') toast('متنی برای افزودن وجود ندارد', true);
     };
     var overlay = document.getElementById('modal');
@@ -202,7 +216,8 @@
       modal('<div class="modalhead"><h2>دستیار گفتاری</h2><button class="close" data-close>×</button></div><p>برای دسترسی به میکروفون، برنامه باید از HTTPS باز شود.</p>');
       return;
     }
-    showDialog();
+    showDialog('sale');
   };
+  window.voiceRecord = function () { showDialog('assistant'); };
   window.addEventListener('pagehide', function () { stopCapture(true); });
 })();
