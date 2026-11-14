@@ -204,8 +204,8 @@ async def offline_voice_transcript_reaches_local_assistant(br,c):
 async def offline_voice_opens_real_microphone_pipeline(br,c):
     pg,ctx=await page(br)
     r=await pg.evaluate("""async() => {
-      let handlers={},accepted=0,permissionRequested=false,recognizerSampleRate=0;
-      const track={readyState:'live',stop(){}};
+      let handlers={},accepted=0,permissionRequested=false,recognizerSampleRate=0,trackStopped=false,contextClosed=false;
+      const track={readyState:'live',stop(){trackStopped=true;this.readyState='ended'}};
       const stream={getTracks:()=>[track],getAudioTracks:()=>[track]};
       Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{
         getUserMedia:async()=>{permissionRequested=true;return stream}
@@ -228,7 +228,7 @@ async def offline_voice_opens_real_microphone_pipeline(br,c):
         this.createMediaStreamSource=()=>({connect(){}});
         this.createScriptProcessor=()=>{window.__fakeProcessor={connect(){},disconnect(){},onaudioprocess:null};return window.__fakeProcessor};
         this.createGain=()=>({gain:{value:1},connect(){},disconnect(){}});
-        this.close=async()=>{};
+        this.close=async()=>{contextClosed=true};
       };
       window.yqVoiceDraft('assistant');
       await new Promise(r=>setTimeout(r,30));
@@ -239,11 +239,20 @@ async def offline_voice_opens_real_microphone_pipeline(br,c):
         window.__fakeProcessor.onaudioprocess({inputBuffer:{getChannelData:()=>samples}});
       }
       await new Promise(r=>setTimeout(r,30));
-      return {permissionRequested,accepted,recognizerSampleRate,status:document.querySelector('#yqVStatus')?.textContent||''};
+      const listeningAfterFrame=!!(window.UAI&&window.UAI.Voice&&window.UAI.Voice.listening);
+      await window.voiceRecord();
+      await new Promise(resolve=>setTimeout(resolve,30));
+      return {permissionRequested,accepted,recognizerSampleRate,listeningAfterFrame,
+        listeningAfterStop:!!(window.UAI&&window.UAI.Voice&&window.UAI.Voice.listening),
+        trackStopped,contextClosed,status:document.querySelector('#yqVStatus')?.textContent||''};
     }""")
     c.true(r['permissionRequested'],'microphone permission requested on start button')
     c.eq(r['recognizerSampleRate'],48000,'Vosk recognizer receives actual AudioContext sample rate')
     c.true(r['accepted']>=1,'audio frames reached Vosk recognizer')
+    c.true(r['listeningAfterFrame'],'assistant voice state reflects active microphone capture')
+    c.true(not r['listeningAfterStop'],'assistant voice state clears after stop')
+    c.true(r['trackStopped'],'microphone track is released on stop')
+    c.true(r['contextClosed'],'AudioContext is closed on stop')
     c.true('سلام' in r['status'],'partial recognition updates visible status')
     c.eq(pg.errs,[],'no browser runtime errors')
     await ctx.close()
