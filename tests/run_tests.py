@@ -729,6 +729,37 @@ async def assistant_product_command_previews_before_creation(br,c):
     await ctx.close()
 
 
+@test
+async def final_store_acceptance_purchase_sale_return_reports_and_backup(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({vat:10});
+      const purchase=await T.buy(S,S.v,10,1000,{cash:3000,card:2000,bank:1000,credit:5000});
+      const sale=await T.sell(S,S.v,3,1500,{cash:1500,card:1000,bank:500,credit:1950});
+      const ret=Fin.saleReturn({ref:sale.number,qtys:{[sale.items[0]]:1},method:'cash',note:'final acceptance'});
+      const totalsNow=totals();window.reports39();
+      const reportText=document.querySelector('#content').innerText;
+      const backup=JSON.parse(exportData()),summary=validateBackupData(backup.data);
+      return {
+        purchase:{total:purchase.total,paid:purchase.paid,due:purchase.due,split:purchase.payments.reduce((a,x)=>a+num(x.amount),0)},
+        sale:{total:sale.total,paid:sale.paid,due:sale.due,split:sale.payments.reduce((a,x)=>a+num(x.amount),0)},
+        returned:{refund:ret.refund,qty:ret.items.reduce((a,x)=>a+num(x.qty),0)},
+        stock:variantBy(S.v).stock,revenue:totalsNow.revenue,profit:totalsNow.profit,
+        reportNet:reportText.includes(money(3300)),reportReturn:reportText.includes('برگشت فروش'),
+        backup:summary,health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced()
+      }''')
+    c.eq(r['purchase'],{'total':11000,'paid':6000,'due':5000,'split':11000},'purchase payment split and supplier balance reconcile')
+    c.eq(r['sale'],{'total':4950,'paid':3000,'due':1950,'split':4950},'sale payment split and customer balance reconcile')
+    c.eq(r['returned'],{'refund':1650,'qty':1},'sale return is posted with correct VAT-inclusive refund')
+    c.eq(r['stock'],8,'final stock equals purchases minus net sales')
+    c.eq(r['revenue'],3300,'dashboard net revenue matches the end-to-end workflow')
+    c.eq(r['profit'],1000,'dashboard net profit matches the end-to-end workflow')
+    c.true(r['reportNet'] and r['reportReturn'],'management report includes net sales and return rows')
+    c.eq(r['backup'],{'products':1,'variants':1,'sales':1,'purchases':1,'customers':1,'suppliers':1},'full backup validates after the workflow')
+    c.true(r['health'],'final data integrity check passes')
+    c.eq(r['unbalanced'],0,'all purchase, sale and return journal entries remain balanced')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
