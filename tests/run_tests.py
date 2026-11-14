@@ -903,7 +903,7 @@ async def local_persian_tesseract_model_loads_and_processes_mixed_invoice_text(b
         cx.textAlign='left';cx.direction='ltr';cx.font='bold 140px Arial';
         cx.fillText('12345',80,230);
         const result=await Promise.race([worker.recognize(canvas),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Persian OCR recognition timed out')),60000))]);
-        return{loaded:true,text:String(result.data.text||''),confidence:Number(result.data.confidence)||0};
+        return{loaded:true,sameWorker,text:String(result.data.text||''),confidence:Number(result.data.confidence)||0};
       }finally{await worker.terminate()}
     """)
     constText = r['text'].replace(' ','').replace('\\n','')
