@@ -533,14 +533,14 @@ async def warehouse_void_and_return_cannot_consume_other_warehouse_stock(br,c):
       document.querySelector('#savePurchase').click();await T.sleep(180);
       const p=db.purchases[db.purchases.length-1];
       const warehouseAfterPurchase=db.warehouseStocks.W2?.[S.v]||0;
-      stockMove(S.v,-2,'test_transfer_out','test-transfer',1000,'W2');
-      stockMove(S.v,2,'test_transfer_in','test-transfer',1000,'MAIN');
+      const transfer=recordTransfer('W2','MAIN',S.v,2);
+      const afterTransfer={main:db.warehouseStocks.MAIN?.[S.v]||0,second:db.warehouseStocks.W2?.[S.v]||0,global:variantBy(S.v).stock};
       const before={journal:db.journal.length,payments:db.payments.length,moves:db.stockMoves.length,returns:db.returns.length};
       let voidRejected=false,returnRejected=false;
       try{Fin.voidPurchase(p.number,'warehouse isolation regression')}catch(e){voidRejected=true}
       try{Fin.purchaseReturn({ref:p.number,qtys:{[p.items[0]]:1},method:'credit'})}catch(e){returnRejected=true}
       return{voidRejected,returnRejected,status:p.status,purchaseWarehouse:p.warehouseId,
-        selectedWarehouse,warehouseAfterPurchase,
+        selectedWarehouse,warehouseAfterPurchase,afterTransfer,
         main:db.warehouseStocks.MAIN?.[S.v]||0,second:db.warehouseStocks.W2?.[S.v]||0,
         global:variantBy(S.v).stock,after:{journal:db.journal.length,payments:db.payments.length,moves:db.stockMoves.length,returns:db.returns.length},
         before,unb:T.unbalanced(),health:runYouniqueHealthCheck().ok};
@@ -548,6 +548,7 @@ async def warehouse_void_and_return_cannot_consume_other_warehouse_stock(br,c):
     c.eq(r['selectedWarehouse'],'W2','test form selects the second warehouse')
     c.eq(r['purchaseWarehouse'],'W2','purchase persists the selected warehouse')
     c.eq(r['warehouseAfterPurchase'],2,'purchase initially receives stock into the selected warehouse')
+    c.eq(r['afterTransfer'],{'main':6,'second':0,'global':6},'test transfer moves stock from the second warehouse to MAIN without changing global stock')
     c.true(r['voidRejected'],'void purchase cannot consume stock transferred to another warehouse')
     c.true(r['returnRejected'],'purchase return cannot consume stock from another warehouse')
     c.eq(r['status'],'confirmed','failed void leaves the purchase confirmed')
