@@ -141,14 +141,27 @@ async def invoice_ocr_review_does_not_write_before_confirmation(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({});
       const before={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
       const parsed=parseLocalInvoiceText('فروشنده: فروشگاه نمونه\\nشماره فاکتور: INV-123\\nتاریخ: 1405/08/20\\nکفش نایک مشکی سایز 42 2 1000000 2000000\\nجمع کل: 2000000 ریال',[],.95);
+      parsed.items[0].matchedVariantId=S.v;parsed.items[0].confidence=1;
       showInvoiceResult(parsed,null);await T.sleep(100);
       const after={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
-      return{before,after,review:!!document.querySelector('#invoiceConfirm'),total:parsed.total,items:parsed.items.length,number:parsed.invoiceNumber}''')
+      const review=!!document.querySelector('#invoiceConfirm');
+      document.querySelector('#invoiceConfirm').click();await T.sleep(100);
+      const actionPreview=!!document.querySelector('#aiExec');
+      const stillUnchanged={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
+      if(actionPreview)document.querySelector('#aiExec').click();await T.sleep(120);
+      const committed={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
+      return{before,after,review,total:parsed.total,items:parsed.items.length,number:parsed.invoiceNumber,
+        actionPreview,stillUnchanged,committed}''')
     c.eq(r['after'],r['before'],'OCR review must not write purchase, journal or stock')
     c.true(r['review'],'manual invoice confirmation is visible')
     c.eq(r['total'],2000000,'invoice total parsed')
     c.eq(r['items'],1,'invoice line parsed')
     c.eq(r['number'],'INV-123','invoice number parsed')
+    c.true(r['actionPreview'],'second confirmation step displays purchase draft')
+    c.eq(r['stillUnchanged'],r['before'],'confirming OCR review alone still does not post purchase')
+    c.eq(r['committed']['p'],r['before']['p']+1,'explicit purchase confirmation creates exactly one purchase')
+    c.eq(r['committed']['stock'],r['before']['stock']+2,'confirmed OCR purchase updates inventory quantity')
+    c.true(r['committed']['j']>r['before']['j'],'confirmed OCR purchase posts journal entries')
     await ctx.close()
 
 @test
