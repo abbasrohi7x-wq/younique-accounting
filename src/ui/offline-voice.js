@@ -120,17 +120,26 @@
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       throw new Error('مرورگر دسترسی امن به میکروفون را پشتیبانی نمی‌کند');
     }
+    var sessionNode = byId('yqVStatus');
     return ensureModel().then(function (loaded) {
       return navigator.mediaDevices.getUserMedia({
         audio: { echoCancellation: true, noiseSuppression: true, channelCount: 1 },
         video: false
       }).then(function (media) {
+        if (!sessionNode || byId('yqVStatus') !== sessionNode) {
+          media.getTracks().forEach(function (track) { track.stop(); });
+          throw new Error('پنجرهٔ گفتار بسته شد؛ ضبط شروع نشد.');
+        }
         stream = media;
         var AudioCtx = window.AudioContext || window.webkitAudioContext;
         audioContext = new AudioCtx({ sampleRate: 16000 });
         if (audioContext.state === 'suspended') return audioContext.resume().then(function () { return media; });
         return media;
       }).then(function () {
+        if (!sessionNode || byId('yqVStatus') !== sessionNode) {
+          stopCapture(true);
+          throw new Error('پنجرهٔ گفتار بسته شد؛ ضبط شروع نشد.');
+        }
         recognizer = new loaded.KaldiRecognizer();
         recognizer.on('result', function (message) {
           var text = message && message.result && message.result.text || '';
@@ -253,6 +262,6 @@
     }
     showDialog(context === 'sale' ? 'sale' : 'assistant');
   };
-  window.voiceRecord = function () { showDialog('assistant'); };
+  window.voiceRecord = function () { window.yqVoiceDraft('assistant'); };
   window.addEventListener('pagehide', function () { stopCapture(true); });
 })();
