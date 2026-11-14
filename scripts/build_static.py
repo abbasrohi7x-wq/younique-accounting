@@ -10,7 +10,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
-VOSK_VERSION = "0.0.5"
+VOSK_VERSION = "0.0.8"
 MODEL_NAME = "vosk-model-small-fa-0.42"
 NPM_URL = f"https://registry.npmjs.org/vosk-browser/-/vosk-browser-{VOSK_VERSION}.tgz"
 MODEL_URL = os.environ.get("VOSK_MODEL_URL", f"https://alphacephei.com/vosk/models/{MODEL_NAME}.zip")
