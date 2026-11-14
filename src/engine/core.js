@@ -242,14 +242,18 @@ function createEngine(db, h) {
     for (const x of items) {
       const v = variantBy(x.variantId); if (!v) throw new Error('یکی از کالاها پیدا نشد');
       const qty = num(x.qty), unitPrice = num(x.unitPrice), itemDiscount = num(x.discount || 0);
-      if (qty <= 0 || !Number.isFinite(qty)) throw new Error('تعداد باید مثبت باشد');
+      if (!Number.isFinite(qty) || qty <= 0) throw new Error('تعداد باید مثبت باشد');
       if (!Number.isInteger(qty)) throw new Error('تعداد باید عدد صحیح باشد');
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('قیمت فروش نامعتبر است');
+      if (!Number.isFinite(itemDiscount) || itemDiscount < 0 || itemDiscount > qty * unitPrice) throw new Error('تخفیف ردیف نامعتبر است');
       if (qty > num(v.stock)) throw new Error('موجودی «' + variantName(v) + '» کافی نیست');
-      const lineTotal = qty * unitPrice - itemDiscount;
+      const lineTotal = roundMoney(qty * unitPrice - itemDiscount);
       saleItems.push({ id: uid(), variantId: x.variantId, qty, unitPrice, discount: itemDiscount, total: lineTotal, cost: num(v.buyPrice || 0) });
       cost += qty * num(v.buyPrice || 0); subTotal += lineTotal;
     }
-    let netTotal = roundMoney(subTotal - num(discount));
+    const invoiceDiscount = num(discount);
+    if (!Number.isFinite(invoiceDiscount) || invoiceDiscount < 0 || invoiceDiscount > subTotal) throw new Error('تخفیف فاکتور نامعتبر است');
+    let netTotal = roundMoney(subTotal - invoiceDiscount);
     if (netTotal <= 0) throw new Error('مبلغ فاکتور معتبر نیست');
 
     // VAT from taxProfile (closer to original app)
@@ -296,6 +300,10 @@ function createEngine(db, h) {
       if (due > 0 && !customerId) throw new Error('برای ایجاد مانده باید مشتری انتخاب شود');
       if (payment === 'credit' && (!customerId || paid >= total)) throw new Error('برای نسیه باید مشتری انتخاب شود و مانده باقی بماند');
     }
+    const cashReceived = splitRows
+      ? roundMoney(num(payload.payments.cash))
+      : (paid > 0 && paymentAccount(payment) === 'cash' ? paid : 0);
+    if (cashReceived > 0 && !activeCashSession()) throw new Error('برای دریافت وجه نقد ابتدا صندوق را باز کنید');
     const no = typeof nextNumber === 'function' ? nextNumber('sale') : ('S-' + Date.now());
     const profit = roundMoney(saleItems.reduce((a, i) => a + i.total - i.qty * i.cost, 0) - num(discount));
     const seller = db.currentUserId || (Array.isArray(db.users) && db.users[0] && db.users[0].id) || '';
@@ -337,6 +345,8 @@ function createEngine(db, h) {
     const { items = [], supplierId = '', payments = { cash: 0, card: 0, bank: 0, credit: 0 } } = payload;
     if (!items.length) throw new Error('خرید خالی است');
     const cash = num(payments.cash || 0), card = num(payments.card || 0), bank = num(payments.bank || 0), credit = num(payments.credit || 0);
+    const paymentParts = [cash, card, bank, credit];
+    if (paymentParts.some(function (amount) { return !Number.isFinite(amount) || amount < 0; })) throw new Error('مبلغ یکی از روش‌های پرداخت نامعتبر است');
     const total = roundMoney(cash + card + bank + credit);
     if (total <= 0) throw new Error('مبلغ خرید معتبر نیست');
     if (credit > 0 && !supplierId) throw new Error('برای ثبت بدهی، تأمین‌کننده را انتخاب کنید');
@@ -345,9 +355,12 @@ function createEngine(db, h) {
     for (const x of items) {
       const v = variantBy(x.variantId); if (!v) throw new Error('یکی از کالاها پیدا نشد');
       const qty = num(x.qty), unitPrice = num(x.unitPrice);
-      if (qty <= 0) throw new Error('تعداد باید مثبت باشد');
+      if (!Number.isFinite(qty) || qty <= 0 || !Number.isInteger(qty)) throw new Error('تعداد خرید باید عدد صحیح و مثبت باشد');
+      if (!Number.isFinite(unitPrice) || unitPrice < 0) throw new Error('قیمت خرید نامعتبر است');
       purchaseItems.push({ id: uid(), variantId: x.variantId, qty, unitPrice, total: roundMoney(qty * unitPrice) });
     }
+    const itemsTotal = roundMoney(purchaseItems.reduce(function (sum, item) { return sum + item.total; }, 0));
+    if (Math.abs(roundMoney(itemsTotal - total)) > 0.01) throw new Error('جمع مبلغ اقلام با مجموع پرداخت و بدهی فاکتور خرید برابر نیست');
     const no = typeof nextNumber === 'function' ? nextNumber('purchase') : ('P-' + Date.now());
     const paymentType = (cash && (card || bank || credit)) ? 'mixed' : cash ? 'cash' : card ? 'card' : bank ? 'bank' : 'credit';
     const row = { id: uid(), number: no, date: now(), supplierId: supplierId || '', status: 'confirmed', payment: paymentType, total, paid: cash + card + bank, due: credit, items: purchaseItems.map(x => x.id),
