@@ -531,7 +531,7 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
 async def offline_vosk_model_loads_from_bundled_assets(br,c):
     pg,ctx=await page(br)
     external=[]
-    pg.on('request',lambda req: external.append(req.url) if not req.url.startswith('http://127.0.0.1:8765/') else None)
+    pg.on('request',lambda req: external.append(req.url) if req.url.startswith(('http://','https://')) and not req.url.startswith('http://127.0.0.1:8765/') else None)
     r=await pg.evaluate("""async()=> {
       const s=document.createElement('script');
       s.src='./vendor/vosk/vosk.js';
@@ -668,6 +668,7 @@ async def assistant_open_cash_session_requires_confirmation(br,c):
     pg,ctx=await page(br)
     r=await pg.evaluate("""async()=> {
       const S=await T.seed({});
+      db.cashSessions=[];db.cashSession=null;saveDB(true);
       db.settings.ai=Object.assign({},db.settings.ai||{},{provider:'local',mode:'local'});
       window.page='ai';render();
       const before=(db.cashSessions||[]).length;
