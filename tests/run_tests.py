@@ -1232,4 +1232,26 @@ async def final_store_acceptance_purchase_sale_return_reports_and_backup(br,c):
     c.eq(r['unbalanced'],0,'all purchase, sale and return journal entries remain balanced')
     await ctx.close()
 
+
+@test
+async def offline_voice_dialog_uses_local_assistant_and_manual_fallback(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const has=typeof window.yqVoiceDraft==='function'&&typeof window.UAI?.ui?.submit==='function';
+      window.yqVoiceDraft('assistant');
+      const dialog=document.querySelector('#modal');
+      const visible=!!dialog&&dialog.classList.contains('show');
+      const title=dialog&&dialog.innerText.includes('دستیار گفتاری آفلاین فارسی');
+      document.querySelector('#yqVText').click();
+      await new Promise(r=>setTimeout(r,50));
+      const manual=document.querySelector('#yqVManual');
+      if(manual){manual.value='سلام، گزارش فروش امروز را نشان بده';document.querySelector('#yqVManualApply').click();await new Promise(r=>setTimeout(r,350));}
+      return{has,visible,title,manual:!!manual,submitted:window.UAI.ui.transcript.some(x=>x.role==='user'&&x.text.includes('گزارش فروش امروز'))}''')
+    c.true(r['has'],'offline voice module connects to the existing local assistant')
+    c.true(r['visible'] and r['title'],'voice dialog opens inside the existing modal')
+    c.true(r['manual'],'manual text fallback remains available')
+    c.true(r['submitted'],'manual fallback submits text to the local assistant')
+    c.eq(pg.errs,[],'no browser page errors')
+    await ctx.close()
+
+
 asyncio.run(main())
