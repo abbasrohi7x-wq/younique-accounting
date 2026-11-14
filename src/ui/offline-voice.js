@@ -84,6 +84,11 @@
   function stopCapture(releaseModel, finalize) {
     if (pendingStop) return releaseModel ? pendingStop.then(function () { return stopCapture(true, false); }) : pendingStop;
     active = false;
+    var voiceApi = window.UAI && window.UAI.Voice;
+    if (voiceApi) {
+      voiceApi.listening = false;
+      if (typeof voiceApi.setBtn === 'function') voiceApi.setBtn(false);
+    }
     if (captureWatchdog) { clearTimeout(captureWatchdog); captureWatchdog = null; }
     if (processor) { processor.onaudioprocess = null; try { processor.disconnect(); } catch (_) {} processor = null; }
     if (source) { try { source.disconnect(); } catch (_) {} source = null; }
@@ -203,6 +208,11 @@
           }
         };
         active = true;
+        var voiceApi = window.UAI && window.UAI.Voice;
+        if (voiceApi) {
+          voiceApi.listening = true;
+          if (typeof voiceApi.setBtn === 'function') voiceApi.setBtn(true);
+        }
         source.connect(processor);
         processor.connect(muted);
         muted.connect(audioContext.destination);
@@ -317,6 +327,23 @@
     }
     showDialog(context === 'sale' ? 'sale' : 'assistant');
   };
-  window.voiceRecord = function () { window.yqVoiceDraft('assistant'); };
+  window.voiceRecord = function () {
+    var voiceApi = window.UAI && window.UAI.Voice;
+    if (active || (voiceApi && voiceApi.listening)) {
+      return stopCapture(false, true).then(function () {
+        status(finalText ? 'ضبط متوقف شد؛ متن را بررسی کنید.' : 'ضبط متوقف شد.');
+      });
+    }
+    window.yqVoiceDraft('assistant');
+    return true;
+  };
+  var voiceApi = window.UAI && window.UAI.Voice;
+  if (voiceApi) {
+    voiceApi.stop = function () {
+      return stopCapture(false, true).then(function () {
+        status(finalText ? 'ضبط متوقف شد؛ متن را بررسی کنید.' : 'ضبط متوقف شد.');
+      });
+    };
+  }
   window.addEventListener('pagehide', function () { stopCapture(true); });
 })();
