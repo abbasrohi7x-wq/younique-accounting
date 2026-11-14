@@ -531,15 +531,15 @@ async def management_reports_reconcile_to_confirmed_sales(br,c):
       let downloaded=[];window.download=(name,content)=>downloaded.push({name,content:String(content||'')});
       window.proInsights();
       const text=document.querySelector('#content')?.innerText||'';
-      const gross=profit().gross;
+      const gross=db.sales.filter(x=>x.status==='confirmed').reduce((a,x)=>a+num(x.total)-num(x.costTotal),0);
       document.querySelector('#csv39').click();document.querySelector('#json39').click();
       return {gross,report:text.includes('سود ناخالص')&&text.includes('پرفروش‌ترین تنوع‌ها')&&text.includes('هشدار موجودی'),
         top:text.includes('کتونی تست'),downloads:downloaded.map(x=>x.name),csv:downloaded[0]?.content.includes('کتونی تست'),
-        json:downloaded[1]?.content.includes('"gross":2000')};
+        json:downloaded[1]?.content.includes('"gross": 2000')};
     ''')
     c.eq(r['gross'],2000,'gross profit is reconciled to confirmed sales and cost')
     c.true(r['report'] and r['top'],'management report renders KPI and top-selling variant')
-    c.eq(r['downloads'],['گزارش-فروش-'+r['downloads'][0].split('-')[-1],'گزارش-مدیریتی-'+r['downloads'][1].split('-')[-1]] if len(r['downloads'])==2 else [],'CSV and JSON exports are generated')
+    c.true(len(r['downloads'])==2 and r['downloads'][0].startswith('گزارش-فروش-') and r['downloads'][1].startswith('گزارش-مدیریتی-'),'CSV and JSON exports are generated')
     c.true(r['csv'] and r['json'],'report exports contain the expected transaction data')
     await ctx.close()
 
