@@ -81,15 +81,36 @@
       return model;
     });
   }
-  function stopCapture(releaseModel) {
+  function stopCapture(releaseModel, finalize) {
     active = false;
     if (processor) { processor.onaudioprocess = null; try { processor.disconnect(); } catch (_) {} processor = null; }
     if (source) { try { source.disconnect(); } catch (_) {} source = null; }
     if (muted) { try { muted.disconnect(); } catch (_) {} muted = null; }
     if (stream) { stream.getTracks().forEach(function (track) { track.stop(); }); stream = null; }
     if (audioContext) { var ctx = audioContext; audioContext = null; try { ctx.close(); } catch (_) {} }
-    if (recognizer) { try { recognizer.remove(); } catch (_) {} recognizer = null; }
-    if (releaseModel && model) { try { model.terminate(); } catch (_) {} model = null; }
+    var current = recognizer;
+    recognizer = null;
+    function releaseResources() {
+      if (current) { try { current.remove(); } catch (_) {} current = null; }
+      if (releaseModel && model) { try { model.terminate(); } catch (_) {} model = null; }
+    }
+    if (current && finalize && typeof current.retrieveFinalResult === 'function') {
+      return new Promise(function (resolve) {
+        var finished = false;
+        var timer = setTimeout(finish, 1800);
+        function finish() {
+          if (finished) return;
+          finished = true;
+          clearTimeout(timer);
+          releaseResources();
+          resolve();
+        }
+        current.on('result', finish);
+        try { current.retrieveFinalResult(); } catch (_) { finish(); }
+      });
+    }
+    releaseResources();
+    return Promise.resolve();
   }
   function startCapture() {
     if (active) return Promise.resolve();
@@ -175,11 +196,14 @@
         .then(function () { if (byId('yqVStart')) byId('yqVStart').disabled = false; });
     };
     byId('yqVStop').onclick = function () {
-      stopCapture(true);
-      status('ضبط متوقف شد. متن را بررسی و سپس تأیید کنید.');
+      byId('yqVStop').disabled = true;
+      stopCapture(true, true).then(function () {
+        status('ضبط متوقف شد و متن نهایی آماده است؛ آن را بررسی کنید.');
+        if (byId('yqVStop')) byId('yqVStop').disabled = false;
+      });
     };
     byId('yqVText').onclick = function () {
-      stopCapture(true);
+      stopCapture(true, active).then(function () {
       var text = byId('yqVTranscript').value;
       closeModal();
       modal(
@@ -193,13 +217,20 @@
         closeModal();
         if (value) applyTranscript(value, context);
       };
+      });
     };
     byId('yqVApply').onclick = function () {
-      stopCapture(true);
-      var value = byId('yqVTranscript').value.trim();
-      closeModal();
-      if (value) applyTranscript(value, context);
-      else if (typeof toast === 'function') toast('متنی برای افزودن وجود ندارد', true);
+      var wasActive = active;
+      stopCapture(true, wasActive).then(function () {
+        if (wasActive) {
+          status('متن نهایی آماده شد؛ دوباره دکمهٔ تأیید را بزنید.');
+          return;
+        }
+        var value = byId('yqVTranscript').value.trim();
+        closeModal();
+        if (value) applyTranscript(value, context);
+        else if (typeof toast === 'function') toast('متنی برای افزودن وجود ندارد', true);
+      });
     };
     var overlay = document.getElementById('modal');
     var close = document.querySelector('#modal .close[data-close]');
