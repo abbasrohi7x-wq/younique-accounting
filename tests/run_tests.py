@@ -515,6 +515,31 @@ async def purchase_and_sale_use_the_selected_warehouse(br,c):
 
 
 @test
+async def weighted_average_seeds_cost_for_migrated_stock(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const v=variantBy(S.v);v.stock=4;v.buyPrice=500;
+      db.warehouseStocks.MAIN=db.warehouseStocks.MAIN||{};db.warehouseStocks.MAIN[S.v]=4;
+      db.costLayers=db.costLayers||{};delete db.costLayers[S.v];saveDB(true);
+      const p=await T.buy(S,S.v,2,1000,{cash:2000});
+      const layers=db.costLayers[S.v]||[];
+      return{saved:!!p,stock:v.stock,buyPrice:v.buyPrice,
+        qty:layers.reduce((a,x)=>a+num(x.remaining),0),
+        value:layers.reduce((a,x)=>a+num(x.value),0),
+        unitCost:layers[0]&&layers[0].unitCost,unb:T.unbalanced()};
+    """)
+    c.true(r['saved'],'purchase against migrated stock is saved')
+    c.eq(r['stock'],6,'migrated and purchased stock quantities are combined')
+    c.eq(r['qty'],6,'weighted-average layer represents the full stock quantity')
+    c.eq(r['value'],4000,'legacy stock value is retained in the new cost layer')
+    c.eq(r['buyPrice'],667,'displayed weighted-average cost is rounded from the preserved value')
+    c.true(abs(r['unitCost']-(4000/6))<0.01,'precise layer unit cost retains fractional average')
+    c.eq(r['unb'],0,'purchase journal remains balanced')
+    await ctx.close()
+
+
+@test
 async def purchase_classifies_card_and_bank_as_mixed(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
