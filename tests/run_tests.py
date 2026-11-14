@@ -136,6 +136,21 @@ async def receipt_qr_and_no_photo(br,c):
     except ImportError:print('   (cv2 not installed — independent QR decode check skipped)')
     await ctx.close()
 
+@test
+async def invoice_ocr_review_does_not_write_before_confirmation(br,c):
+    pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({});
+      const before={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
+      const parsed=parseLocalInvoiceText('فروشنده: فروشگاه نمونه\\nشماره فاکتور: INV-123\\nتاریخ: 1405/08/20\\nکفش نایک مشکی سایز 42 2 1000000 2000000\\nجمع کل: 2000000 ریال',[],.95);
+      showInvoiceResult(parsed,null);await T.sleep(100);
+      const after={p:db.purchases.length,pi:db.purchaseItems.length,j:db.journal.length,stock:variantBy(S.v).stock};
+      return{before,after,review:!!document.querySelector('#invoiceConfirm'),total:parsed.total,items:parsed.items.length,number:parsed.invoiceNumber}''')
+    c.eq(r['after'],r['before'],'OCR review must not write purchase, journal or stock')
+    c.true(r['review'],'manual invoice confirmation is visible')
+    c.eq(r['total'],2000000,'invoice total parsed')
+    c.eq(r['items'],1,'invoice line parsed')
+    c.eq(r['number'],'INV-123','invoice number parsed')
+    await ctx.close()
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
