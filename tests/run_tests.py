@@ -551,7 +551,7 @@ async def warehouse_void_and_return_cannot_consume_other_warehouse_stock(br,c):
     c.eq(r['selectedWarehouse'],'W2','test form selects the second warehouse')
     c.eq(r['purchaseWarehouse'],'W2','purchase persists the selected warehouse')
     c.eq(r['warehouseAfterPurchase'],2,'purchase initially receives stock into the selected warehouse')
-    c.eq(r['afterTransfer'],{'main':6,'second':0,'global':6,'logged':true},'test transfer updates both warehouse balances and records the transfer without changing global stock')
+    c.eq(r['afterTransfer'],{'main':6,'second':0,'global':6,'logged':True},'test transfer updates both warehouse balances and records the transfer without changing global stock')
     c.true(r['voidRejected'],'void purchase cannot consume stock transferred to another warehouse')
     c.true(r['returnRejected'],'purchase return cannot consume stock from another warehouse')
     c.eq(r['status'],'confirmed','failed void leaves the purchase confirmed')
