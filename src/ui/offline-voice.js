@@ -187,8 +187,12 @@
       if (value) window.yqApplyVoiceDraft(value);
       else if (typeof toast === 'function') toast('متنی برای افزودن وجود ندارد', true);
     };
-    var close = document.querySelector('.modal .close[data-close], [role="dialog"] .close[data-close]');
+    var overlay = document.getElementById('modal');
+    var close = document.querySelector('#modal .close[data-close]');
     if (close) close.addEventListener('click', function () { stopCapture(true); }, { once: true });
+    if (overlay) overlay.addEventListener('click', function (event) {
+      if (event.target === overlay) stopCapture(true);
+    }, { once: true });
     cachedModel().then(function (ready) {
       if (byId('yqVStatus') && ready) status('مدل فارسی قبلاً دریافت شده و برای استفاده آفلاین آماده است.');
     });
