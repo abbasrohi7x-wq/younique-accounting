@@ -313,7 +313,7 @@ function createFin(db, h, core) {
     });
   }
 
-  return { saleReturn, purchaseReturn, voidSale, voidPurchase, version: '0.3.0-fin' };
+  return { saleReturn, purchaseReturn, voidSale, voidPurchase, version: '0.4.0-fin' };
 }
 if (typeof module !== 'undefined' && module.exports) module.exports = { createFin };
 else window.UniqueFin = { createFin };
