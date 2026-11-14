@@ -26,7 +26,7 @@
       s.src = './vendor/vosk/vosk.js';
       s.async = true;
       s.onload = function () {
-        if (window.Vosk && typeof window.Vosk.createModel === 'function') resolve(window.Vosk);
+        if (window.Vosk && (typeof window.Vosk.Model === 'function' || typeof window.Vosk.createModel === 'function')) resolve(window.Vosk);
         else reject(new Error('کتابخانه Vosk بارگذاری شد اما API آن پیدا نشد'));
       };
       s.onerror = function () { scriptPromise = null; reject(new Error('فایل‌های موتور گفتار در دسترس نیستند')); };
@@ -70,11 +70,62 @@
       });
     });
   }
+  function createModelWithDiagnostics(Vosk) {
+    var timeoutMs = 240000;
+    return new Promise(function (resolve, reject) {
+      var candidate = null, settled = false;
+      var timer = setTimeout(function () {
+        finish(new Error('بارگذاری مدل گفتار بیش از چهار دقیقه طول کشید؛ فضای ذخیره‌سازی و حافظه دستگاه را بررسی کنید.'));
+      }, timeoutMs);
+      function finish(error, value) {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (error) {
+          if (candidate && typeof candidate.terminate === 'function') {
+            try { candidate.terminate(); } catch (_) {}
+          }
+          reject(error);
+        } else resolve(value);
+      }
+      try {
+        if (typeof Vosk.Model === 'function') {
+          candidate = new Vosk.Model(MODEL_URL);
+          candidate.on('load', function (message) {
+            if (message && message.result && candidate.ready) finish(null, candidate);
+            else finish(new Error('موتور Vosk نتوانست مدل فارسی را آماده کند.'));
+          });
+          candidate.on('error', function (message) {
+            finish(new Error('خطای موتور Vosk: ' + (message && (message.error || message.message) || 'بارگذاری مدل ناموفق بود')));
+          });
+          /* vosk-browser 0.0.8 does not forward Worker startup errors through Model events. */
+          if (candidate.worker && typeof candidate.worker.addEventListener === 'function') {
+            candidate.worker.addEventListener('error', function (event) {
+              finish(new Error('خطای اجرای Worker گفتار: ' + (event && event.message || 'فایل‌های موتور بارگذاری نشدند')));
+            });
+            candidate.worker.addEventListener('messageerror', function () {
+              finish(new Error('ارتباط Worker گفتار با برنامه ناموفق بود.'));
+            });
+          }
+        } else if (typeof Vosk.createModel === 'function') {
+          Vosk.createModel(MODEL_URL).then(function (loaded) {
+            finish(null, loaded);
+          }).catch(function (error) {
+            finish(error instanceof Error ? error : new Error(String(error)));
+          });
+        } else {
+          finish(new Error('API بارگذاری مدل در کتابخانه Vosk موجود نیست.'));
+        }
+      } catch (error) {
+        finish(error instanceof Error ? error : new Error(String(error)));
+      }
+    });
+  }
   function ensureModel() {
     if (model && model.ready) return Promise.resolve(model);
     status('در حال آماده‌سازی موتور محلی…');
     return loadLibrary().then(function (Vosk) {
-      return downloadModel().then(function () { return Vosk.createModel(MODEL_URL); });
+      return downloadModel().then(function () { return createModelWithDiagnostics(Vosk); });
     }).then(function (loaded) {
       model = loaded;
       status('موتور گفتار فارسی آماده است. برای شروع ضبط، دکمهٔ میکروفون را بزنید.');
