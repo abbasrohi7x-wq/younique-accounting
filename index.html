@@ -333,7 +333,7 @@ let _lastPersist={s:'',t:0};
 /* PERF 46.2.0: one JSON.stringify (no deep clone); identical payloads written within 2s are not re-written to localStorage (a single transaction saved 2-3 times). API key is never persisted. */
 function _persist(){if(!_dbLoaded)return true;if(YStore.S.mode!=='ls')return YStore.persist();try{const ai=db?.settings?.ai,liveKey=ai?.apiKey||'';if(liveKey)sessionStorage.setItem(AI_SESSION_KEY,liveKey);else sessionStorage.removeItem(AI_SESSION_KEY);let s;if(ai)ai.apiKey='';try{s=JSON.stringify(db)}finally{if(ai)ai.apiKey=liveKey}const nowMs=Date.now();if(s===_lastPersist.s&&nowMs-_lastPersist.t<2000)return true;localStorage.setItem(DB.key,s);_lastPersist={s,t:nowMs};if(s.length>4000000&&!window.__quotaWarned){window.__quotaWarned=1;if(typeof toast==='function')toast('حجم داده به سقف ذخیره‌سازی مرورگر نزدیک است؛ همین حالا پشتیبان کامل بگیرید.',true)}return true}catch(e){window.__YOUNIQUE_SAVE_ERROR=String(e?.message||e);return false}}
 
-function replaceDB(x){validateBackupData(x);/* v44.4: reject malformed payloads BEFORE touching live data (also protects pullCloud) */const before=cloneDB();const keepKey=db&&db.settings&&db.settings.ai?db.settings.ai.apiKey:'';replaceDBInPlace(normalize(x));if(keepKey&&db.settings&&db.settings.ai&&!db.settings.ai.apiKey)db.settings.ai.apiKey=keepKey;if(!saveDB(true)){replaceDBInPlace(normalize(before));throw Error('ذخیره نسخهٔ بازیابی‌شده ناموفق بود؛ اطلاعات قبلی حفظ شد.')}}
+function replaceDB(x){validateBackupData(x);/* reject malformed payloads before touching live data */const before=cloneDB();const keepKey=db&&db.settings&&db.settings.ai?db.settings.ai.apiKey:'';const restored=normalize(x);if(restored.settings)delete restored.settings.supabase;replaceDBInPlace(restored);if(keepKey&&db.settings&&db.settings.ai&&!db.settings.ai.apiKey)db.settings.ai.apiKey=keepKey;if(!saveDB(true)){replaceDBInPlace(normalize(before));throw Error('ذخیره نسخهٔ بازیابی‌شده ناموفق بود؛ اطلاعات قبلی حفظ شد.')}}
 
 'use strict';
 const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
@@ -1426,7 +1426,7 @@ $('#sif').onchange=async e=>{const f=e.target.files?.[0];if(!f)return;const box=
  const expected=syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
  if(!env.checksum||env.checksum!==expected)throw Error('صحت فایل انتقال تأیید نشد؛ فایل ناقص یا خراب شده است');
  validateBackupData(env.data);
- const merged=syncMerge(db,env.data);
+ const merged=syncMerge(db,env.data);if(merged.data.settings)delete merged.data.settings.supabase;
  box.innerHTML='<div class="successbox">پیش‌نمایش: <b>'+fa(merged.added.length)+'</b> جدید، <b>'+fa(merged.conflicts.length)+'</b> تعارض، <b>'+fa(merged.same.length)+'</b> بدون تغییر.</div><div class="modal-actions"><button class="btn" id="scancel">لغو</button><button class="btn primary" id="sapply">تأیید و اعمال ادغام</button></div>';
  $('#scancel').onclick=()=>{box.innerHTML=''};
  $('#sapply').onclick=()=>{try{Object.keys(merged.data).forEach(k=>{if(k!=='pro')db[k]=merged.data[k]});db.pro=db.pro||{};db.pro.sync=db.pro.sync||{};db.pro.sync.importedAt=now();saveDB(true);invalidate();box.innerHTML='<div class="successbox">ادغام اعمال شد.</div>';toast('ادغام انجام شد');render()}catch(err){toast(err.message,true)}};
