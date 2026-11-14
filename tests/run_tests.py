@@ -446,7 +446,7 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
     r=await pg.evaluate("""async()=> {
       const S=await T.seed({});
       db.settings.supabase={url:'https://unused.example',anonKey:'CLOUD_SECRET_ANON',accessKey:'CLOUD_SECRET_ACCESS'};
-      db.settings.ai=db.settings.ai||{};db.settings.ai.apiKey='AI_SECRET';
+      db.settings.ai=db.settings.ai||{};db.settings.ai.apiKey='AI_SECRET';db.settings.ai.endpoint='AI_ENDPOINT_SECRET';db.settings.ai.model='MODEL_SECRET';db.settings.ai.transcribeEndpoint='TRANSCRIBE_SECRET';
       db.customers.find(x=>x.id===S.cus).name='نام محلی';
       let captured=null;
       window.download=(name,content)=>{captured={name,content}};
@@ -454,8 +454,8 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
       document.querySelector('#sx').click();
       const env=captured?JSON.parse(captured.content):null;
       const backup=JSON.parse(exportData());
-      const secretsStripped=!!env&&!JSON.stringify(env).includes('CLOUD_SECRET')&&!JSON.stringify(env).includes('AI_SECRET')&&
-        !JSON.stringify(backup).includes('CLOUD_SECRET')&&!JSON.stringify(backup).includes('AI_SECRET');
+      const secretsStripped=!!env&&!JSON.stringify(env).includes('CLOUD_SECRET')&&!JSON.stringify(env).includes('AI_SECRET')&&!JSON.stringify(env).includes('AI_ENDPOINT_SECRET')&&!JSON.stringify(env).includes('MODEL_SECRET')&&!JSON.stringify(env).includes('TRANSCRIBE_SECRET')&&
+        !JSON.stringify(backup).includes('CLOUD_SECRET')&&!JSON.stringify(backup).includes('AI_SECRET')&&!JSON.stringify(backup).includes('AI_ENDPOINT_SECRET')&&!JSON.stringify(backup).includes('MODEL_SECRET')&&!JSON.stringify(backup).includes('TRANSCRIBE_SECRET');
       if(!env)throw Error('transfer export did not produce a file');
       const incoming=JSON.parse(JSON.stringify(env));
       incoming.data.customers.find(x=>x.id===S.cus).name='نام دستگاه دیگر';
