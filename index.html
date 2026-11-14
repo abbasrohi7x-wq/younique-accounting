@@ -4451,6 +4451,7 @@ V.fallback=function(){window.toast('تشخیص گفتار فارسی در این
 (function(){'use strict';
 const U=window.UAI,V=U.Voice,esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const UI=U.ui={transcript:[],busy:false,wasOnAI:false};
+window.UAI.ui = UI; // expose the assistant controller to offline modules
 const legacyAsk=window.askAI;
 /* defaults for new settings (never overwrite existing user choices) */
 const db0=window.db.settings.ai=window.db.settings.ai||{};
