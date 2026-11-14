@@ -887,12 +887,10 @@ async def local_persian_tesseract_model_loads_and_processes_mixed_invoice_text(b
         script.onload=resolve;script.onerror=()=>reject(new Error('local Tesseract.js failed to load for Persian OCR'));
         document.head.appendChild(script);
       });
-      const worker=await Promise.race([Tesseract.createWorker('fas+eng',1,{
-        workerPath:'./vendor/tesseract/worker.min.js',
-        langPath:'./vendor/tesseract/lang/',
-        corePath:'./vendor/tesseract/core/',
-        gzip:true
-      }),new Promise((_,reject)=>setTimeout(()=>reject(new Error('Persian Tesseract initialization timed out')),60000))]);
+      const workers=await Promise.race([Promise.all([getLocalOCRWorker(),getLocalOCRWorker()]),
+        new Promise((_,reject)=>setTimeout(()=>reject(new Error('Persian Tesseract initialization timed out')),60000))]);
+      const worker=workers[0];
+      const sameWorker=workers[0]===workers[1];
       try{
         /* Use the app's bundled Persian font: CI runners do not guarantee Tahoma. */
         const font=new FontFace('UniqueOCRTest','url(./vendor/fonts/vazirmatn-arabic.woff2)');
@@ -909,6 +907,7 @@ async def local_persian_tesseract_model_loads_and_processes_mixed_invoice_text(b
       }finally{await worker.terminate()}
     """)
     constText = r['text'].replace(' ','').replace('\\n','')
+    c.true(r['sameWorker'],'concurrent OCR requests share one initialized worker')
     c.true(r['loaded'],'Persian and English traineddata load in the local worker')
     c.true(any(chr(0x0600) <= ch <= chr(0x06FF) for ch in constText),'Persian OCR recognizes Persian glyphs; extracted: '+r['text'])
     c.true('12345' in constText,'Persian OCR preserves the invoice number; extracted: '+r['text'])
