@@ -1,0 +1,81 @@
+name: Unique Pro CI
+
+on:
+  push:
+    branches: ["chatgpt-push-test-2026-11-13"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: unique-pro-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install browser test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install playwright opencv-python-headless
+
+      - name: Install Chromium
+        run: python -m playwright install --with-deps chromium
+
+      - name: Build the real offline-first distribution
+        run: python scripts/build_static.py
+
+      - name: Verify required offline assets
+        run: |
+          test -s dist/index.html
+          test -s dist/manifest.json
+          test -s dist/service-worker.js
+          test -s dist/vendor/tesseract/tesseract.min.js
+          test -s dist/vendor/tesseract/worker.min.js
+          test -s dist/vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js
+          test -s dist/vendor/tesseract/lang/fas.traineddata.gz
+          test -s dist/vendor/tesseract/lang/eng.traineddata.gz
+          test -s dist/vendor/vosk/vosk.js
+          test -s dist/vendor/vosk/model.tar.gz
+          tar -tzf dist/vendor/vosk/model.tar.gz | grep -q 'model/am/final.mdl'
+
+      - name: Serve the built distribution
+        run: |
+          python -m http.server 8765 --bind 127.0.0.1 --directory dist > /tmp/unique-http.log 2>&1 &
+          echo $! > /tmp/unique-http.pid
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8765/index.html >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/unique-http.log
+          exit 1
+
+      - name: Run full browser regression and end-to-end acceptance suite
+        env:
+          UNIQUE_TEST_URL: http://127.0.0.1:8765/index.html
+        run: python tests/run_tests.py
+
+      - name: Stop local test server
+        if: always()
+        run: |
+          if [ -f /tmp/unique-http.pid ]; then kill "$(cat /tmp/unique-http.pid)" || true; fi
