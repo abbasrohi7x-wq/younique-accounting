@@ -412,6 +412,34 @@ async def offline_ocr_runtime_loads_from_local_assets(br,c):
     await ctx.close()
 
 
+@test
+async def offline_voice_stops_when_browser_emits_no_audio_frames(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async()=> {
+      let stopped=false;
+      const track={readyState:'live',stop(){stopped=true;this.readyState='ended'}};
+      const stream={getTracks:()=>[track],getAudioTracks:()=>[track]};
+      Object.defineProperty(navigator,'mediaDevices',{configurable:true,value:{getUserMedia:async()=>stream}});
+      Object.defineProperty(window,'caches',{configurable:true,value:{open:async()=>({match:async()=>({cached:true})})}});
+      window.Vosk={createModel:async()=>({ready:true,KaldiRecognizer:function(){this.on=()=>{};this.acceptWaveform=()=>{};this.remove=()=>{}},terminate(){}})};
+      window.AudioContext=function(){
+        this.state='running';this.sampleRate=48000;this.destination={};this.resume=async()=>{};
+        this.createMediaStreamSource=()=>({connect(){}});
+        this.createScriptProcessor=()=>{window.__silentProcessor={connect(){},disconnect(){},onaudioprocess:null};return window.__silentProcessor};
+        this.createGain=()=>({gain:{value:0},connect(){},disconnect(){}});
+        this.close=async()=>{};
+      };
+      window.yqVoiceDraft('assistant');await new Promise(r=>setTimeout(r,20));
+      document.querySelector('#yqVStart').click();
+      await new Promise(r=>setTimeout(r,5300));
+      return {stopped,status:document.querySelector('#yqVStatus')?.textContent||'',trackStopped:stopped};
+    }""")
+    c.true(r['trackStopped'],'microphone stream is released if no audio frames arrive')
+    c.true('هیچ فریم صوتی' in r['status'],'user receives a specific no-audio diagnostic')
+    c.eq(pg.errs,[],'no browser runtime errors')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
