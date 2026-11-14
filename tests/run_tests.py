@@ -189,6 +189,17 @@ async def offline_voice_routes_to_assistant_and_sale_draft(br,c):
     c.eq(pg.errs,[],'no browser runtime errors')
     await ctx.close()
 
+@test
+async def offline_voice_transcript_reaches_local_assistant(br,c):
+    pg,ctx=await page(br);r=await ev(pg,'''window.yqVoiceDraft();await T.sleep(80);
+      const box=document.querySelector('#yqVTranscript');const apply=document.querySelector('#yqVApply');
+      if(!box||!apply)return{dialog:false,submitted:false};
+      box.value='راهنما';apply.click();await T.sleep(300);
+      return{dialog:true,submitted:!!(window.UAI&&window.UAI.ui&&window.UAI.ui.transcript.some(m=>m.role==='user'&&m.text==='راهنما'))}''')
+    c.true(r['dialog'],'offline voice dialog opened')
+    c.true(r['submitted'],'confirmed transcript reaches local assistant')
+    await ctx.close()
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
