@@ -40,16 +40,29 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
 
-      - name: Validate Python and JavaScript syntax
-        run: |
-          python -m py_compile scripts/build_static.py tests/run_tests.py
-          node --check src/engine/core.js
-          node --check src/engine/fin.js
-          node --check src/ui/offline-voice.js
-          node --check src/ui/upgrade.js
-          node --check src/ui/local-nlu.js
-          node --check tests/headless_probe.js
-          node tests/headless_probe.js
+      - name: Validate Python syntax
+        run: python -m py_compile scripts/build_static.py tests/run_tests.py
+
+      - name: Validate engine core syntax
+        run: node --check src/engine/core.js
+
+      - name: Validate finance engine syntax
+        run: node --check src/engine/fin.js
+
+      - name: Validate offline voice syntax
+        run: node --check src/ui/offline-voice.js
+
+      - name: Validate upgrade module syntax
+        run: node --check src/ui/upgrade.js
+
+      - name: Validate local NLU syntax
+        run: node --check src/ui/local-nlu.js
+
+      - name: Validate headless probe syntax
+        run: node --check tests/headless_probe.js
+
+      - name: Run headless engine probe
+        run: node tests/headless_probe.js
 
       - name: Build the real offline-first distribution
         run: python scripts/build_static.py
