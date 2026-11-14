@@ -305,6 +305,113 @@ async def offline_voice_resumes_audio_context_before_model_load(br,c):
     await ctx.close()
 
 
+@test
+async def indexeddb_roundtrip_and_backup_validation(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async() => {
+      await window.YStore.init();
+      const mode=window.YStore.S.mode;
+      db.settings.shopName='پایداری ذخیره‌سازی یونیک';
+      db.settings.ai=db.settings.ai||{};db.settings.ai.apiKey='DO_NOT_EXPORT_SECRET';
+      const saved=saveDB(true);await window.YStore.flush();
+      const backup=JSON.parse(exportData());
+      const secretExcluded=!JSON.stringify(backup).includes('DO_NOT_EXPORT_SECRET');
+      const valid=validateBackupData(backup.data);
+      const before=db.models.length;let rejected=false;
+      try{replaceDB({models:[],variants:[]})}catch(e){rejected=true}
+      const unchanged=db.models.length===before;
+      db.settings.ai.apiKey='';
+      return {mode,saved,secretExcluded,valid:valid.products===db.models.length,rejected,unchanged};
+    }""")
+    c.eq(r['mode'],'idb','IndexedDB is the primary storage mode')
+    c.true(r['saved'],'saveDB reports successful persistence')
+    c.true(r['secretExcluded'],'backup never exports a legacy API secret')
+    c.true(r['valid'],'exported backup passes structural validation')
+    c.true(r['rejected'] and r['unchanged'],'invalid restore is rejected before live data changes')
+    await pg.reload()
+    await pg.wait_for_timeout(1600)
+    r2=await pg.evaluate("""async()=>{await window.YStore.init();return {shop:db.settings.shopName,mode:YStore.S.mode,ready:YStore.S.ready}}""")
+    c.eq(r2['shop'],'پایداری ذخیره‌سازی یونیک','IndexedDB data survives a full page reload')
+    c.eq(r2['mode'],'idb','IndexedDB remains primary after reload')
+    c.true(r2['ready'],'IndexedDB initialization completes')
+    await ctx.close()
+
+
+@test
+async def multi_method_purchase_and_sale_payments(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      const p=await T.buy(S,S.v,5,1000,{cash:1000,card:1000,bank:1000,credit:2000});
+      const s=await T.sell(S,S.v,2,2000,{cash:500,card:1000,bank:1500,credit:1000});
+      const b=T.bal();
+      const purchasePay=db.payments.filter(x=>x.ref===p.number&&x.direction==='out');
+      const salePay=db.payments.filter(x=>x.ref===s.number&&x.direction==='in');
+      return {p:!!p,s:!!s,stock:variantBy(S.v).stock,cash:b.cash,card:b.card,bank:b.bank,receivable:b.receivable,payable:b.payable,inventory:b.inventory,
+        pSum:purchasePay.reduce((a,x)=>a+num(x.amount),0),sSum:salePay.reduce((a,x)=>a+num(x.amount),0),
+        pAccounts:[...new Set(purchasePay.map(x=>x.account))].sort(),sAccounts:[...new Set(salePay.map(x=>x.account))].sort(),unb:T.unbalanced()};
+    ''')
+    c.true(r['p'] and r['s'],'purchase and sale both saved')
+    c.eq(r['stock'],3,'inventory follows purchase then sale quantities')
+    c.eq(r['cash'],999500,'cash account reflects both cash legs')
+    c.eq(r['card'],0,'card account reflects both card legs')
+    c.eq(r['bank'],500,'bank account reflects both bank legs')
+    c.eq(r['receivable'],1000,'unpaid sale balance is receivable')
+    c.eq(r['payable'],-2000,'unpaid purchase balance is payable')
+    c.eq(r['inventory'],3000,'inventory valuation follows remaining stock')
+    c.eq(r['pSum'],5000,'purchase payment methods sum to invoice total')
+    c.eq(r['sSum'],4000,'sale payment methods sum to invoice total')
+    c.eq(r['pAccounts'],['bank','card','cash'],'purchase records all three paid methods')
+    c.eq(r['sAccounts'],['bank','card','cash'],'sale records all three paid methods')
+    c.eq(r['unb'],0,'multi-method journals remain balanced')
+    await ctx.close()
+
+
+@test
+async def product_color_size_matrix_and_unique_codes(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const before=db.variants.length;
+      const made=ActionEngine.createProduct({name:'کفش ماتریس تست',brand:'برند تست',modelCode:'MATRIX-TEST',category:'کفش',
+        colors:['مشکی','سفید'],sizes:['17','18','48'],buyPrice:1000,sellPrice:2000,minStock:2});
+      const rows=db.variants.filter(v=>v.modelId===made.modelId);
+      let duplicateBlocked=false;try{ActionEngine.createProduct({name:'بارکد تکراری',color:'مشکی',size:'42',barcode:rows[0].barcode})}catch(e){duplicateBlocked=true}
+      return {count:made.variantCount,rows:rows.length,stock:rows.every(v=>v.stock===0),sizes:[...new Set(rows.map(v=>v.size))].sort(),
+        colors:[...new Set(rows.map(v=>v.color))].sort(),barcodes:rows.every(v=>!!v.barcode)&&new Set(rows.map(v=>v.barcode)).size===rows.length,
+        skus:rows.every(v=>!!v.sku)&&new Set(rows.map(v=>v.sku)).size===rows.length,duplicateBlocked,delta:db.variants.length-before};
+    ''')
+    c.eq(r['count'],6,'all color-size combinations created')
+    c.eq(r['rows'],6,'six variants are persisted')
+    c.true(r['stock'],'new product variants start with zero stock')
+    c.eq(r['sizes'],['17','18','48'],'requested shoe sizes preserved')
+    c.eq(r['colors'],['سفید','مشکی'],'requested colors preserved')
+    c.true(r['barcodes'],'barcodes are generated and unique')
+    c.true(r['skus'],'SKUs are generated and unique')
+    c.true(r['duplicateBlocked'],'duplicate barcode is rejected')
+    c.eq(r['delta'],6,'rejected duplicate does not create another variant')
+    await ctx.close()
+
+
+@test
+async def offline_ocr_runtime_loads_from_local_assets(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async()=> {
+      const load=()=>new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='./vendor/tesseract/tesseract.min.js';s.onload=resolve;s.onerror=()=>reject(Error('Tesseract script failed'));document.head.appendChild(s)});
+      await load();
+      const worker=await Tesseract.createWorker('eng',1,{workerPath:'./vendor/tesseract/worker.min.js',langPath:'./vendor/tesseract/lang/',corePath:'./vendor/tesseract/core/',gzip:true});
+      try{
+        const canvas=document.createElement('canvas');canvas.width=900;canvas.height=220;
+        const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,900,220);
+        ctx.fillStyle='#000';ctx.font='bold 86px Arial';ctx.fillText('TEST 12345',50,145);
+        const result=await worker.recognize(canvas);
+        return {loaded:true,text:String(result.data.text||'').trim(),confidence:Number(result.data.confidence||0)};
+      }finally{await worker.terminate()}
+    }""")
+    c.true(r['loaded'],'Tesseract worker starts from bundled local files')
+    c.true('TEST' in r['text'].toUpperCase(),'local OCR recognizes synthetic test text')
+    c.true(r['confidence']>0,'Tesseract returns a confidence score')
+    c.eq(pg.errs,[],'no browser runtime errors during local OCR')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
