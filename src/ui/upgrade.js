@@ -181,7 +181,7 @@
     };
     $('#scanSale').onclick = function () { scanBarcode('sale'); };
     $('#yqSaleMatrix').onclick = function () { yqOpenMatrix('sale'); };
-    $('#voiceSale').onclick = function () { window.yqVoiceDraft(); };
+    $('#voiceSale').onclick = function () { window.yqVoiceDraft('sale'); };
     $('#holdSale').onclick = function () { yqHoldSale(); };
     $('#exchangeSale').onclick = function () { yqOpenExchange(); };
     $('#saveSale').onclick = saveSale;
