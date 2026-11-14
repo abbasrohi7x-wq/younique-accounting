@@ -82,7 +82,7 @@
     });
   }
   function stopCapture(releaseModel, finalize) {
-    if (pendingStop) return pendingStop;
+    if (pendingStop) return releaseModel ? pendingStop.then(function () { return stopCapture(true, false); }) : pendingStop;
     active = false;
     if (processor) { processor.onaudioprocess = null; try { processor.disconnect(); } catch (_) {} processor = null; }
     if (source) { try { source.disconnect(); } catch (_) {} source = null; }
@@ -210,7 +210,7 @@
     };
     byId('yqVStop').onclick = function () {
       byId('yqVStop').disabled = true;
-      stopCapture(true, true).then(function () {
+      stopCapture(false, true).then(function () {
         status('ضبط متوقف شد و متن نهایی آماده است؛ آن را بررسی کنید.');
         if (byId('yqVStop')) byId('yqVStop').disabled = false;
       });
