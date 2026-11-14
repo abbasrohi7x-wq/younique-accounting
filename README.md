@@ -39,7 +39,7 @@ python3 -m http.server 8080
 پیش‌نیازها:
 
 ```bash
-python -m pip install playwright
+python -m pip install playwright opencv-python-headless
 python -m playwright install chromium
 ```
 
