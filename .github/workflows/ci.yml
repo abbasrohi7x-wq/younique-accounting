@@ -40,6 +40,15 @@ jobs:
       - name: Install Chromium
         run: python -m playwright install --with-deps chromium
 
+      - name: Validate Python and JavaScript syntax
+        run: |
+          python -m py_compile scripts/build_static.py tests/run_tests.py
+          node --check src/engine/core.js
+          node --check src/engine/fin.js
+          node --check src/ui/offline-voice.js
+          node --check src/ui/upgrade.js
+          node --check src/ui/local-nlu.js
+
       - name: Build the real offline-first distribution
         run: python scripts/build_static.py
 
