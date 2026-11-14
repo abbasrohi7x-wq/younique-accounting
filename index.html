@@ -642,7 +642,7 @@ function smartNormalize(v){return normAIText(v)}
 function fuzzyScore(a,b){a=normAIText(a);b=normAIText(b);if(!a||!b)return 0;if(a===b)return 1;if(a.includes(b)||b.includes(a))return Math.min(a.length,b.length)/Math.max(a.length,b.length)*.95;let hits=0;for(const x of a)if(b.includes(x))hits++;return hits/Math.max(a.length,b.length)}
 function matchInvoiceItem(item){const barcode=aiText(item.barcode||item.ean||item.upc||item.sku);if(barcode){const exact=activeVariants().find(v=>String(v.barcode||'')===barcode||String(v.sku||'')===barcode);if(exact)return {...exact,matchScore:1}}const name=aiText(item.name||item.productName||item.title),color=aiText(item.color),size=aiText(item.size);let best=null,score=0;for(const v of activeVariants()){const ns=fuzzyScore(name,variantName(v)),cs=color&&(fuzzyScore(color,v.color||'')>=.7?0.18:0),ss=size&&String(v.size)==String(size)?0.15:0,total=ns+cs+ss;if(total>score){score=total;best=v}}return best&&score>=.62?{...best,matchScore:Math.min(1,score)}:null}
 async function prepareInvoiceImage(file){const max=2400;const data=await new Promise((resolve,reject)=>{const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=reject;r.readAsDataURL(file)});try{const img=await new Promise((resolve,reject)=>{const im=new Image();im.onload=()=>resolve(im);im.onerror=reject;im.src=data});const scale=Math.min(1,max/Math.max(img.naturalWidth||img.width,img.naturalHeight||img.height)),w=Math.max(1,Math.round((img.naturalWidth||img.width)*scale)),h=Math.max(1,Math.round((img.naturalHeight||img.height)*scale));const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d',{alpha:false});ctx.fillStyle='#fff';ctx.fillRect(0,0,w,h);ctx.drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',.94)}catch(_){return data}}
-let localOCRScriptPromise=null,localOCRWorker=null,localOCRBusy=false;
+let localOCRScriptPromise=null,localOCRWorker=null,localOCRWorkerPromise=null,localOCRBusy=false;
 const LOCAL_OCR_ROOT='./vendor/tesseract/';
 const LOCAL_OCR_CORE=LOCAL_OCR_ROOT+'core/';
 const LOCAL_OCR_LANG=LOCAL_OCR_ROOT+'lang/';
@@ -677,11 +677,23 @@ async function ensureLocalOCR(){
  return window.Tesseract;
 }
 async function getLocalOCRWorker(){
- const T=await ensureLocalOCR();
  if(localOCRWorker)return localOCRWorker;
- localOCRWorker=await T.createWorker('fas+eng',1,{workerPath:LOCAL_OCR_ROOT+'worker.min.js',langPath:LOCAL_OCR_LANG,corePath:LOCAL_OCR_CORE,gzip:true,logger:m=>{try{window.ocrLoadLog&&window.ocrLoadLog(m)}catch(e){}}});
- await localOCRWorker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1',user_defined_dpi:'300'});
- return localOCRWorker;
+ /* Serialize initialization: two quick uploads must not spawn competing WASM workers. */
+ if(!localOCRWorkerPromise){
+  localOCRWorkerPromise=(async()=>{
+   const T=await ensureLocalOCR();
+   const worker=await T.createWorker('fas+eng',1,{workerPath:LOCAL_OCR_ROOT+'worker.min.js',langPath:LOCAL_OCR_LANG,corePath:LOCAL_OCR_CORE,gzip:true,logger:m=>{try{window.ocrLoadLog&&window.ocrLoadLog(m)}catch(e){}}});
+   try{
+    await worker.setParameters({tessedit_pageseg_mode:'6',preserve_interword_spaces:'1',user_defined_dpi:'300'});
+    localOCRWorker=worker;
+    return worker;
+   }catch(err){
+    try{await worker.terminate()}catch(_){}
+    throw err;
+   }
+  })().catch(err=>{localOCRWorkerPromise=null;throw err});
+ }
+ return localOCRWorkerPromise;
 }
 async function localBarcodeScan(file){if(typeof BarcodeDetector==='undefined')return [];try{const detector=new BarcodeDetector({formats:['ean_13','ean_8','code_128','code_39','upc_a','upc_e','itf','codabar']});const bitmap=await createImageBitmap(file),found=await detector.detect(bitmap);bitmap.close?.();return found.map(x=>String(x.rawValue||'')).filter(Boolean)}catch(_){return []}}
 async function makeOCRCanvases(file){
