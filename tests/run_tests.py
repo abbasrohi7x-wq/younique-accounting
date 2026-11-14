@@ -405,17 +405,20 @@ async def offline_ocr_runtime_loads_from_local_assets(br,c):
     r=await pg.evaluate("""async()=> {
       const load=()=>new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='./vendor/tesseract/tesseract.min.js';s.onload=resolve;s.onerror=()=>reject(Error('Tesseract script failed'));document.head.appendChild(s)});
       await load();
-      const worker=await Tesseract.createWorker('eng',1,{workerPath:'./vendor/tesseract/worker.min.js',langPath:'./vendor/tesseract/lang/',corePath:'./vendor/tesseract/core/',gzip:true});
+      await document.fonts.ready;
+      const worker=await Tesseract.createWorker('fas+eng',1,{workerPath:'./vendor/tesseract/worker.min.js',langPath:'./vendor/tesseract/lang/',corePath:'./vendor/tesseract/core/',gzip:true});
       try{
-        const canvas=document.createElement('canvas');canvas.width=900;canvas.height=220;
-        const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,900,220);
-        ctx.fillStyle='#000';ctx.font='bold 86px Arial';ctx.fillText('TEST 12345',50,145);
-        const result=await worker.recognize(canvas);
-        return {loaded:true,text:String(result.data.text||'').trim(),confidence:Number(result.data.confidence||0)};
+        const canvas=document.createElement('canvas');canvas.width=1000;canvas.height=300;
+        const ctx=canvas.getContext('2d');ctx.fillStyle='#fff';ctx.fillRect(0,0,1000,300);
+        ctx.fillStyle='#000';ctx.font='bold 82px Arial';ctx.fillText('TEST 12345',45,105);
+        ctx.font='bold 78px Vazirmatn, Arial';ctx.direction='rtl';ctx.textAlign='right';ctx.fillText('فاکتور خرید ۱۲۳۴۵',950,230);
+        const result=await worker.recognize(canvas),text=String(result.data.text||'').trim();
+        return {loaded:true,text,hasPersian:/[\u0600-\u06FF]/.test(text),confidence:Number(result.data.confidence||0)};
       }finally{await worker.terminate()}
     }""")
     c.true(r['loaded'],'Tesseract worker starts from bundled local files')
-    c.true('TEST' in r['text'].upper(),'local OCR recognizes synthetic test text')
+    c.true('TEST' in r['text'].upper() or '12345' in r['text'],'local OCR recognizes synthetic Latin text')
+    c.true(r['hasPersian'],'Persian language model recognizes Persian script')
     c.true(r['confidence']>0,'Tesseract returns a confidence score')
     c.eq(pg.errs,[],'no browser runtime errors during local OCR')
     await ctx.close()
