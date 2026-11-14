@@ -71,6 +71,7 @@
     });
   }
   function createModelWithDiagnostics(Vosk) {
+    var modelUrl = new URL(MODEL_URL, window.location.href).href;
     var timeoutMs = 240000;
     return new Promise(function (resolve, reject) {
       var candidate = null, settled = false;
@@ -90,7 +91,7 @@
       }
       try {
         if (typeof Vosk.Model === 'function') {
-          candidate = new Vosk.Model(MODEL_URL);
+          candidate = new Vosk.Model(modelUrl);
           candidate.on('load', function (message) {
             if (message && message.result && candidate.ready) finish(null, candidate);
             else finish(new Error('موتور Vosk نتوانست مدل فارسی را آماده کند.'));
@@ -108,7 +109,7 @@
             });
           }
         } else if (typeof Vosk.createModel === 'function') {
-          Vosk.createModel(MODEL_URL).then(function (loaded) {
+          Vosk.createModel(modelUrl).then(function (loaded) {
             finish(null, loaded);
           }).catch(function (error) {
             finish(error instanceof Error ? error : new Error(String(error)));
