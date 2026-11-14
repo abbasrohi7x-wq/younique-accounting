@@ -440,6 +440,41 @@ async def offline_voice_stops_when_browser_emits_no_audio_frames(br,c):
     await ctx.close()
 
 
+@test
+async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""async()=> {
+      const S=await T.seed({});
+      db.settings.supabase={url:'https://unused.example',anonKey:'CLOUD_SECRET_ANON',accessKey:'CLOUD_SECRET_ACCESS'};
+      db.settings.ai=db.settings.ai||{};db.settings.ai.apiKey='AI_SECRET';
+      const env=syncEnvelope(),backup=JSON.parse(exportData());
+      const secretsStripped=!JSON.stringify(env).includes('CLOUD_SECRET')&&!JSON.stringify(env).includes('AI_SECRET')&&
+        !JSON.stringify(backup).includes('CLOUD_SECRET')&&!JSON.stringify(backup).includes('AI_SECRET');
+      const incoming=JSON.parse(JSON.stringify(env.data));
+      const local=incoming.customers.find(x=>x.id===S.cus);
+      local.name='نام محلی';
+      const remote=JSON.parse(JSON.stringify(incoming));
+      remote.customers.find(x=>x.id===S.cus).name='نام دستگاه دیگر';
+      remote.customers.push({id:'REMOTE-CUSTOMER-1',name:'مشتری دستگاه دوم',phone:'000',createdAt:'2026-11-14T00:00:00Z'});
+      const merged=syncMerge(db,remote);
+      proSync();
+      const ui=document.querySelector('#content')?.innerText||'';
+      const checksum=env.checksum===syncSig({app:env.app,schema:env.schema,version:env.version,deviceId:env.deviceId,createdAt:env.createdAt,data:env.data});
+      return {secretsStripped,checksum,added:merged.added.some(x=>x.id==='REMOTE-CUSTOMER-1'),
+        localKept:merged.data.customers.find(x=>x.id===S.cus)?.name==='نام محلی',
+        conflict:merged.conflicts.some(x=>x.id===S.cus&&x.resolution==='local-kept'),
+        localUI:ui.includes('انتقال فایل‌محور'),cloudUI:/Supabase|ابر رایگان/i.test(ui),
+        hasExport:!!document.querySelector('#sx'),hasImport:!!document.querySelector('#si')};
+    }""")
+    c.true(r['secretsStripped'],'file backup and transfer never export cloud or AI credentials')
+    c.true(r['checksum'],'transfer checksum is deterministic')
+    c.true(r['added'],'new records from another device are detected')
+    c.true(r['localKept'] and r['conflict'],'conflicting local record is preserved')
+    c.true(r['localUI'] and not r['cloudUI'],'sync UI is local file transfer only')
+    c.true(r['hasExport'] and r['hasImport'],'file export and import controls remain available')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
