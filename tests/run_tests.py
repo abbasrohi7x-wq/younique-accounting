@@ -631,9 +631,14 @@ async def main():
         for f in TESTS:
             if flt and flt not in f.__name__:continue
             c=Check(f.__name__)
-            try:await f(br,c)
+            try:await asyncio.wait_for(f(br,c),timeout=180)
+            except asyncio.TimeoutError:
+                c.fails.append('TIMEOUT: test exceeded 180 seconds')
+                for context in list(br.contexts):
+                    try:await context.close()
+                    except Exception:pass
             except Exception as e:c.fails.append('EXCEPTION '+type(e).__name__+': '+str(e)[:300])
-            RES.append(c);print(('PASS ' if not c.fails else 'FAIL ')+c.name+f'  ({c.n} assertions)')
+            RES.append(c);print(('PASS ' if not c.fails else 'FAIL ')+c.name+f'  ({c.n} assertions)',flush=True)
             for x in c.fails:print('     -',x)
         await br.close()
     bad=[c for c in RES if c.fails];print(f'\n{len(RES)-len(bad)}/{len(RES)} tests passed, {sum(c.n for c in RES)} assertions, {time.time()-t0:.0f}s');sys.exit(1 if bad else 0)
