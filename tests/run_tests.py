@@ -570,7 +570,7 @@ async def management_reports_reconcile_to_confirmed_sales(br,c):
       let downloaded=[];window.download=(name,content)=>downloaded.push({name,content:String(content||'')});
       window.reports39();
       const text=document.querySelector('#content')?.innerText||'';
-      const gross=db.sales.filter(x=>x.status==='confirmed').reduce((a,x)=>a+num(x.total)-num(x.costTotal),0);
+      const gross=db.sales.filter(x=>x.status==='confirmed').reduce((a,x)=>a+(x.profit!==undefined?num(x.profit):num(x.total)-num(x.costTotal)),0);
       document.querySelector('#csv39').click();document.querySelector('#json39').click();
       return {gross,report:text.includes('سود ناخالص')&&text.includes('پرفروش‌ترین تنوع‌ها')&&text.includes('هشدار موجودی'),
         top:text.includes('کتونی تست'),downloads:downloaded.map(x=>x.name),csv:downloaded[0]?.content.includes('کتونی تست'),
