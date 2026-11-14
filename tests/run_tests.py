@@ -246,6 +246,31 @@ async def offline_voice_opens_real_microphone_pipeline(br,c):
     c.eq(pg.errs,[],'no browser runtime errors')
     await ctx.close()
 
+
+@test
+async def offline_voice_button_uses_local_vosk_dialog_not_browser_speech(br,c):
+    pg,ctx=await page(br)
+    r=await pg.evaluate("""() => {
+      window.page='ai';window.render();
+      let nativeStarts=0;
+      function NativeSpeech(){nativeStarts++;this.start=()=>nativeStarts++;}
+      NativeSpeech.prototype.processLocally=false;
+      Object.defineProperty(window,'SpeechRecognition',{configurable:true,value:NativeSpeech});
+      Object.defineProperty(window,'webkitSpeechRecognition',{configurable:true,value:NativeSpeech});
+      window.__voiceDialogContext=null;
+      window.yqVoiceDraft=(context)=>{window.__voiceDialogContext=context||'assistant'};
+      const button=document.querySelector('#voiceBtn');
+      if(!button)return {button:false,nativeStarts,context:null};
+      button.click();
+      return {button:true,nativeStarts,context:window.__voiceDialogContext};
+    }""")
+    c.true(r['button'],'assistant microphone button exists')
+    c.eq(r['context'],'assistant','microphone opens the local Vosk dialog')
+    c.eq(r['nativeStarts'],0,'browser speech-recognition UI is never launched')
+    c.eq(pg.errs,[],'no browser runtime errors')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
