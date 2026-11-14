@@ -357,7 +357,6 @@ async def multi_method_purchase_and_sale_payments(br,c):
     c.eq(r['bank'],500,'bank account reflects both bank legs')
     c.eq(r['receivable'],1000,'unpaid sale balance is receivable')
     c.eq(r['payable'],-2000,'unpaid purchase balance is payable')
-    c.eq(r['receivable'],1000,'unpaid sale balance is receivable')
     c.eq(r['inventory'],3000,'inventory valuation follows remaining stock')
     c.eq(r['pSum'],3000,'purchase cash/card/bank payments are recorded; remaining amount is payable')
     c.eq(r['sSum'],3000,'sale cash/card/bank payments are recorded; remaining amount is receivable')
