@@ -435,9 +435,11 @@ function createEngine(db, h) {
       const v = variantBy(item.variantId);
       const oldQty = Math.max(0, num(v.stock)), oldCost = Math.max(0, num(v.buyPrice));
       const moved = stockMove(item.variantId, item.qty, 'purchase', no, item.unitPrice, selectedWarehouseId, item.total);
-      v.buyPrice = oldQty + item.qty > 0
-        ? roundMoney(((oldQty * oldCost) + moved.totalCost) / (oldQty + item.qty))
-        : item.unitPrice;
+      if (costingMethod() !== 'weighted_average') {
+        v.buyPrice = oldQty + item.qty > 0
+          ? roundMoney(((oldQty * oldCost) + moved.totalCost) / (oldQty + item.qty))
+          : item.unitPrice;
+      }
     });
     [
       { account: 'cash', amount: cash }, { account: 'card', amount: card }, { account: 'bank', amount: bank }
