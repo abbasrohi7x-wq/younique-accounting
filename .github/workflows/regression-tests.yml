@@ -10,6 +10,12 @@ on:
 permissions:
   contents: read
 
+# Keep only the newest regression run for each branch/PR; rapid commits should not
+# start several heavy Chromium + OCR suites in parallel.
+concurrency:
+  group: regression-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   browser-regression:
     runs-on: ubuntu-latest
