@@ -4405,26 +4405,20 @@ V.speak=function(text,onend){
   try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(text);u.lang='fa-IR';const v=V.faVoice();if(v)u.voice=v;u.rate=.95;u.onend=()=>{if(onend)onend()};u.onerror=()=>{if(onend)onend()};speechSynthesis.speak(u);return true}catch(_){if(onend)onend();return false}
 };
 V.start=function(){
-  const R=window.SpeechRecognition||window.webkitSpeechRecognition;
-  const useVosk=function(){if(typeof window.yqVoiceDraft==='function'){window.yqVoiceDraft();return true}return V.fallback()};
-  if(location.protocol==='file:'){window.toast('فرمان صوتی در اجرای مستقیم فایل توسط بعضی مرورگرها مسدود است. برنامه را با HTTPS یا localhost اجرا کنید.',true);return false}
+  const useVosk=function(){
+    if(typeof window.yqVoiceDraft==='function'){window.yqVoiceDraft();return true}
+    return V.fallback();
+  };
+  if(location.protocol==='file:'){
+    window.toast('فرمان صوتی در اجرای مستقیم فایل توسط بعضی مرورگرها مسدود است. برنامه را با HTTPS یا localhost اجرا کنید.',true);
+    return false;
+  }
   if(V.listening)return true;
-  try{speechSynthesis&&speechSynthesis.cancel()}catch(_){}
-  /* Prefer the browser's on-device API when available; otherwise use the bundled Vosk/WASM engine. */
-  if(!R||!('processLocally' in R.prototype))return useVosk();
-  const r=new R();r.processLocally=true;r.lang='fa-IR';r.interimResults=true;r.continuous=false;r.maxAlternatives=5;V.rec=r;V.listening=true;V.setBtn(true);
-  r.onresult=e=>{let t='';for(const x of e.results)t+=x[0].transcript;V.lastHeard=t;const box=document.querySelector('#prompt,#dockPrompt');if(box)box.value=t;
-    const last=e.results[e.results.length-1];
-    if(last.isFinal){V.listening=false;V.setBtn(false);if(box)box.value='';
-      const alts=[];for(let k=0;k<last.length;k++){const a=String(last[k].transcript||'').trim();if(a&&!alts.includes(a))alts.push(a)}
-      /* finished utterance = all final segments joined; alternatives come from the last segment only */
-      const prefix=[...e.results].slice(0,-1).map(x=>x[0].transcript).join('');
-      const full=alts.map(a=>(prefix+a).trim());
-      V.onFinal(V.pickBest(full),full)}};
-  r.onend=()=>{V.listening=false;V.setBtn(false)};
-  r.onerror=e=>{V.listening=false;V.setBtn(false);if(e&&e.error==='language-not-supported'){useVosk();return}const m=e&&e.error==='not-allowed'?'دسترسی به میکروفون داده نشد':e&&e.error==='no-speech'?'صدایی شنیده نشد':'تشخیص صدا ناموفق بود';window.toast(m,true)};
-  try{r.start()}catch(e){V.listening=false;V.setBtn(false);if(e&&(/NotSupportedError|language/i.test(e.name+' '+e.message))){useVosk();return false}window.toast('شروع تشخیص صدا ممکن نشد',true);return false}
-  return true;
+  try{if(window.speechSynthesis)window.speechSynthesis.cancel()}catch(_){}
+  /* Always use the bundled Vosk/WASM pipeline. Chrome's SpeechRecognition UI can
+     launch a separate native conversation/download screen and is not reliable
+     for this app's offline Persian workflow, even when processLocally exists. */
+  return useVosk();
 };
 
 /* choose the alternative the local NLU understands best (the cloud model also receives all alternatives as hints) */
