@@ -159,7 +159,8 @@
       }
       return resumePromise.then(function () {
         if (!audioContext || audioContext.state !== 'running') throw new Error('پردازش صوت مرورگر فعال نشد؛ مجوز پخش/میکروفون را بررسی و صفحه را تازه‌سازی کنید.');
-        recognizer = new loaded.KaldiRecognizer();
+        /* vosk-browser 0.0.8 requires the recognizer sample rate; omitting it can fail inside WASM with an undefined-to-float error. Match the actual AudioContext rate because acceptWaveform receives AudioBuffer objects at this rate. */
+        recognizer = new loaded.KaldiRecognizer(audioContext.sampleRate);
         var frames = 0, signalFrames = 0, lastStatus = 0;
         recognizer.on('result', function (message) {
           var text = message && message.result && message.result.text || '';
