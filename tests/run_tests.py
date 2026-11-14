@@ -530,8 +530,9 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
 @test
 async def offline_vosk_model_loads_from_bundled_assets(br,c):
     pg,ctx=await page(br)
-    external=[]
+    external=[];worker_assets=[]
     pg.on('request',lambda req: external.append(req.url) if req.url.startswith(('http://','https://')) and not req.url.startswith('http://127.0.0.1:8765/') else None)
+    pg.on('request',lambda req: worker_assets.append(req.url) if '/vendor/vosk/' in req.url and 'worker' in req.url else None)
     r=await pg.evaluate("""async()=> {
       const s=document.createElement('script');
       s.src='./vendor/vosk/vosk.js';
@@ -539,7 +540,7 @@ async def offline_vosk_model_loads_from_bundled_assets(br,c):
       if(!window.Vosk||typeof window.Vosk.Model!=='function')throw Error('Vosk Model API is missing');
       let model=null;
       try{
-        model=new window.Vosk.Model('./vendor/vosk/model.tar.gz');
+        model=new window.Vosk.Model(new URL('./vendor/vosk/model.tar.gz',location.href).href);
         await new Promise((resolve,reject)=>{
           let settled=false;
           const timer=setTimeout(()=>finish(Error('Vosk model initialization exceeded 240 seconds')),240000);
@@ -554,10 +555,12 @@ async def offline_vosk_model_loads_from_bundled_assets(br,c):
         const recognizer=new model.KaldiRecognizer(16000);
         const ok=!!model.ready&&typeof recognizer.acceptWaveform==='function';
         recognizer.remove();
-        return {loaded:ok,ready:!!model.ready};
+        return {loaded:ok,ready:!!model.ready,csp:document.querySelector('meta[http-equiv="Content-Security-Policy"]')?.content||''};
       }finally{if(model)model.terminate()}
     }""")
     c.true(r['loaded'],'real Persian Vosk model and WASM recognizer initialize from bundled files')
+    c.true(worker_assets,'Vosk loads an external same-origin worker asset')
+    c.true("'unsafe-eval'" not in r['csp'],'main page CSP does not enable dynamic JavaScript evaluation')
     c.eq(external,[],'Vosk model loading makes no cross-origin requests')
     c.eq(pg.errs,[],'no browser runtime errors during model initialization')
     await ctx.close()
