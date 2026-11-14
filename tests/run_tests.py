@@ -471,6 +471,40 @@ async def cash_sale_without_open_session_does_not_fall_back_to_legacy(br,c):
 
 
 @test
+async def purchase_and_sale_use_the_selected_warehouse(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      db.warehouses.push({id:'W2',name:'انبار دوم',active:true});saveDB(true);
+      page='purchase';render();await T.sleep(100);
+      document.querySelector('#purWarehouse').value='W2';
+      addPurchase(S.v);purchaseCart[0].qty=4;purchaseCart[0].price=1000;renderPurchaseCart();
+      document.querySelector('#purSup').value=S.sup;
+      for(const [id,value] of [['purCash',4000],['purCard',0],['purBank',0],['purCredit',0]])document.querySelector('#'+id).value=String(value);
+      renderPurchasePaymentSummary();document.querySelector('#savePurchase').click();await T.sleep(180);
+      const p=db.purchases[db.purchases.length-1];
+      page='sale';render();await T.sleep(100);document.querySelector('#saleWarehouse').value='W2';
+      addSale(S.v);saleCart[0].qty=2;saleCart[0].price=1500;renderSaleCart();
+      document.querySelector('#saleCustomer').value=S.cus;window.__salePayments={cash:3000,card:0,bank:0,credit:0};
+      const before=db.sales.length;saveSale();await T.sleep(180);
+      const sale=db.sales.length>before?db.sales[db.sales.length-1]:null;
+      return{purchaseWarehouse:p&&p.warehouseId,saleWarehouse:sale&&sale.warehouseId,
+        main:db.warehouseStocks.MAIN?.[S.v]||0,second:db.warehouseStocks.W2?.[S.v]||0,
+        global:variantBy(S.v).stock,moves:db.stockMoves.filter(x=>x.variantId===S.v).map(x=>x.warehouseId),
+        unb:T.unbalanced(),health:runYouniqueHealthCheck().ok};
+    """)
+    c.eq(r['purchaseWarehouse'],'W2','purchase is assigned to the selected warehouse')
+    c.eq(r['saleWarehouse'],'W2','sale is assigned to the selected warehouse')
+    c.eq(r['main'],0,'main warehouse stock is unchanged')
+    c.eq(r['second'],2,'selected warehouse retains the unsold quantity')
+    c.eq(r['global'],2,'global stock equals the sum of warehouse stock')
+    c.eq(r['moves'],['W2','W2'],'purchase and sale movements retain warehouse identity')
+    c.eq(r['unb'],0,'warehouse transactions keep the ledger balanced')
+    c.true(r['health'],'warehouse stock and accounting integrity checks pass')
+    await ctx.close()
+
+
+@test
 async def purchase_classifies_card_and_bank_as_mixed(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
