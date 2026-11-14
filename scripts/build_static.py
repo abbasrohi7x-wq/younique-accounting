@@ -11,8 +11,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 VOSK_VERSION = "0.0.8"
+VOSK_SOURCE_COMMIT = "4b8eb257503108d96819854d3984372903c2259e"
+VOSK_SOURCE_URL = f"https://codeload.github.com/ccoreilly/vosk-browser/tar.gz/{VOSK_SOURCE_COMMIT}"
 MODEL_NAME = "vosk-model-small-fa-0.42"
-NPM_URL = f"https://registry.npmjs.org/vosk-browser/-/vosk-browser-{VOSK_VERSION}.tgz"
 MODEL_URL = os.environ.get("VOSK_MODEL_URL", f"https://alphacephei.com/vosk/models/{MODEL_NAME}.zip")
 
 def download(url: str, target: Path) -> str:
@@ -36,6 +37,46 @@ def safe_extract_zip(archive: Path, destination: Path) -> None:
                 raise RuntimeError(f"Unsafe path in model archive: {item.filename}")
         zf.extractall(destination)
 
+def extract_vosk_source(archive: Path, lib_dir: Path, asset_dir: Path) -> None:
+    """Extract only the pinned Vosk lib source and its licenses; reject links and traversal."""
+    with tarfile.open(archive, "r:gz") as package:
+        members = package.getmembers()
+        package_json = next((m for m in members if m.isfile() and m.name.endswith("/lib/package.json")), None)
+        if package_json is None:
+            raise RuntimeError("Pinned Vosk source archive has no lib/package.json")
+        prefix = package_json.name[:-len("lib/package.json")]
+        root = lib_dir.resolve()
+        for member in members:
+            marker = prefix + "lib/"
+            if not member.name.startswith(marker):
+                continue
+            relative = Path(member.name[len(marker):])
+            if not relative.parts:
+                continue
+            if ".." in relative.parts:
+                raise RuntimeError(f"Unsafe path in Vosk source archive: {member.name}")
+            target = (lib_dir / relative).resolve()
+            if target != root and root not in target.parents:
+                raise RuntimeError(f"Unsafe path in Vosk source archive: {member.name}")
+            if member.isdir():
+                target.mkdir(parents=True, exist_ok=True)
+            elif member.isfile():
+                target.parent.mkdir(parents=True, exist_ok=True)
+                source = package.extractfile(member)
+                if source is None:
+                    raise RuntimeError(f"Cannot read Vosk source file: {member.name}")
+                with source, target.open("wb") as out:
+                    shutil.copyfileobj(source, out)
+            else:
+                raise RuntimeError(f"Unsupported link or special file in Vosk source: {member.name}")
+        for license_name in ("LICENSE", "NOTICE"):
+            member = next((m for m in members if m.isfile() and m.name == prefix + license_name), None)
+            if member is not None:
+                source = package.extractfile(member)
+                if source:
+                    with source, (asset_dir / license_name).open("wb") as out:
+                        shutil.copyfileobj(source, out)
+
 def main() -> None:
     if DIST.exists():
         shutil.rmtree(DIST)
@@ -46,34 +87,33 @@ def main() -> None:
     asset_dir.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="unique-vosk-") as tmp:
         temp = Path(tmp)
-        npm_archive = temp / "vosk-browser.tgz"
-        npm_sha = download(NPM_URL, npm_archive)
-        with tarfile.open(npm_archive, "r:gz") as package:
-            members = [m for m in package.getmembers() if m.isfile() and m.name.startswith("package/dist/")]
-            if not members:
-                raise RuntimeError("vosk-browser package has no package/dist assets")
-            for member in members:
-                relative = Path(member.name).relative_to("package/dist")
-                if ".." in relative.parts:
-                    raise RuntimeError("Unsafe path in vosk-browser package")
-                target = asset_dir / relative
+        source_archive = temp / "vosk-browser-source.tgz"
+        source_sha = download(VOSK_SOURCE_URL, source_archive)
+        lib_dir = temp / "vosk-browser-lib"
+        lib_dir.mkdir()
+        extract_vosk_source(source_archive, lib_dir, asset_dir)
+        rollup_config = lib_dir / "rollup.config.js"
+        config_text = rollup_config.read_text(encoding="utf-8")
+        inline_config = "webWorkerLoader({ forceInline: true })"
+        external_config = "webWorkerLoader({ inline: false, forceInline: false, loadPath: './vendor/vosk/' })"
+        if inline_config not in config_text:
+            raise RuntimeError("Pinned Vosk Rollup worker configuration changed unexpectedly")
+        rollup_config.write_text(config_text.replace(inline_config, external_config), encoding="utf-8")
+        subprocess.run(["npm", "ci", "--no-audit", "--no-fund"], cwd=lib_dir, check=True)
+        dist_dir = lib_dir / "dist"
+        if dist_dir.exists():
+            shutil.rmtree(dist_dir)
+        subprocess.run(["npm", "run", "build"], cwd=lib_dir, check=True)
+        worker_files = sorted(p for p in dist_dir.glob("*worker*.js") if p.is_file())
+        if not (dist_dir / "vosk.js").is_file():
+            raise RuntimeError("Rebuilt Vosk dist/vosk.js is missing")
+        if not worker_files:
+            raise RuntimeError("Rebuilt Vosk external worker asset is missing")
+        for source in dist_dir.rglob("*"):
+            if source.is_file():
+                target = asset_dir / source.relative_to(dist_dir)
                 target.parent.mkdir(parents=True, exist_ok=True)
-                source = package.extractfile(member)
-                if source is None:
-                    raise RuntimeError(f"Cannot read {member.name}")
-                with source, target.open("wb") as out:
-                    shutil.copyfileobj(source, out)
-            for license_path in ("package/LICENSE", "package/NOTICE"):
-                try:
-                    member = package.getmember(license_path)
-                except KeyError:
-                    continue
-                source = package.extractfile(member)
-                if source:
-                    with source, (asset_dir / Path(license_path).name).open("wb") as out:
-                        shutil.copyfileobj(source, out)
-        if not (asset_dir / "vosk.js").is_file():
-            raise RuntimeError("vosk-browser dist/vosk.js is missing")
+                shutil.copy2(source, target)
 
         model_archive = temp / (MODEL_NAME + ".zip")
         model_sha = download(MODEL_URL, model_archive)
@@ -140,7 +180,10 @@ def main() -> None:
 
     manifest = {
         "voskBrowserVersion": VOSK_VERSION,
-        "voskBrowserTarballSha256": npm_sha,
+        "voskBrowserSourceCommit": VOSK_SOURCE_COMMIT,
+        "voskBrowserSourceArchiveSha256": source_sha,
+        "voskWorkerMode": "external-same-origin",
+        "voskWorkerAssets": [p.name for p in worker_files],
         "model": MODEL_NAME,
         "modelSource": MODEL_URL,
         "modelZipSha256": model_sha,
