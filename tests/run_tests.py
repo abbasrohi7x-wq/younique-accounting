@@ -462,6 +462,7 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
       return {secretsStripped,checksum,added:merged.added.some(x=>x.id==='REMOTE-CUSTOMER-1'),
         localKept:merged.data.customers.find(x=>x.id===S.cus)?.name==='نام محلی',
         conflict:merged.conflicts.some(x=>x.id===S.cus&&x.resolution==='local-kept'),
+        cloudConfigAbsent:!merged.data.settings?.supabase,
         localUI:ui.includes('انتقال فایل‌محور'),cloudUI:/Supabase|ابر رایگان/i.test(ui),
         hasExport:!!document.querySelector('#sx'),hasImport:!!document.querySelector('#si')};
     }""")
@@ -469,6 +470,7 @@ async def local_file_transfer_strips_cloud_secrets_and_keeps_local_conflicts(br,
     c.true(r['checksum'],'transfer checksum is deterministic')
     c.true(r['added'],'new records from another device are detected')
     c.true(r['localKept'] and r['conflict'],'conflicting local record is preserved')
+    c.true(r['cloudConfigAbsent'],'cloud credentials are not restored through device merge')
     c.true(r['localUI'] and not r['cloudUI'],'sync UI is local file transfer only')
     c.true(r['hasExport'] and r['hasImport'],'file export and import controls remain available')
     await ctx.close()
