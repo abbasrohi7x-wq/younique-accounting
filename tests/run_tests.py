@@ -474,24 +474,26 @@ async def cash_sale_without_open_session_does_not_fall_back_to_legacy(br,c):
 async def purchase_and_sale_use_the_selected_warehouse(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
-      const S=await T.seed({});
+      const S=await T.seed({vat:10});
       db.warehouses.push({id:'W2',name:'انبار دوم',active:true});saveDB(true);
       page='purchase';render();await T.sleep(100);
       document.querySelector('#purWarehouse').value='W2';
       addPurchase(S.v);purchaseCart[0].qty=4;purchaseCart[0].price=1000;renderPurchaseCart();
       document.querySelector('#purSup').value=S.sup;
-      for(const [id,value] of [['purCash',4000],['purCard',0],['purBank',0],['purCredit',0]])document.querySelector('#'+id).value=String(value);
+      for(const [id,value] of [['purCash',4400],['purCard',0],['purBank',0],['purCredit',0]])document.querySelector('#'+id).value=String(value);
       renderPurchasePaymentSummary();document.querySelector('#savePurchase').click();await T.sleep(180);
       const p=db.purchases[db.purchases.length-1];
       page='sale';render();await T.sleep(100);document.querySelector('#saleWarehouse').value='W2';
       addSale(S.v);saleCart[0].qty=2;saleCart[0].price=1500;renderSaleCart();
-      document.querySelector('#saleCustomer').value=S.cus;window.__salePayments={cash:3000,card:0,bank:0,credit:0};
+      document.querySelector('#saleCustomer').value=S.cus;window.__salePayments={cash:3300,card:0,bank:0,credit:0};
       const before=db.sales.length;saveSale();await T.sleep(180);
       const sale=db.sales.length>before?db.sales[db.sales.length-1]:null;
       const saleReturn=Fin.saleReturn({ref:sale.number,qtys:{[sale.items[0]]:1},method:'credit',note:'warehouse return test'});
       const purchaseReturn=Fin.purchaseReturn({ref:p.number,qtys:{[p.items[0]]:1},method:'credit',note:'warehouse return test'});
       return{purchaseWarehouse:p&&p.warehouseId,saleWarehouse:sale&&sale.warehouseId,
         saleReturnWarehouse:saleReturn&&saleReturn.warehouseId,purchaseReturnWarehouse:purchaseReturn&&purchaseReturn.warehouseId,
+        saleReturnVat:saleReturn&&saleReturn.vat,purchaseReturnVat:purchaseReturn&&purchaseReturn.vat,
+        purchaseReturnTotal:purchaseReturn&&purchaseReturn.total,
         main:db.warehouseStocks.MAIN?.[S.v]||0,second:db.warehouseStocks.W2?.[S.v]||0,
         global:variantBy(S.v).stock,moves:db.stockMoves.filter(x=>x.variantId===S.v).map(x=>x.warehouseId),
         unb:T.unbalanced(),health:runYouniqueHealthCheck().ok};
@@ -500,6 +502,9 @@ async def purchase_and_sale_use_the_selected_warehouse(br,c):
     c.eq(r['saleWarehouse'],'W2','sale is assigned to the selected warehouse')
     c.eq(r['saleReturnWarehouse'],'W2','sale return retains the source warehouse')
     c.eq(r['purchaseReturnWarehouse'],'W2','purchase return retains the source warehouse')
+    c.eq(r['saleReturnVat'],150,'sale return reverses the proportional output VAT')
+    c.eq(r['purchaseReturnVat'],100,'purchase return reverses the proportional input VAT')
+    c.eq(r['purchaseReturnTotal'],1100,'purchase return includes the reversed VAT')
     c.eq(r['main'],0,'main warehouse stock is unchanged')
     c.eq(r['second'],2,'returns and sale movements leave the correct selected-warehouse balance')
     c.eq(r['global'],2,'global stock equals the sum of warehouse stock')
