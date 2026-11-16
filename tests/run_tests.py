@@ -1807,4 +1807,41 @@ async def invoice_payment_split_reconciliation_is_reported(br,c):
     await ctx.close()
 
 
+@test
+async def stock_moves_reject_invalid_warehouses_and_stocktake_overdraw(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\" 
+      const S=await T.seed({});
+      await T.buy(S,S.v,3,1000,{cash:3000});
+      db.warehouses.push({id:'OFF',name:'انبار غیرفعال',active:false});
+      db.warehouses.push({id:'EMPTY',name:'انبار خالی',active:true});
+      db.warehouseStocks.EMPTY={};
+      const snap=()=>JSON.stringify({
+        stock:variantBy(S.v).stock,
+        warehouses:db.warehouseStocks,
+        moves:db.stockMoves,
+        layers:db.costLayers[S.v]
+      });
+      const before=snap();let missing='',inactive='',overdraw='';
+      try{stockMoveV21(S.v,-1,'adjustment','BAD-WH',1000,undefined,'MISSING')}catch(e){missing=e.message}
+      try{stockMoveV21(S.v,-1,'adjustment','BAD-WH',1000,undefined,'OFF')}catch(e){inactive=e.message}
+      try{stockMoveV21(S.v,-1,'stocktake','BAD-ST',1000,undefined,'EMPTY')}catch(e){overdraw=e.message}
+      const afterRejected=snap();
+      const valid=stockMoveV21(S.v,-1,'stocktake','GOOD-ST',1000,undefined,'MAIN');
+      return{missing:!!missing,inactive:!!inactive,overdraw:!!overdraw,before,afterRejected,
+        stock:variantBy(S.v).stock,main:db.warehouseStocks.MAIN[S.v],valid:valid.cost,
+        health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
+    \"\"\")
+    c.true(r['missing'],'movement rejects an unknown warehouse instead of silently using the default')
+    c.true(r['inactive'],'movement rejects an inactive warehouse')
+    c.true(r['overdraw'],'stocktake cannot consume more than the selected warehouse balance')
+    c.eq(r['afterRejected'],r['before'],'rejected warehouse movements leave stock, cost layers and movement records unchanged')
+    c.eq(r['stock'],2,'valid stocktake movement updates global stock')
+    c.eq(r['main'],2,'valid stocktake movement updates selected warehouse stock')
+    c.true(r['health'],'valid stocktake keeps warehouse and global balances reconciled')
+    c.eq(r['unb'],0,'stocktake movement keeps accounting journals balanced')
+    c.eq(r['errors'],[],'warehouse movement guardrails produce no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
