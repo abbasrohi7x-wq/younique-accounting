@@ -66,7 +66,7 @@ python3 tests/run_tests.py
 python3 tests/run_tests.py نام_آزمون
 ```
 
-آخرین اجرای تأییدشده روی commit `89f65f3d50d14bc62772b637d4cefb557114ed5a` شامل **54 آزمون و 368 Assertion موفق** است: [گزارش GitHub Actions](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43521022593). این نتیجهٔ CI جایگزین آزمون میدانی روی گوشی Android نیست. گزارش‌های تاریخی در [CHANGES_FA.md](CHANGES_FA.md) وضعیت زنده محسوب نمی‌شوند.
+آخرین اجرای ثبت‌شده در گزارش وضعیت پروژه روی commit `df6510eae8cce907f9f38574d9d8eb375e6c330e` شامل **54/54 آزمون و 370 Assertion موفق** است؛ CodeQL نیز برای همان commit موفق گزارش شده است: [Regression tests](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43594487602) · [CodeQL](https://github.com/abbasrohi7x-wq/younique-accounting/actions/runs/43594487660). این نتیجهٔ CI جایگزین آزمون میدانی روی گوشی Android نیست. گزارش‌های تاریخی در [CHANGES_FA.md](CHANGES_FA.md) وضعیت زنده محسوب نمی‌شوند.
 
 ## داده و حریم خصوصی
 
