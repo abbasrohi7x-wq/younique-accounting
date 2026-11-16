@@ -16,12 +16,17 @@
 - پیام commit با پیشوندهای `fix:`, `test:`, `docs:`, `refactor:` یا `chore:` آغاز شود.
 
 ## آزمون
+ابتدا خروجی استاتیک را بسازید تا مدل Vosk و وابستگی‌های runtime در `dist/` آماده شوند؛ سپس سرور را از همان پوشه اجرا کنید. آزمون مرورگری نیز به `http://127.0.0.1:8765` متصل می‌شود.
+
 پیش از پذیرش، آزمون مرتبط را اجرا کنید:
 
 ```bash
 python -m pip install playwright numpy opencv-python-headless
 python -m playwright install chromium
+python scripts/build_static.py
+cd dist
 python -m http.server 8765
+# در ترمینال دوم، از ریشهٔ مخزن:
 python tests/run_tests.py
 ```
 
