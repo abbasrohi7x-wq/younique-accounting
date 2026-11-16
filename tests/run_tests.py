@@ -1289,19 +1289,19 @@ async def offline_voice_dialog_uses_local_assistant_and_manual_fallback(br,c):
 @test
 async def cash_session_open_and_close_roll_back_on_persistence_failure(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,'''const original=window.saveDB;
+    r=await ev(pg,'''const originalPersist=window._persist;
       db.cashSessions=[];db.cashMovements=[];db.journal=[];db.audit=[];saveDB(true);
       const j0=db.journal.length;
-      window.saveDB=()=>false;let openError='';
+      window._persist=()=>false;let openError='';
       try{openCashSession(500,'failed open','test')}catch(e){openError=e.message}
-      window.saveDB=original;
+      window._persist=originalPersist;saveDB(true);
       const openState={error:!!openError,sessions:db.cashSessions.length,journals:db.journal.length-j0,
         openingAudits:db.audit.filter(x=>x.action==='باز کردن صندوق').length};
       const session=openCashSession(1000,'close test','test');
       const expected=cashSessionExpected(session),beforeJ=db.journal.length;
-      window.saveDB=()=>false;let closeError='';
+      window._persist=()=>false;let closeError='';
       try{closeCashSession(expected-100,'variance test','test')}catch(e){closeError=e.message}
-      window.saveDB=original;
+      window._persist=originalPersist;saveDB(true);
       const active=activeCashSession();
       return{openState,close:{error:!!closeError,status:active?.status,journalDelta:db.journal.length-beforeJ,
         varianceRef:active?.varianceJournalRef||null,expected:cashSessionExpected(active),opening:active?.openingCash},
