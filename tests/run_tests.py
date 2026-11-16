@@ -1432,4 +1432,38 @@ async def sale_persistence_failure_rolls_back_invoice_and_preserves_draft(br,c):
     await ctx.close()
 
 
-asyncio.run(main())
+
+
+@test
+async def return_persistence_failure_rolls_back_stock_and_ledgers(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});const purchase=await T.buy(S,S.v,5,1000,{cash:5000});
+      const sale=await T.sell(S,S.v,1,1500,{cash:1500});
+      const saleItem=db.saleItems.find(x=>x.id===sale.items[0]);
+      const purchaseItem=db.purchaseItems.find(x=>x.id===purchase.items[0]);
+      const snap=()=>({returns:db.returns.length,stock:variantBy(S.v).stock,
+        stockMoves:db.stockMoves.length,warehouseMoves:db.warehouseMoves.length,
+        payments:db.payments.length,journal:db.journal.length,
+        inventory:accountBalance('inventory'),cash:accountBalance('cash'),card:accountBalance('card')});
+      const beforeSale=snap(),originalSaveDB=window.saveDB;
+      window.saveDB=()=>false;let saleError='';
+      try{Fin.saleReturn({ref:sale.number,qtys:{[saleItem.id]:1},method:'card'})}catch(e){saleError=e.message}
+      window.saveDB=originalSaveDB;saveDB(true);const afterSale=snap();
+      const beforePurchase=snap();window.saveDB=()=>false;let purchaseError='';
+      try{Fin.purchaseReturn({ref:purchase.number,qtys:{[purchaseItem.id]:1},method:'card'})}catch(e){purchaseError=e.message}
+      window.saveDB=originalSaveDB;saveDB(true);const afterPurchase=snap();
+      return{saleError:!!saleError,beforeSale,afterSale,purchaseError:!!purchaseError,
+        beforePurchase,afterPurchase,health:runYouniqueHealthCheck().ok,unb:T.unbalanced()}
+    """)
+    c.true(r['saleError'],'sale return persistence failure is surfaced')
+    c.eq(r['afterSale'],r['beforeSale'],'failed sale return restores stock, payments, journals and movement ledgers')
+    c.true(r['purchaseError'],'purchase return persistence failure is surfaced')
+    c.eq(r['afterPurchase'],r['beforePurchase'],'failed purchase return restores stock, payments, journals and movement ledgers')
+    c.true(r['health'],'return rollback preserves business data integrity')
+    c.eq(r['unb'],0,'return rollback leaves balanced journals')
+    c.eq(pg.errs,[],'return persistence rollback produces no uncaught browser errors')
+    await ctx.close()
+
+
+\nasyncio.run(main())
