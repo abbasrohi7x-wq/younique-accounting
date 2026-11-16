@@ -404,8 +404,31 @@ function validateBackupData(data){
   const arrayKeys=Object.keys(fresh()).filter(k=>Array.isArray(fresh()[k]));
   const malformed=arrayKeys.filter(k=>data[k]!==undefined&&!Array.isArray(data[k]));
   if(malformed.length)throw Error('نوع داده در این بخش‌ها نادرست است: '+malformed.join('، '));
-  for(const [key,rows] of [['models',data.models],['variants',data.variants],['sales',data.sales],['purchases',data.purchases],['customers',data.customers],['suppliers',data.suppliers]]){
+  for(const [key,rows] of [['models',data.models],['variants',data.variants],['sales',data.sales],['purchases',data.purchases],['customers',data.customers],['suppliers',data.suppliers],['saleItems',data.saleItems||[]],['purchaseItems',data.purchaseItems||[]],['journal',data.journal||[]]]){
     if(rows.some(row=>!row||typeof row!=='object'||Array.isArray(row)))throw Error('ساختار رکوردهای بخش «'+key+'» معتبر نیست.');
+  }
+  const uniqueIds=(rows,label)=>{const seen=new Set();for(const row of rows){const id=String(row.id||'').trim();if(!id||seen.has(id))throw Error(label+' دارای شناسهٔ خالی یا تکراری است.');seen.add(id)}return seen};
+  const modelIds=uniqueIds(data.models,'فهرست کالاها');
+  uniqueIds(data.variants,'فهرست تنوع‌ها');uniqueIds(data.customers,'فهرست مشتریان');uniqueIds(data.suppliers,'فهرست تأمین‌کنندگان');
+  const saleItemIds=uniqueIds(data.saleItems||[],'اقلام فروش'),purchaseItemIds=uniqueIds(data.purchaseItems||[],'اقلام خرید');
+  const barcodes=new Set();
+  for(const v of data.variants){
+    if(!modelIds.has(String(v.modelId||'')))throw Error('یکی از تنوع‌ها به مدل کالای موجود در پشتیبان متصل نیست.');
+    if(v.stock!==undefined&&(!Number.isFinite(Number(v.stock))||Number(v.stock)<0))throw Error('موجودی یکی از تنوع‌ها در پشتیبان معتبر نیست.');
+    const barcode=String(v.barcode||'').trim().toLocaleLowerCase();
+    if(barcode){if(barcodes.has(barcode))throw Error('بارکد تکراری در فایل پشتیبان وجود دارد: '+barcode);barcodes.add(barcode)}
+  }
+  for(const [kind,docs,itemIds] of [['فروش',data.sales,saleItemIds],['خرید',data.purchases,purchaseItemIds]]){
+    for(const doc of docs){
+      if(!Array.isArray(doc.items))throw Error('فهرست اقلام یکی از فاکتورهای '+kind+' معتبر نیست.');
+      if(new Set(doc.items).size!==doc.items.length||doc.items.some(id=>!itemIds.has(String(id))))throw Error('یکی از فاکتورهای '+kind+' دارای قلم مفقود یا تکراری است.');
+    }
+  }
+  for(const j of data.journal||[]){
+    if(!Array.isArray(j.lines)||!j.lines.length)throw Error('یکی از اسناد حسابداری پشتیبان فاقد ردیف است.');
+    let debit=0,credit=0;
+    for(const line of j.lines){const d=Number(line?.debit??0),c=Number(line?.credit??0);if(!line?.account||!Number.isFinite(d)||!Number.isFinite(c)||d<0||c<0||(d>0&&c>0))throw Error('یکی از ردیف‌های دفترکل پشتیبان نامعتبر است.');debit+=d;credit+=c}
+    if(Math.abs(Math.round((debit-credit)*100)/100)>.01)throw Error('یکی از اسناد حسابداری پشتیبان نامتوازن است: '+String(j.ref||j.id||''));
   }
   return {products:data.models.length,variants:data.variants.length,sales:data.sales.length,purchases:data.purchases.length,customers:data.customers.length,suppliers:data.suppliers.length};
 }
