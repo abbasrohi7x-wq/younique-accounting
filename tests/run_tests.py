@@ -1347,8 +1347,6 @@ async def failed_purchase_persistence_preserves_draft_and_rolls_back(br,c):
     await ctx.close()
 
 
-asyncio.run(main())
-
 
 @test
 async def cash_opening_variance_is_atomic_with_session_creation(br,c):
@@ -1381,3 +1379,36 @@ async def cash_opening_variance_is_atomic_with_session_creation(br,c):
     c.true(r['success']['health'],'database integrity remains valid after reconciliation')
     c.eq(pg.errs,[],'opening variance rollback produces no uncaught browser errors')
     await ctx.close()
+
+
+@test
+async def customer_payment_failure_rolls_back_all_ledgers(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,2,1000,{cash:2000});
+      await T.sell(S,S.v,1,1500,{credit:1500});
+      const before={balance:customerBalance(S.cus),payments:db.payments.length,journal:db.journal.length,
+        cashMoves:db.cashMovements.length,cash:accountBalance('cash'),receivable:accountBalance('receivable','customer',S.cus)};
+      personPayment('customer',S.cus);await T.sleep(80);
+      document.querySelector('#pa').value='400';document.querySelector('#pac').value='صندوق';
+      document.querySelector('#pnote').value='تست دریافت';
+      const originalPersist=window._persist;window._persist=()=>false;
+      document.querySelector('#payf').dispatchEvent(new Event('submit',{cancelable:true,bubbles:true}));
+      window._persist=originalPersist;saveDB(true);await T.sleep(80);
+      return{before,after:{balance:customerBalance(S.cus),payments:db.payments.length,journal:db.journal.length,
+        cashMoves:db.cashMovements.length,cash:accountBalance('cash'),receivable:accountBalance('receivable','customer',S.cus)},
+        modal:!!document.querySelector('#payf'),health:runYouniqueHealthCheck().ok}
+    ''')
+    c.eq(r['before']['balance'],1500,'customer has an outstanding receivable before payment')
+    c.eq(r['after']['balance'],r['before']['balance'],'failed payment leaves customer balance unchanged')
+    c.eq(r['after']['payments'],r['before']['payments'],'failed payment creates no payment row')
+    c.eq(r['after']['journal'],r['before']['journal'],'failed payment creates no journal entry')
+    c.eq(r['after']['cashMoves'],r['before']['cashMoves'],'failed payment creates no cash movement')
+    c.eq(r['after']['cash'],r['before']['cash'],'failed payment leaves cash balance unchanged')
+    c.eq(r['after']['receivable'],r['before']['receivable'],'failed payment leaves receivable ledger unchanged')
+    c.true(r['modal'],'failed payment keeps the form available for retry')
+    c.true(r['health'],'failed payment rollback preserves database integrity')
+    c.eq(pg.errs,[],'failed payment produces no uncaught browser errors')
+    await ctx.close()
+
+
+asyncio.run(main())
