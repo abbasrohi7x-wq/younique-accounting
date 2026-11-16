@@ -246,7 +246,7 @@ async def bulk_barcode_assignment_rolls_back_on_storage_failure(br,c):
     ''')
     c.eq(r['after'],r['before'],'failed bulk barcode persistence restores codes and counters')
     c.true(r['health'],'bulk barcode rollback preserves catalog integrity')
-    c.eq(r['errors'],[],'bulk barcode storage failure is handled')
+    c.eq(pg.errs,[],'bulk barcode storage failure is handled')
     await ctx.close()
 
 
@@ -269,7 +269,7 @@ async def bulk_variant_price_edit_is_atomic_on_storage_failure(br,c):
     ''')
     c.eq(r['after'],r['before'],'failed bulk price persistence restores all selected variant fields')
     c.true(r['health'],'bulk price rollback preserves catalog integrity')
-    c.eq(r['errors'],[],'bulk price storage failure is handled')
+    c.eq(pg.errs,[],'bulk price storage failure is handled')
     await ctx.close()
 
 
@@ -300,7 +300,7 @@ async def grouped_color_size_creation_skips_existing_combinations(br,c):
     c.true(r['uniqueBarcodes'],'generated barcodes are unique')
     c.true(r['uniqueSkus'],'generated SKUs are unique')
     c.true(r['health'],'grouped variant creation preserves catalog integrity')
-    c.eq(r['errors'],[],'grouped color/size creation has no browser errors')
+    c.eq(pg.errs,[],'grouped color/size creation has no browser errors')
     await ctx.close()
 
 
@@ -337,7 +337,7 @@ async def purchase_sale_items_and_stock_movements_share_invoice_references(br,c)
     c.eq(r['stock'],4,'stock equals purchase quantity minus sale quantity')
     c.true(r['health'],'purchase-to-sale flow preserves data integrity')
     c.eq(r['unbalanced'],0,'purchase and sale journals remain balanced')
-    c.eq(r['errors'],[],'purchase-to-sale linkage produces no browser errors')
+    c.eq(pg.errs,[],'purchase-to-sale linkage produces no browser errors')
     await ctx.close()
 
 
