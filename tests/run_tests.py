@@ -1844,4 +1844,31 @@ async def stock_moves_reject_invalid_warehouses_and_stocktake_overdraw(br,c):
     await ctx.close()
 
 
+@test
+async def purchase_order_receipt_rolls_back_partial_multi_line_failure(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\"
+      const S=await T.seed({});
+      await T.buy(S,S.v,3,1000,{cash:3000});
+      const po={id:'PO-ATOMIC',number:'PO-ATOMIC',status:'draft',supplierId:'',
+        lines:[{variantId:S.v,qty:2,received:0,unitCost:1000},{variantId:S.v,qty:2,received:0,unitCost:1000}],total:4000};
+      db.purchaseOrders.push(po);
+      const snap=()=>JSON.stringify({stock:variantBy(S.v).stock,warehouse:db.warehouseStocks.MAIN[S.v],
+        moves:db.stockMoves,journal:db.journal,costLayers:db.costLayers[S.v],
+        status:db.purchaseOrders.find(x=>x.id===po.id).status,
+        received:db.purchaseOrders.find(x=>x.id===po.id).lines.map(x=>x.received)});
+      const before=snap();window.receivePO(po.id);
+      const form=document.querySelector('#rof41');
+      const fields=[...form.querySelectorAll('[data-rq41]')];fields.forEach(x=>x.value='2');
+      form.onsubmit({preventDefault(){}});
+      const after=snap();
+      return{before,after,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
+    \"\"\")
+    c.eq(r['after'],r['before'],'failed later receipt line rolls back earlier stock, cost and document mutations')
+    c.true(r['health'],'purchase receipt rollback preserves data integrity')
+    c.eq(r['unb'],0,'purchase receipt rollback leaves balanced journals')
+    c.eq(r['errors'],[],'purchase receipt rollback produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
