@@ -2710,7 +2710,7 @@ async def variant_report_includes_active_variants_without_sales_or_purchase_hist
       const v={...base,id:uid(),size:'43',barcode:'B'+uid().slice(0,6),
         sku:'SKU-'+uid().slice(0,6),stock:2,buyPrice:650,active:true};
       db.variants.push(v);
-      db.warehouseStocks.MAIN[v.id]=2;
+      db.warehouseStocks=db.warehouseStocks||{};db.warehouseStocks.MAIN=db.warehouseStocks.MAIN||{};db.warehouseStocks.MAIN[v.id]=2;
       saveDB(true);
       const rows=window.yqVariantPerformanceRows();
       const row=rows.find(x=>x.variantId===v.id);
