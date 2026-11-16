@@ -2422,4 +2422,37 @@ async def product_creation_rolls_back_model_variants_and_codes_on_save_failure(b
     await ctx.close()
 
 
+@test
+async def backup_validation_rejects_broken_references_duplicate_barcodes_and_unbalanced_ledger(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      await T.buy(S,S.v,2,1000,{cash:2000});
+      await T.sell(S,S.v,1,1500,{cash:1500});
+      const base=JSON.parse(exportData()).data;
+      const clone=()=>JSON.parse(JSON.stringify(base));
+      const duplicate=clone();
+      const extra={...duplicate.variants[0],id:'backup-duplicate-barcode',size:String(Number(duplicate.variants[0].size)+1)};
+      duplicate.variants.push(extra);
+      const dangling=clone();dangling.sales[0].items[0]='missing-backup-sale-line';
+      const unbalanced=clone();unbalanced.journal[0].lines[0].debit=Number(unbalanced.journal[0].lines[0].debit||0)+1;
+      const rejected={duplicate:false,dangling:false,unbalanced:false,restore:false};
+      for(const [key,data] of Object.entries({duplicate,dangling,unbalanced})){
+        try{validateBackupData(data)}catch(e){rejected[key]=true}
+      }
+      const before={models:db.models.length,variants:db.variants.length,sales:db.sales.length,
+        purchases:db.purchases.length,journal:db.journal.length,stock:variantBy(S.v).stock};
+      try{await replaceDB(dangling)}catch(e){rejected.restore=true}
+      const after={models:db.models.length,variants:db.variants.length,sales:db.sales.length,
+        purchases:db.purchases.length,journal:db.journal.length,stock:variantBy(S.v).stock};
+      return{rejected,before,after,health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    """)
+    for key in ['duplicate','dangling','unbalanced','restore']:
+        c.true(r['rejected'][key],f'backup validator rejects {key} corruption')
+    c.eq(r['after'],r['before'],'failed restore leaves the live database unchanged')
+    c.true(r['health'],'backup rejection preserves current database integrity')
+    c.eq(r['errors'],[],'backup integrity checks produce no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
