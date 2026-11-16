@@ -205,6 +205,31 @@ async def warehouse_transfer_and_stocktake(br,c):
       yqStocktake(S.v,'W2',3);return{after,final:[variantBy(S.v).stock,whStock('MAIN',S.v),whStock('W2',S.v)],inv:T.bal().inventory,unb:T.unbalanced(),h:runYouniqueHealthCheck().ok}''')
     c.eq(r['after'],[10,6,4],'after transfer');c.eq(r['final'],[9,6,3],'after stocktake');c.eq(r['inv'],9000,'inventory account follows stocktake');c.eq(r['unb'],0,'balanced');c.true(r['h'],'health');await ctx.close()
 
+
+@test
+async def stocktake_records_have_unique_traceable_references(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\"const S=await T.seed({});
+      await T.buy(S,S.v,5,1000,{cash:5000});
+      yqStocktake(S.v,'MAIN',4);
+      yqStocktake(S.v,'MAIN',3);
+      const rows=db.stocktakes.slice(-2),refs=rows.map(x=>x.ref);
+      const moveRefs=db.stockMoves.filter(x=>x.type==='stocktake'&&refs.includes(x.ref)).map(x=>x.ref);
+      return{refs,moveRefs,diffs:rows.map(x=>x.diff),stock:variantBy(S.v).stock,
+        unb:T.unbalanced(),health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    \"\"\")
+    c.eq(r['refs'].length,2,'two stocktake records created')
+    c.true(r['refs'].every(Boolean),'each stocktake has a reference')
+    c.true(r['refs'][0]!==r['refs'][1],'same-day stocktakes receive distinct references')
+    c.eq(sorted(r['moveRefs']),sorted(r['refs']),'stock movements point back to their exact stocktake records')
+    c.eq(r['diffs'],[-1,-1],'each stocktake records its own counted difference')
+    c.eq(r['stock'],3,'both stocktakes update global stock')
+    c.eq(r['unb'],0,'stocktake journals remain balanced')
+    c.true(r['health'],'stocktake records preserve inventory reconciliation')
+    c.eq(pg.errs,[],'stocktake traceability produces no browser errors')
+    await ctx.close()
+
+
 @test
 async def invalid_inputs_are_rejected(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,10,1000,{cash:10000});const n0=db.sales.length;
