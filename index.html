@@ -2225,6 +2225,22 @@ window.setPhysicalStock=function(vid,physicalQty,type='stocktake'){
 function saleByNo(no){return db.sales.find(s=>s.number===no)}
 function returnedFor(type,itemKey,id){return (db.returns||[]).filter(r=>r.type===type).flatMap(r=>r.items||[]).filter(x=>x[itemKey]===id)}
 function share(total,qty,done,doneVal,orig){return qty+done>=orig-1e-9?R(total-doneVal):R(total*qty/orig)}
+function removePurchasedStock(variantId,qty,ref,warehouseId,type='purchase_return',fallbackCost=0){
+  const q=num(qty),v=variantBy(variantId),wh=(db.warehouses||[]).find(w=>w.id===warehouseId&&w.active!==false);
+  if(!v)throw Error('تنوع کالا پیدا نشد');
+  if(!Number.isInteger(q)||q<=0)throw Error('تعداد خروج باید عدد صحیح و مثبت باشد');
+  if(!wh)throw Error('انبار خروج معتبر یا فعال نیست');
+  const balance=num(db.warehouseStocks?.[warehouseId]?.[variantId]);
+  if(num(v.stock)<q||balance<q-1e-9)throw Error('موجودی کالا در انبار انتخاب‌شده برای خروج کافی نیست');
+  const ci=consumePurchaseReturnCost(variantId,q,ref,fallbackCost);
+  v.stock=roundMoney(num(v.stock)-q);syncVariantCost(v);
+  db.warehouseStocks[warehouseId][variantId]=R(balance-q);
+  db.stockMoves.push({id:uid(),date:now(),variantId,qty:-q,type,ref,cost:ci.unitCost,totalCost:ci.cost,costMethod:costingMethod(),costDetails:ci.details,warehouseId});
+  whMoveLog(warehouseId,variantId,-q,type,ref);
+  const total=db.warehouses.filter(w=>w.active!==false).reduce((sum,w)=>sum+num(db.warehouseStocks?.[w.id]?.[variantId]),0);
+  if(Math.abs(total-num(v.stock))>0.001)throw Error('مغایرت موجودی کل با مجموع انبارها؛ عملیات لغو شد');
+  return ci;
+}
 window.Fin={
  saleReturn({ref,qtys,method='credit',note=''}){return atomic('برگشت از فروش '+ref,()=>{
    const s=saleByNo(ref);if(!s)throw Error('فاکتور فروش پیدا نشد');if(s.status!=='confirmed')throw Error('فاکتور باطل‌شده یا نامعتبر قابل برگشت نیست');
@@ -2261,8 +2277,7 @@ window.Fin={
      const v=variantBy(i.variantId);if(!v)throw Error('تنوع کالا پیدا نشد');if(num(v.stock)<q)throw Error(`موجودی «${variantName(v)}» برای برگشت کافی نیست`);
      const returnWarehouseId=i.warehouseId||p.warehouseId||'MAIN';if(!(db.warehouses||[]).some(w=>w.id===returnWarehouseId&&w.active!==false))throw Error('انبار برگشت خرید معتبر نیست');if(num(db.warehouseStocks?.[returnWarehouseId]?.[v.id])<q-1e-9)throw Error('موجودی انبار انتخاب‌شده برای برگشت کافی نیست');
      const refund=share(num(i.total),q,done,prev.reduce((a,x)=>a+num(x.refund!==undefined?x.refund:num(x.qty)*num(x.unitPrice)),0),num(i.qty));
-     const ci=consumePurchaseReturnCost(v.id,q,ref,i.unitPrice);v.stock=num(v.stock)-q;syncVariantCost(v);db.warehouseStocks[returnWarehouseId][v.id]=R(num(db.warehouseStocks[returnWarehouseId][v.id])-q);
-     db.stockMoves.push({id:uid(),date:now(),variantId:v.id,qty:-q,type:'purchase_return',ref,cost:ci.unitCost,totalCost:ci.cost,costMethod:costingMethod(),costDetails:ci.details,warehouseId:returnWarehouseId});whMoveLog(returnWarehouseId,v.id,-q,'purchase_return',ref);
+     const ci=removePurchasedStock(v.id,q,ref,returnWarehouseId,'purchase_return',i.unitPrice);
      total+=refund;costTotal+=ci.cost;out.push({variantId:i.variantId,qty:q,purchaseItemId:i.id,unitPrice:i.unitPrice,refund,cost:ci.unitCost,costTotal:ci.cost})}
    if(!out.length)throw Error('حداقل یک قلم برای برگشت انتخاب کنید');total=R(total);costTotal=R(costTotal);if(total<=0)throw Error('مبلغ برگشت معتبر نیست');
    const row={id:uid(),date:now(),type:'purchase',ref,total,note,method,customerId:'',supplierId:p.supplierId||'',costTotal,items:out};db.returns.push(row);
@@ -2286,8 +2301,7 @@ window.Fin={
    const qtys={};for(const id of p.items)qtys[id]=num(db.purchaseItems.find(x=>x.id===id)?.qty);
    let cost=0;
    for(const id of p.items){const i=db.purchaseItems.find(x=>x.id===id);if(!i)continue;const v=variantBy(i.variantId);if(num(v.stock)<num(i.qty))throw Error(`موجودی «${variantName(v)}» کمتر از مقدار خرید است؛ ابطال ممکن نیست`);const warehouseId=i.warehouseId||p.warehouseId||'MAIN';if(!(db.warehouses||[]).some(w=>w.id===warehouseId&&w.active!==false))throw Error('انبار ابطال خرید معتبر نیست');if(num(db.warehouseStocks?.[warehouseId]?.[v.id])<num(i.qty)-1e-9)throw Error('موجودی انبار انتخاب‌شده کافی نیست');
-     const ci=consumePurchaseReturnCost(v.id,num(i.qty),no,i.unitPrice);v.stock=num(v.stock)-num(i.qty);syncVariantCost(v);db.warehouseStocks[warehouseId][v.id]=R(num(db.warehouseStocks[warehouseId][v.id])-num(i.qty));cost+=ci.cost;
-     db.stockMoves.push({id:uid(),date:now(),variantId:v.id,qty:-num(i.qty),type:'void_purchase',ref:no,cost:ci.unitCost,totalCost:ci.cost,costMethod:costingMethod(),costDetails:ci.details,warehouseId});whMoveLog(warehouseId,v.id,-num(i.qty),'void_purchase',no)}
+     const ci=removePurchasedStock(v.id,num(i.qty),no,warehouseId,'void_purchase',i.unitPrice);cost+=ci.cost;});whMoveLog(warehouseId,v.id,-num(i.qty),'void_purchase',no)}
    cost=R(cost);const lines=j.lines.filter(l=>l.account!=='inventory').map(l=>({...l,debit:num(l.credit),credit:num(l.debit)})),invOrig=R(j.lines.filter(l=>l.account==='inventory').reduce((a,l)=>a+num(l.debit),0)),variance=R(invOrig-cost);
    lines.push({account:'inventory',debit:0,credit:cost});if(variance>0)lines.push({account:'purchaseReturnVariance',debit:0,credit:variance});else if(variance<0)lines.push({account:'purchaseReturnVariance',debit:-variance,credit:0});
    for(const pm of db.payments.filter(x=>x.ref===no&&x.embedded&&x.direction==='out')){db.payments.push({id:uid(),date:now(),direction:'in',partyType:pm.partyType,partyId:pm.partyId,amount:pm.amount,account:pm.account,ref:no+'-VOID',embedded:true,note:'معکوس پرداخت فاکتور باطل‌شده'});if(pm.account==='cash'){const cs=activeCashSession();if(!cs)throw Error('برای ابطال خرید دارای پرداخت نقدی ابتدا صندوق را باز کنید');cashMove(cs.id,num(pm.amount),'purchase_void',no,'ابطال خرید')}}
