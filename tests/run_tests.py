@@ -2856,7 +2856,7 @@ async def net_profit_includes_purchase_return_variance_and_inventory_adjustments
       const afterReturn=profit();
       stockMoveV21(S.v,-1,'adjustment','ADJ-NET-PROFIT',1500,undefined,'MAIN');
       const afterAdjustment=profit();
-      page='reports';render();
+      window.reports39();await T.sleep(80);
       const reportText=document.querySelector('#content').innerText;
       return{before,afterReturn,afterAdjustment,variance:db.journal.find(j=>j.returnId===ret.id)?.lines.find(x=>x.account==='purchaseReturnVariance'),
         adjustment:db.journal.find(j=>j.ref.includes('ADJ-NET-PROFIT'))?.lines.find(x=>x.account==='inventoryAdjustment'),
