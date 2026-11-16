@@ -6123,4 +6123,28 @@ try{
  };
 }catch(e){console.warn('warehouse preflight guard unavailable',e)}
 })();
+</script><script id="yq-final-invoice-selection-guards">
+(function(){
+'use strict';
+const saleWriter=window.saveSaleV18;
+if(typeof saleWriter==='function'&&!saleWriter.__yqSelectionGuard){
+ const guarded=function(){
+   const id=document.querySelector('#saleCustomer')?.value||'';
+   if(id&&!(db.customers||[]).some(x=>x.id===id)){toast('مشتری انتخاب‌شده معتبر نیست',true);return null}
+   return saleWriter.apply(this,arguments);
+ };
+ guarded.__yqSelectionGuard=true;window.saveSaleV18=saveSaleV18=guarded;
+}
+const purchaseWriter=window.savePurchaseV18;
+if(typeof purchaseWriter==='function'&&!purchaseWriter.__yqSelectionGuard){
+ const guarded=function(){
+   const supplier=document.querySelector('#purSup')?.value||'';
+   const warehouse=document.querySelector('#purWarehouse')?.value||'MAIN';
+   if(supplier&&!(db.suppliers||[]).some(x=>x.id===supplier)){toast('تأمین‌کننده انتخاب‌شده معتبر نیست',true);return null}
+   if(!(db.warehouses||[]).some(x=>x.id===warehouse&&x.active!==false)){toast('انبار انتخاب‌شده معتبر نیست',true);return null}
+   return purchaseWriter.apply(this,arguments);
+ };
+ guarded.__yqSelectionGuard=true;window.savePurchaseV18=savePurchaseV18=guarded;
+}
+})();
 </script></body></html>
