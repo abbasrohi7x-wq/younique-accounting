@@ -471,14 +471,36 @@ function reconcileAccounts(){
  const customerSubledger=(db.customers||[]).reduce((sum,p)=>sum+balance('receivable',l=>l.partyType==='customer'&&String(l.partyId||'')===String(p.id)),0);
  const supplierSubledger=(db.suppliers||[]).reduce((sum,p)=>sum+balance('payable',l=>l.partyType==='supplier'&&String(l.partyId||'')===String(p.id)),0)*-1;
  const inventoryBook=typeof costValue==='function'?num(costValue()):null;
+ const movementRows=Array.isArray(db.warehouseMoves)?db.warehouseMoves:[];
+ const movementIssues=[],latestByWarehouseVariant=new Map();
+ for(const m of movementRows){
+  const key=String(m.warehouseId||'')+'|'+String(m.variantId||''),qty=Number(m.qty),balanceAfter=Number(m.balance);
+  if(!m.warehouseId||!m.variantId||!Number.isFinite(qty)||!Number.isInteger(qty)||!Number.isFinite(balanceAfter)||balanceAfter<0||!Number.isInteger(balanceAfter)){
+   movementIssues.push('گردش انبار با مقدار یا مرجع نامعتبر: '+String(m.ref||m.id||''));continue;
+  }
+  const previous=latestByWarehouseVariant.get(key);
+  if(previous&&Math.abs(cents(previous.balance+qty)-cents(balanceAfter))>.001)
+   movementIssues.push('زنجیره مانده گردش انبار پیوسته نیست: '+String(m.warehouseId)+' / '+String(m.variantId)+' / '+String(m.ref||m.id||''));
+  if(!['transfer_in','transfer_out'].includes(m.type)){
+   const linked=(db.stockMoves||[]).some(x=>String(x.ref||'')===String(m.ref||'')&&String(x.variantId)===String(m.variantId)&&String(x.warehouseId)===String(m.warehouseId)&&x.type===m.type&&Math.abs(num(x.qty)-qty)<.0001);
+   if(!linked)movementIssues.push('گردش انبار به حرکت موجودی متناظر متصل نیست: '+String(m.ref||m.id||''));
+  }
+  latestByWarehouseVariant.set(key,{warehouseId:m.warehouseId,variantId:m.variantId,balance:balanceAfter,ref:m.ref||m.id||''});
+ }
+ for(const row of latestByWarehouseVariant.values()){
+  const current=num(db.warehouseStocks?.[row.warehouseId]?.[row.variantId]);
+  if(Math.abs(cents(current)-cents(row.balance))>.001)
+   movementIssues.push('آخرین مانده گردش با موجودی فعلی انبار برابر نیست: '+String(row.warehouseId)+' / '+String(row.variantId));
+ }
  const items=[
   {code:'inventory',label:'ارزش موجودی کالا',ledger:cents(inventoryLedger),subledger:inventoryBook===null?null:cents(inventoryBook),difference:inventoryBook===null?null:cents(inventoryLedger-inventoryBook),note:'مقایسه حساب موجودی دفتر کل با ارزش لایه‌های بهای تمام‌شده'},
   {code:'receivable',label:'مطالبات مشتریان',ledger:cents(receivableControl),subledger:cents(customerSubledger),difference:cents(receivableControl-customerSubledger),note:'کنترل حساب دریافتنی در برابر مانده تفصیلی مشتریان'},
-  {code:'payable',label:'بدهی تأمین‌کنندگان',ledger:cents(payableControl),subledger:cents(supplierSubledger),difference:cents(payableControl-supplierSubledger),note:'کنترل حساب پرداختنی در برابر مانده تفصیلی تأمین‌کنندگان'}
- ].map(x=>({...x,status:x.difference===null?'unknown':Math.abs(x.difference)<=0.01?'ok':'mismatch'}));
+  {code:'payable',label:'بدهی تأمین‌کنندگان',ledger:cents(payableControl),subledger:cents(supplierSubledger),difference:cents(payableControl-supplierSubledger),note:'کنترل حساب پرداختنی در برابر مانده تفصیلی تأمین‌کنندگان'},
+  {code:'warehouseMovements',label:'پیوستگی گردش انبار',ledger:movementRows.length,subledger:movementRows.length-movementIssues.length,difference:movementIssues.length,note:movementRows.length?'کنترل زنجیره مانده هر انبار و اتصال گردش‌ها به stockMoves':'تاریخچه گردش انبار برای کنترل پیوستگی موجود نیست'}
+ ].map(x=>({...x,status:x.code==='warehouseMovements'&&!movementRows.length?'unknown':x.difference===null?'unknown':(x.code==='warehouseMovements'?x.difference===0:Math.abs(x.difference)<=0.01)?'ok':'mismatch'}));
  const unassignedReceivable=cents(balance('receivable',l=>l.partyType!=='customer'||!l.partyId||!(db.customers||[]).some(p=>String(p.id)===String(l.partyId))));
  const unassignedPayable=cents(-balance('payable',l=>l.partyType!=='supplier'||!l.partyId||!(db.suppliers||[]).some(p=>String(p.id)===String(l.partyId))));
- return {ok:items.every(x=>x.status==='ok')&&Math.abs(unassignedReceivable)<=0.01&&Math.abs(unassignedPayable)<=0.01,items,unassignedReceivable,unassignedPayable,checkedAt:now()};
+ return {ok:items.every(x=>x.status==='ok'||x.status==='unknown')&&Math.abs(unassignedReceivable)<=0.01&&Math.abs(unassignedPayable)<=0.01,items,unassignedReceivable,unassignedPayable,warehouseMovementIssues:movementIssues,checkedAt:now()};
 }
 window.reconcileAccounts=reconcileAccounts;
 
@@ -1371,7 +1393,7 @@ Object.assign(window,{cashMove,nextCashSessionNumber,activeCashSession,requireOp
 (function(){
 const A=window.ACCOUNT_NAMES||{cash:'صندوق',card:'کارتخوان',bank:'بانک',receivable:'حساب‌های دریافتنی',inventory:'موجودی کالا',payable:'حساب‌های پرداختنی',sales:'فروش',salesReturn:'برگشت از فروش',cogs:'بهای تمام‌شده کالای فروش‌رفته',purchaseReturn:'برگشت از خرید',purchaseReturnVariance:'اختلاف بهای برگشت خرید',cashShortage:'کسری صندوق',cashOverage:'اضافه صندوق',expense:'هزینه‌ها',income:'سایر درآمدها',equity:'سرمایه و افتتاحیه'};
 function sums(){const m={};Object.keys(A).forEach(k=>m[k]={account:k,name:A[k],debit:0,credit:0,balance:0});(db.journal||[]).forEach(j=>(j.lines||[]).forEach(l=>{const k=l.account||'other';if(!m[k])m[k]={account:k,name:A[k]||k,debit:0,credit:0,balance:0};m[k].debit+=num(l.debit);m[k].credit+=num(l.credit);m[k].balance=m[k].debit-m[k].credit;}));return Object.values(m).filter(x=>x.debit||x.credit||['cash','card','bank','receivable','inventory','payable','sales','cogs','expense','income'].includes(x.account))}
-function profit(){/* v42.3.8: include all posted P&L variance accounts; balances use debit-minus-credit sign */return -accountBalance('sales')-accountBalance('salesReturn')-accountBalance('cogs')-accountBalance('expense')-accountBalance('income')-accountBalance('cashShortage')-accountBalance('cashOverage')-accountBalance('purchaseReturnVariance')}
+function profit(){/* Net posted P&L: debit balances reduce profit; credit balances increase it. */return -accountBalance('sales')-accountBalance('salesReturn')-accountBalance('cogs')-accountBalance('expense')-accountBalance('income')-accountBalance('cashShortage')-accountBalance('cashOverage')-accountBalance('purchaseReturnVariance')-accountBalance('inventoryAdjustment')}
 function assets(){return accountBalance('cash')+accountBalance('card')+accountBalance('bank')+accountBalance('receivable')+accountBalance('inventory')+accountBalance('loanReceivable')+accountBalance('checksReceivable')}
 function liabilities(){return -accountBalance('payable')-accountBalance('customerAdvance')-accountBalance('loanPayable')-accountBalance('checksPayable')}
 function mc(v){return `<span dir="ltr">${money(v)}</span>`}
@@ -1760,6 +1782,8 @@ const ActionEngine=(()=>{
     const netPurchases=purchaseTotal-purchaseReturns.reduce((a,x)=>a+num(x.total),0);
     const cost=sales.reduce((a,x)=>a+num(x.costTotal),0)-saleReturns.reduce((a,x)=>a+num(x.costTotal),0);
     const gross=sales.reduce((a,x)=>a+num(x.profit),0)-saleReturns.reduce((a,x)=>a+(typeof saleReturnProfitValue==='function'?saleReturnProfitValue(x):num(x.total)-num(x.costTotal)),0);
+    const netProfit=typeof profit==='function'?roundMoney(profit()):gross;
+    const operatingExpenses=roundMoney(accountBalance('expense'));
     const top={};
     sales.forEach(x=>(x.items||[]).forEach(i0=>{
       const i=typeof i0==='string'?(db.saleItems||[]).find(y=>y.id===i0):i0;if(!i)return;
@@ -1784,6 +1808,7 @@ const ActionEngine=(()=>{
       metricCard('فروش خالص',money(netSales),sales.length.toLocaleString('fa-IR')+' فاکتور · پس از برگشت')+
       metricCard('خرید خالص',money(netPurchases),purchases.length.toLocaleString('fa-IR')+' فاکتور · پس از برگشت')+
       metricCard('سود ناخالص خالص',money(gross),'پس از برگشت و مالیات',gross>=0?'green':'red')+
+      metricCard('سود خالص حسابداری',money(netProfit),'پس از هزینه‌ها و تعدیلات دفتر کل',netProfit>=0?'green':'red')+
       metricCard('بهای تمام‌شده خالص',money(cost),'پس از برگشت کالا')+
       metricCard('کالای راکد',dead.length,'بیش از ۶۰ روز','amber')+'</div>'+
       '<div class="grid2 section"><div class="card"><div class="section-title"><h3>پرفروش‌ترین تنوع‌ها</h3></div><div class="rowlist">'+
@@ -1792,14 +1817,14 @@ const ActionEngine=(()=>{
       (stockAlerts().slice(0,12).map(v=>'<div class="listrow"><div class="grow"><b>'+esc(variantName(v))+'</b><small>موجودی '+v.stock+' · حداقل '+v.minStock+'</small></div><em>'+money(v.sellPrice)+'</em></div>').join('')||'<div class="empty">موردی نیست.</div>')+
       '</div></div></div><div class="card section"><div class="section-title"><h3>برگشت‌های ثبت‌شده</h3><span class="muted">فروش و خرید</span></div><div class="rowlist">'+returnHtml+'</div></div>';
     $('#csv39').onclick=()=>{
-      const out=[['شاخص','مبلغ'],['فروش خالص',netSales],['خرید خالص',netPurchases],['سود ناخالص خالص',gross],['بهای تمام‌شده خالص',cost],[],['کالا','تعداد فروش خالص','مبلغ فروش خالص','بهای تمام‌شده','سود']];
+      const out=[['شاخص','مبلغ'],['فروش خالص',netSales],['خرید خالص',netPurchases],['سود ناخالص خالص',gross],['سود خالص حسابداری',netProfit],['هزینه‌های عملیاتی',operatingExpenses],['بهای تمام‌شده خالص',cost],[],['کالا','تعداد فروش خالص','مبلغ فروش خالص','بهای تمام‌شده','سود']];
       rows.forEach(x=>out.push([x.name,x.qty,x.total,x.cost,x.profit]));
       out.push([],['نوع برگشت','شماره مرجع','تاریخ','مبلغ']);
       returns.forEach(x=>out.push([x.type,x.ref,x.date,x.amount]));
       download('گزارش-مدیریتی-'+today()+'.csv',out.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\n'),'text/csv;charset=utf-8');
       toast('گزارش CSV آماده شد');
     };
-    $('#json39').onclick=()=>download('گزارش-مدیریتی-'+today()+'.json',JSON.stringify({generatedAt:now(),salesTotal,netSales,purchaseTotal,netPurchases,cost,gross,top:rows,returns,low:stockAlerts().map(v=>({name:variantName(v),stock:v.stock,minStock:v.minStock})),dead:dead.map(v=>variantName(v)),receivable:accountBalance('receivable'),payable:-accountBalance('payable')},null,2));
+    $('#json39').onclick=()=>download('گزارش-مدیریتی-'+today()+'.json',JSON.stringify({generatedAt:now(),salesTotal,netSales,purchaseTotal,netPurchases,cost,gross,netProfit,operatingExpenses,top:rows,returns,low:stockAlerts().map(v=>({name:variantName(v),stock:v.stock,minStock:v.minStock})),dead:dead.map(v=>variantName(v)),receivable:accountBalance('receivable'),payable:-accountBalance('payable')},null,2));
   }
   function diagnostics39(){
     pro39Init(); const issues=[]; const seen=new Set();
