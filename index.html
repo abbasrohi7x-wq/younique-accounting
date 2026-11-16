@@ -1798,8 +1798,47 @@ Object.assign(window,{pro39Init});
 
   // Make purchase-order receiving affect both inventory and the accounting ledger.
   const oldReceive41=window.receivePO;
-  window.receivePO=function(id){const o=db.purchaseOrders.find(x=>x.id===id);if(!o)return;modal(`<div class="modalhead"><h2>دریافت سفارش ${esc(o.number)}</h2><button class="close" data-close>×</button></div><form id="rof41">${o.lines.map((x,i)=>`<label class="field">${esc(variantName(variantBy(x.variantId)))} · سفارش ${x.qty} · دریافت‌شده ${x.received||0}<input type="number" min="0" step="1" max="${Math.max(0,num(x.qty)-num(x.received))}" value="0" data-rq41="${i}"></label>`).join('')}<div class="modal-actions"><button class="btn primary">ثبت دریافت</button></div></form>`);$('#rof41').onsubmit=e=>{e.preventDefault();try{const destination=(db.warehouses||[]).find(w=>w.id===(o.warehouseId||'MAIN')&&w.active!==false);if(!destination)throw Error('انبار مقصد سفارش خرید حذف یا غیرفعال شده است؛ انبار سفارش را اصلاح کنید');if(o.supplierId&&!db.suppliers.some(x=>x.id===o.supplierId))throw Error('تأمین‌کننده سفارش دیگر معتبر نیست');if(!Array.isArray(o.lines)||!o.lines.length)throw Error('اقلام سفارش معتبر نیستند');const received=o.lines.map((x,i)=>{const v=variantBy(x.variantId),qty=num(x.qty),already=num(x.received),unitCost=num(x.unitCost),q=num($(`[data-rq41="${i}"]`)?.value);if(!v)throw Error('یکی از کالاهای سفارش دیگر وجود ندارد');if(!Number.isFinite(qty)||!Number.isInteger(qty)||qty<=0||!Number.isFinite(already)||!Number.isInteger(already)||already<0||already>qty)throw Error('تعداد سفارش یا دریافت قبلی نامعتبر است');if(!Number.isFinite(unitCost)||unitCost<0)throw Error('بهای واحد یکی از اقلام نامعتبر است');if(!Number.isFinite(q)||!Number.isInteger(q)||q<0||q>qty-already)throw Error('تعداد دریافت باید عدد صحیح و حداکثر برابر با باقیمانده سفارش باشد');return{line:x,variantId:v.id,qty,already,unitCost,q}});if(!received.some(x=>x.q>0))throw Error('مقدار دریافت وارد نشده');const total=received.reduce((sum,x)=>sum+roundMoney(x.q*x.unitCost),0);if(!Number.isFinite(total))throw Error('مبلغ دریافت نامعتبر است');atomic('دریافت سفارش خرید '+o.number,()=>{o.warehouseId=destination.id;received.forEach(x=>{if(!x.q)return;const lineVal=roundMoney(x.q*x.unitCost);if(typeof stockMoveV21==='function')stockMoveV21(x.variantId,x.q,'purchase_receipt',o.number,x.unitCost,lineVal,destination.id);else stockMove(x.variantId,x.q,'purchase_receipt',o.number,x.unitCost);x.line.received=x.already+x.q});o.status=o.lines.every(x=>num(x.received)>=num(x.qty))?'received':'partial';if(total)postJournal(o.number,'دریافت سفارش خرید',[{account:'inventory',debit:total,credit:0},{account:'payable',debit:0,credit:total,partyType:'supplier',partyId:o.supplierId||''}]);audit(o.status==='received'?'دریافت کامل سفارش خرید':'دریافت ناقص سفارش خرید',o.number,money(total))});closeModal();purchaseOrders();toast('دریافت سفارش و ثبت مالی انجام شد')}catch(err){toast(err.message||'ثبت دریافت ناموفق بود',true)}}};
-
+  window.receivePO=function(id){
+    const o=db.purchaseOrders.find(x=>x.id===id);if(!o)return;
+    modal(`<div class="modalhead"><h2>دریافت سفارش ${esc(o.number)}</h2><button class="close" data-close>×</button></div><form id="rof41">${(Array.isArray(o.lines)?o.lines:[]).map((x,i)=>`<label class="field">${esc(variantName(variantBy(x.variantId)))} · سفارش ${x.qty} · دریافت‌شده ${x.received||0}<input type="number" min="0" step="1" max="${Math.max(0,num(x.qty)-num(x.received))}" value="0" data-rq41="${i}"></label>`).join('')}<div class="modal-actions"><button class="btn primary">ثبت دریافت</button></div></form>`);
+    $('#rof41').onsubmit=e=>{e.preventDefault();try{
+      if(['received','cancelled'].includes(o.status))throw Error('این سفارش بسته یا لغو شده و دریافت جدید ندارد');
+      if(!Array.isArray(o.lines)||!o.lines.length)throw Error('اقلام سفارش معتبر نیستند');
+      const activeWarehouses=(db.warehouses||[]).filter(w=>w.active!==false);
+      const destination=(db.warehouses||[]).find(w=>w.id===o.warehouseId&&w.active!==false)
+        ||(!o.warehouseId?activeWarehouses.find(w=>w.id==='MAIN')||activeWarehouses[0]:null);
+      if(!destination)throw Error('انبار مقصد سفارش خرید حذف یا غیرفعال شده است؛ ابتدا یک انبار فعال انتخاب کنید');
+      if(o.supplierId&&!db.suppliers.some(x=>x.id===o.supplierId))throw Error('تأمین‌کننده سفارش دیگر معتبر نیست');
+      const received=o.lines.map((x,i)=>{
+        const v=variantBy(x.variantId),qty=num(x.qty),already=num(x.received),unitCost=num(x.unitCost),q=num($(`[data-rq41="${i}"]`)?.value);
+        if(!v)throw Error('یکی از کالاهای سفارش دیگر وجود ندارد');
+        if(!Number.isFinite(qty)||!Number.isInteger(qty)||qty<=0||!Number.isFinite(already)||!Number.isInteger(already)||already<0||already>qty)throw Error('تعداد سفارش یا دریافت قبلی نامعتبر است');
+        if(!Number.isFinite(unitCost)||unitCost<0)throw Error('بهای واحد یکی از اقلام نامعتبر است');
+        if(!Number.isFinite(q)||!Number.isInteger(q)||q<0||q>qty-already)throw Error('تعداد دریافت باید عدد صحیح و حداکثر برابر با باقیمانده سفارش باشد');
+        return{line:x,variantId:v.id,qty,already,unitCost,q};
+      });
+      if(!received.some(x=>x.q>0))throw Error('مقدار دریافت وارد نشده');
+      const total=roundMoney(received.reduce((sum,x)=>sum+roundMoney(x.q*x.unitCost),0));
+      if(!Number.isFinite(total)||total<0)throw Error('مبلغ دریافت نامعتبر است');
+      const receiptRef=o.number+'-RCV-'+uid().slice(-6);
+      atomic('دریافت سفارش خرید '+o.number,()=>{
+        o.warehouseId=destination.id;
+        received.forEach(x=>{
+          if(!x.q)return;
+          const lineVal=roundMoney(x.q*x.unitCost);
+          if(typeof stockMoveV21==='function')stockMoveV21(x.variantId,x.q,'purchase_receipt',receiptRef,x.unitCost,lineVal,destination.id);
+          else stockMove(x.variantId,x.q,'purchase_receipt',receiptRef,x.unitCost);
+          x.line.received=x.already+x.q;
+        });
+        o.status=o.lines.every(x=>num(x.received)>=num(x.qty))?'received':'partial';
+        if(total)postJournal(receiptRef,'دریافت سفارش خرید '+o.number,[{account:'inventory',debit:total,credit:0},{account:'payable',debit:0,credit:total,partyType:'supplier',partyId:o.supplierId||''}],{purchaseOrderId:o.id,warehouseId:destination.id});
+        if(!Array.isArray(o.receipts))o.receipts=[];
+        o.receipts.push({id:uid(),ref:receiptRef,date:now(),warehouseId:destination.id,total,items:received.filter(x=>x.q>0).map(x=>({variantId:x.variantId,qty:x.q,unitCost:x.unitCost,total:roundMoney(x.q*x.unitCost)}))});
+        audit(o.status==='received'?'دریافت کامل سفارش خرید':'دریافت ناقص سفارش خرید',receiptRef,money(total));
+      });
+      closeModal();purchaseOrders();toast('دریافت سفارش و ثبت مالی انجام شد');
+    }catch(err){toast(err.message||'ثبت دریافت ناموفق بود',true)}};
+  };
 
   // Promotional codes become usable in POS, while preserving manual invoice discounts.
   const baseSale41=sale;
