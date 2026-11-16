@@ -22,6 +22,21 @@ async def page(br):
 async def ev(pg,js):return await pg.evaluate('async()=>{'+js+'}')
 
 @test
+async def runtime_boot_diagnostics(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      return{cash:typeof window.openCashSession,stockMove:typeof window.stockMoveV21,
+        db:!!window.db,version:window.YOUNIQUE_VERSION,title:document.title,
+        body:document.body.innerText.slice(0,500)};
+    """)
+    c.eq(r['cash'],'function','cash-session service is exposed after boot: '+JSON.stringify(r))
+    c.eq(r['stockMove'],'function','warehouse movement service is exposed after boot: '+JSON.stringify(r))
+    c.true(r['db'],'database is initialized after boot: '+JSON.stringify(r))
+    c.eq(pg.errs,[],'boot has no uncaught browser exceptions')
+    await ctx.close()
+
+
+@test
 async def vat_exclusive_sale_and_ledger(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({vat:10});await T.buy(S,S.v,10,1000,{cash:4000,credit:7000});
       const s=await T.sell(S,S.v,3,1500,{cash:2000,credit:2950});const b=T.bal();const v=variantBy(S.v);
