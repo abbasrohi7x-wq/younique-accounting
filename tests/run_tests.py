@@ -2824,7 +2824,7 @@ async def fifo_purchase_return_removes_original_purchase_layer_cost(br,c):
       const rec=reconcileAccounts();
       return{cost:ret.costTotal,refund:ret.total,sourceRemaining:sourceLayer?.remaining,
         laterRemaining:laterLayer?.remaining,costValue:costValue(),
-        inventory:accountBalance('inventory'),variance:db.journal.find(j=>j.returnId===ret.id)?.lines.find(x=>x.account==='purchaseReturnVariance'),
+        inventory:accountBalance('inventory'),variance:db.journal.find(j=>j.returnId===ret.id)?.lines.find(x=>x.account==='purchaseReturnVariance')??null,
         reconciled:rec.ok,health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced()};
     """)
     c.eq(r['cost'],1000,'FIFO return removes the cost of the original purchase layer')
