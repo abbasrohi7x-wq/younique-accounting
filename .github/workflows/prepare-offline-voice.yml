@@ -106,8 +106,47 @@ jobs:
 
           test -s "$GITHUB_WORKSPACE/vendor/vosk/vosk.js"
           test -s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz"
-          tar -tzf "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz" | grep -q '^model/am/final.mdl$'
-          tar -tzf "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz" | grep -q '^model/conf/model.conf$'
+          tar -tzf "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz" > "$RUNNER_TEMP/model-files.txt"
+          grep -q '^model/am/final.mdl
+          test "$(stat -c%s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz")" -lt 95000000
+
+      - name: Commit voice assets to main
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/vosk
+          if git diff --cached --quiet; then
+            echo "No voice asset changes to commit."
+            exit 0
+          fi
+          git commit -m "build: add offline Persian Vosk assets"
+          git push origin HEAD:main
+ "$RUNNER_TEMP/model-files.txt"
+          grep -q '^model/conf/model.conf
+          test "$(stat -c%s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz")" -lt 95000000
+
+      - name: Commit voice assets to main
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/vosk
+          if git diff --cached --quiet; then
+            echo "No voice asset changes to commit."
+            exit 0
+          fi
+          git commit -m "build: add offline Persian Vosk assets"
+          git push origin HEAD:main
+ "$RUNNER_TEMP/model-files.txt"
           test "$(stat -c%s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz")" -lt 95000000
 
       - name: Commit voice assets to main
