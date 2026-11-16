@@ -1577,6 +1577,13 @@ function runYouniqueHealthCheck(){
         if(Math.abs(layerQty-num(v.stock))>.001)issues.push('عدم تطابق لایه بهای تمام‌شده: '+label);
       }
     }
+    for(const v of (db.variants||[])){
+      const rows=Object.values(db.warehouseStocks||{}).filter(w=>w&&Object.prototype.hasOwnProperty.call(w,v.id));
+      if(rows.length){
+        const warehouseQty=rows.reduce((sum,w)=>sum+num(w[v.id]),0);
+        if(Math.abs(warehouseQty-num(v.stock))>.001)issues.push('عدم تطابق مجموع موجودی انبارها با موجودی کل: '+variantName(v)+' (کل '+num(v.stock)+'، انبارها '+roundMoney(warehouseQty)+')');
+      }
+    }
     for(const j of (db.journal||[])){
       const debit=num(j.debit),credit=num(j.credit);
       if(Math.abs(debit-credit)>.01)issues.push('سند نامتوازن: '+(j.ref||j.id));
