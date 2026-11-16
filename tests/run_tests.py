@@ -571,6 +571,45 @@ async def duplicate_variant_lines_cannot_oversell_combined_stock(br,c):
     await ctx.close()
 
 
+
+@test
+async def stale_party_and_warehouse_selections_are_rejected_without_writes(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const snapshot=()=>({sales:db.sales.length,purchases:db.purchases.length,
+        payments:db.payments.length,journal:db.journal.length,
+        stock:variantBy(S.v).stock,stockMoves:db.stockMoves.length});
+      page='purchase';render();await T.sleep(80);
+      const pur=document.querySelector('#purSup');
+      pur.add(new Option('شناسه نامعتبر','missing-supplier'));
+      pur.value='missing-supplier';
+      purchaseCart=[{id:S.v,qty:1,price:1000}];
+      const beforePurchase=snapshot(),purchaseResult=savePurchaseV21();
+      const afterPurchase=snapshot(),purchaseMessage=T.msgs[T.msgs.length-1];
+      page='sale';render();await T.sleep(80);
+      const cus=document.querySelector('#saleCustomer');
+      cus.add(new Option('شناسه نامعتبر','missing-customer'));
+      cus.value='missing-customer';
+      saleCart=[{id:S.v,qty:1,price:1500,discount:0}];
+      window.__salePayments={cash:1500,card:0,bank:0,credit:0};
+      const beforeSale=snapshot(),saleResult=saveSaleV21();
+      const afterSale=snapshot(),saleMessage=T.msgs[T.msgs.length-1];
+      return{purchaseResult:purchaseResult||null,beforePurchase,afterPurchase,purchaseMessage,
+        saleResult:saleResult||null,beforeSale,afterSale,saleMessage,
+        unbalanced:T.unbalanced()};
+    """)
+    c.eq(r['purchaseResult'],None,'invalid supplier purchase rejected')
+    c.eq(r['afterPurchase'],r['beforePurchase'],'invalid supplier causes no purchase writes')
+    c.true('تأمین‌کننده' in r['purchaseMessage'],'invalid supplier error is clear')
+    c.eq(r['saleResult'],None,'invalid customer sale rejected')
+    c.eq(r['afterSale'],r['beforeSale'],'invalid customer causes no sale writes')
+    c.true('مشتری' in r['saleMessage'],'invalid customer error is clear')
+    c.eq(r['unbalanced'],0,'ledger remains balanced')
+    c.eq(pg.errs,[],'no browser errors')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
