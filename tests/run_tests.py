@@ -2734,4 +2734,48 @@ async def variant_report_includes_active_variants_without_sales_or_purchase_hist
     await ctx.close()
 
 
+@test
+async def health_check_validates_return_source_lines_and_accounting_links(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const p=await T.buy(S,S.v,3,1000,{cash:3000});
+      const s=await T.sell(S,S.v,2,1500,{cash:3000});
+      const ret=Fin.saleReturn({ref:s.number,qtys:{[s.items[0]]:1},method:'cash'});
+      const valid=runYouniqueHealthCheck();
+      const row=ret.items[0],journal=db.journal.find(j=>j.returnId===ret.id);
+      row.saleItemId='missing-source-line';
+      const brokenSource=runYouniqueHealthCheck();
+      row.saleItemId=s.items[0];
+      db.journal=db.journal.filter(j=>j.returnId!==ret.id);
+      const brokenJournal=runYouniqueHealthCheck();
+      return{valid:valid.ok,source:brokenSource.ok,sourceIssues:brokenSource.issues,
+        journal:brokenJournal.ok,journalIssues:brokenJournal.issues,
+        linked:!!journal&&journal.returnId===ret.id};
+    """)
+    c.true(r['valid'],'valid return source and journal pass health check')
+    c.true(r['linked'],'return journal is linked by return ID')
+    c.true(not r['source'] and any('قلم برگشت' in x for x in r['sourceIssues']),'health check detects a broken return source line')
+    c.true(not r['journal'] and any('سند حسابداری برگشت' in x for x in r['journalIssues']),'health check detects a missing return journal')
+    await ctx.close()
+
+
+@test
+async def account_reconciliation_flags_unassigned_customer_and_supplier_balances(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      await T.seed({});
+      db.journal.push({id:uid(),ref:'ORPHAN-PARTY-CONTROL',debit:25,credit:25,
+        lines:[{account:'receivable',debit:25,credit:0,partyType:'customer',partyId:'missing-customer'},
+          {account:'cash',debit:0,credit:25}]});
+      const rec=reconcileAccounts();
+      return{ok:rec.ok,unassignedReceivable:rec.unassignedReceivable,
+        unassignedPayable:rec.unassignedPayable};
+    """)
+    c.true(not r['ok'],'reconciliation fails when control balance has no valid party')
+    c.eq(r['unassignedReceivable'],25,'unassigned receivable is exposed')
+    c.eq(r['unassignedPayable'],0,'supplier subledger remains clean')
+    await ctx.close()
+
+
 asyncio.run(main())
