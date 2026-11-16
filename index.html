@@ -1204,9 +1204,24 @@ function openCashSession(amount,note,source){
     const openingCash=cashRound(rawA);
     if(!Number.isFinite(openingCash)||openingCash<0)throw Error('موجودی اولیه نمی‌تواند منفی یا نامعتبر باشد');
     const firstSession=db.cashSessions.length===0;
+    const ledgerCash=firstSession?0:cashRound(accountBalance('cash'));
     const row={id:uid(),number:nextCashSessionNumber(),date:now(),status:'open',openingCash,opening:openingCash,openedBy:source==='ai'?'ai':'local',openedAt:now(),note:String(note||'').trim()};
     db.cashSessions.push(row);
     postCashOpeningJournal(row,firstSession);
+    // Reconcile counted opening cash against the ledger in this same transaction.
+    if(!firstSession){
+      const diff=cashRound(openingCash-ledgerCash);
+      if(Math.abs(diff)>=0.005){
+        const ref=row.number+'-OPEN-VARIANCE',amount=Math.abs(diff);
+        if(!(db.journal||[]).some(j=>j.ref===ref)){
+          const lines=diff<0
+            ?[{account:'cashShortage',debit:amount,credit:0},{account:'cash',debit:0,credit:amount}]
+            :[{account:'cash',debit:amount,credit:0},{account:'cashOverage',debit:0,credit:amount}];
+          postJournal(ref,diff<0?'کسری شروع شیفت':'اضافه شروع شیفت',lines,
+            {cashSessionId:row.id,entryType:'cash_open_variance',variance:diff});
+        }
+      }
+    }
     audit('باز کردن صندوق'+(source==='ai'?' (دستیار)':''),row.number,String(row.openingCash));
     return row;
   });
@@ -5492,15 +5507,6 @@ var h=function(a){try{if(a&&a.method==='cash'){var sl=(db.sales||[]).find(functi
 var owed=sl&&sl.customerId?customerBalance(sl.customerId):0;
 if(owed>0.01&&typeof confirm==='function'&&!confirm('\u0627\u06cc\u0646 \u0645\u0634\u062a\u0631\u06cc \u0647\u0646\u0648\u0632 '+money(owed)+' \u0628\u062f\u0647\u06cc \u062f\u0627\u0631\u062f.\n\u0628\u0627\u0632\u06af\u0634\u062a \u0648\u062c\u0647 \u0646\u0642\u062f\u06cc \u0627\u0646\u062c\u0627\u0645 \u0634\u0648\u062f\u061f (\u067e\u06cc\u0634\u0646\u0647\u0627\u062f: \u0631\u0648\u0634 \u00ab\u06a9\u0633\u0631 \u0627\u0632 \u0628\u062f\u0647\u06cc\u00bb \u0631\u0627 \u0627\u0646\u062a\u062e\u0627\u0628 \u06a9\u0646\u06cc\u062f)'))throw Error('\u0628\u0627\u0632\u06af\u0634\u062a \u0646\u0642\u062f\u06cc \u0644\u063a\u0648 \u0634\u062f')}}catch(e){if(e&&e.message==='\u0628\u0627\u0632\u06af\u0634\u062a \u0646\u0642\u062f\u06cc \u0644\u063a\u0648 \u0634\u062f')throw e}
 return o.apply(this,arguments)};h.__yq=true;F.saleReturn=h})()}catch(_){}
-try{(function(){var f=window.openCashSession;if(typeof f!=='function'||f.__yq)return;
-var R2=function(x){return Math.round(Number(x||0)*100)/100};var g=function(){var first=(db.cashSessions||[]).length===0,ledger=0;try{ledger=first?0:R2(accountBalance('cash'))}catch(e){first=true}
-var row=f.apply(this,arguments);
-try{if(!first&&row){var diff=R2(Number(row.openingCash)-ledger);
-if(Math.abs(diff)>=0.005){var a=Math.abs(diff);
-postJournal(row.number+'-OPEN-VARIANCE',diff<0?'\u06a9\u0633\u0631\u06cc \u0634\u0631\u0648\u0639 \u0634\u06cc\u0641\u062a':'\u0627\u0636\u0627\u0641\u0647 \u0634\u0631\u0648\u0639 \u0634\u06cc\u0641\u062a',
-diff<0?[{account:'cashShortage',debit:a,credit:0},{account:'cash',debit:0,credit:a}]:[{account:'cash',debit:a,credit:0},{account:'cashOverage',debit:0,credit:a}],
-{cashSessionId:row.id,entryType:'cash_open_variance',variance:diff});saveDB(true)}}}catch(e){console.warn('open variance',e)}
-return row};g.__yq=true;window.openCashSession=g})()}catch(_){}
 })();</script>
 <style id="yq-ocr-progress-css">.ocrp{position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;padding:20px;background:rgba(11,16,32,.62);contain:layout paint}.ocrp[hidden]{display:none}.ocrp-card{width:min(420px,100%);background:var(--surface,#fff);color:var(--text,#101828);border-radius:22px;padding:28px 24px;text-align:center;box-shadow:0 30px 80px rgba(0,0,0,.35);direction:rtl}.ocrp-spin{width:54px;height:54px;margin:0 auto 14px;border-radius:50%;border:5px solid var(--line,#e6eaf0);border-top-color:var(--brand,var(--primary,#5b5ce2));animation:ocrpSpin .9s linear infinite;will-change:transform}.ocrp-card h3{margin:0 0 6px;font-size:18px}.ocrp-pct{font-size:42px;font-weight:800;font-variant-numeric:tabular-nums;color:var(--brand,var(--primary,#5b5ce2));line-height:1.2}.ocrp-bar{height:10px;border-radius:99px;background:var(--line,#e6eaf0);overflow:hidden;margin:12px 0}.ocrp-bar i{display:block;height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,var(--brand,#5b5ce2),var(--primary2,#7c3aed));transform-origin:right center;transform:scaleX(0);transition:transform .3s ease;will-change:transform}.ocrp-label{margin:0 0 8px;min-height:1.6em;font-weight:600}.ocrp-note{margin:0 0 16px;font-size:12px;color:var(--muted,#667085)}html.ocrp-lock,html.ocrp-lock body{overflow:hidden}@keyframes ocrpSpin{to{transform:rotate(360deg)}}@media (prefers-reduced-motion:reduce){.ocrp-spin{animation-duration:3s}.ocrp-bar i{transition:none}}</style><script id="yq-ocr-progress">(function(){var st={el:null,target:0,shown:0,timer:null,cancel:false,active:false};
 var fa=function(n){try{return Number(n).toLocaleString('fa-IR')}catch(e){return String(n)}};window.ocrFa=fa;
