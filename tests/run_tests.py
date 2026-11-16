@@ -1415,7 +1415,6 @@ async def customer_payment_failure_rolls_back_all_ledgers(br,c):
 async def sale_persistence_failure_rolls_back_invoice_and_preserves_draft(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,2,1000,{cash:2000});
-      openCashSession(accountBalance('cash'),'sale failure test','test');
       page='sale';render();await T.sleep(100);addSale(S.v);saleCart[0].qty=1;saleCart[0].price=1500;renderSaleCart();
       window.__salePayments={cash:700,card:800,bank:0,credit:0};renderPaymentRows();
       const before={sales:db.sales.length,items:db.saleItems.length,journal:db.journal.length,payments:db.payments.length,
