@@ -5636,19 +5636,19 @@ window.__yqUnitUnknown=false;r.warnings.unshift('واحد مبلغ فاکتور 
 else{window.__yqUnitUnknown=true;r.warnings=r.warnings.filter(function(w){return String(w).indexOf('واحد پول فاکتور از تصویر')!==0});r.warnings.unshift('⚠ واحد مبلغ فاکتور (تومان یا ریال) در تصویر تشخیص داده نشد و مبالغ بدون تبدیل ثبت شده است. اگر فاکتور به تومان است، دکمهٔ «مبالغ تومان است (×۱۰)» را بزنید.')}}}}catch(e){console.warn('invoice post-process',e)}return r};
 h.__yq=true;window.parseLocalInvoiceText=h})()}catch(_){}
 try{(function(){
-function stocktake(vid,wid,c){var v=variantBy(vid);if(!v)throw Error('کالا پیدا نشد');
+function stocktake(vid,wid,c){return atomic('انبارگردانی',function(){var v=variantBy(vid);if(!v)throw Error('کالا پیدا نشد');
 if(!Number.isInteger(c)||c<0)throw Error('تعداد شمارش‌شده باید عدد صحیح و غیرمنفی باشد');
 var cur=whStock(wid,vid),d=c-cur;if(d===0)return 0;
 var recordId=uid(),ref='ST-'+recordId;
 stockMoveV21(vid,d,'stocktake',ref,v.buyPrice,undefined,wid);
 db.stocktakes=db.stocktakes||[];db.stocktakes.push({id:recordId,ref,date:now(),variantId:vid,warehouseId:wid,before:cur,counted:c,diff:d});
-saveDB(true);return d}
+return d})}
 window.yqStocktake=stocktake;
 function rerender(){var f=window.proWarehouseV40||window.proWarehouse;if(typeof f==='function')f()}
 document.addEventListener('click',function(e){var b=e.target&&e.target.closest&&e.target.closest('#take');if(!b)return;
 e.preventDefault();e.stopImmediatePropagation();var vs=activeVariants(),ws=db.warehouses;if(!vs.length)return toast('ابتدا کالا تعریف کنید',true);
 modal('<div class="modalhead"><h2>انبارگردانی</h2><button class="close" data-close>×</button></div><form id="stf"><div class="formgrid"><label class="field"><span>انبار</span><select id="stw">'+ws.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join('')+'</select></label><label class="field"><span>کالا</span><select id="stv">'+vs.map(function(x){return '<option value="'+x.id+'">'+esc(variantName(x))+'</option>'}).join('')+'</select></label><label class="field"><span>تعداد شمارش‌شده</span><input id="stq" type="number" min="0" step="1" value="0"></label></div><div class="modal-actions"><button type="button" class="btn" data-close>انصراف</button><button class="btn primary">ثبت انبارگردانی</button></div></form>');
-document.querySelector('#stf').onsubmit=function(ev){ev.preventDefault();try{var d=atomic('انبارگردانی',function(){return stocktake(document.querySelector('#stv').value,document.querySelector('#stw').value,num(document.querySelector('#stq').value))});
+document.querySelector('#stf').onsubmit=function(ev){ev.preventDefault();try{var d=stocktake(document.querySelector('#stv').value,document.querySelector('#stw').value,num(document.querySelector('#stq').value));
 closeModal();toast(d===0?'مغایرتی وجود نداشت':'مغایرت '+d+' ثبت شد');rerender()}catch(err){toast(err.message||'خطا',true)}}},true)})()}catch(_){}
 try{(function(){var F=window.Fin;if(!F||typeof F.saleReturn!=='function'||F.saleReturn.__yq)return;var o=F.saleReturn;
 var h=function(a){try{if(a&&a.method==='cash'){var sl=(db.sales||[]).find(function(x){return x.number===a.ref});
