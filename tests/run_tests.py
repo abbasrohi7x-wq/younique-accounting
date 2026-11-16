@@ -727,7 +727,7 @@ async def cash_void_requires_open_session_without_partial_mutation(br,c):
       const before=snapshot();let blocked='';
       try{Fin.voidSale(sale.number,'void after shift close')}catch(e){blocked=e.message}
       const after=snapshot();
-      openCashSession(1000000,'new shift','test');
+      openCashSession(cashSessionExpected(session),'new shift','test');
       const voided=Fin.voidSale(sale.number,'void after reopening shift');
       return{blocked:!!blocked,before,after,voided:!!voided,cashAfterPurchase,salePayments:sale.payments,embeddedPayments:db.payments.filter(x=>x.ref===sale.number),saleJournal:db.journal.find(x=>x.saleId===sale.id&&!x.reversalOf)?.lines,voidJournal:db.journal.find(x=>x.saleId===sale.id&&x.reversalOf)?.lines,
         status:sale.status,stock:variantBy(S.v).stock,
