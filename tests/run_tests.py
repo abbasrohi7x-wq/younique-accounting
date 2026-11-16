@@ -2124,3 +2124,38 @@ async def returns_reject_invalid_settlement_and_missing_source_items_atomically(
     c.eq(r['unb'],0,'rejected returns preserve balanced journals')
     c.eq(r['errors'],[],'return validation produces no browser errors')
     await ctx.close()
+
+@test
+async def bulk_barcode_generation_is_atomic_and_preserves_existing_codes(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const first=variantBy(S.v),existing=first.barcode;
+      const second={...first,id:'barcode-bulk-second',size:String(Number(first.size)+1),barcode:'',sku:''};
+      const third={...first,id:'barcode-bulk-third',size:String(Number(first.size)+2),barcode:'',sku:''};
+      db.variants.push(second,third);saveDB(true);
+      page='barcode';render();
+      selected.clear();selected.add(second.id);selected.add(third.id);
+      document.querySelector('#genSelected').click();
+      const selectedCodes=[second.barcode,third.barcode];
+      const uniqueSelected=new Set(selectedCodes).size===2&&selectedCodes.every(Boolean);
+      const preserved=first.barcode===existing;
+      const beforeAll=db.variants.filter(v=>v.active!==false).map(v=>v.barcode);
+      document.querySelector('#genAll').click();
+      const after=db.variants.filter(v=>v.active!==false);
+      const codes=after.map(v=>v.barcode).filter(Boolean);
+      const skus=after.map(v=>v.sku).filter(Boolean);
+      return{uniqueSelected,preserved,allHaveCodes:after.every(v=>!!v.barcode),
+        uniqueAll:new Set(codes).size===codes.length,allHaveSkus:after.every(v=>!!v.sku),
+        uniqueSkus:new Set(skus.map(x=>x.toLowerCase())).size===skus.length,
+        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    """)
+    c.true(r['uniqueSelected'],'selected variants receive distinct generated barcodes')
+    c.true(r['preserved'],'bulk generation never changes an existing barcode')
+    c.true(r['allHaveCodes'],'complete action fills all active missing barcodes')
+    c.true(r['uniqueAll'],'all generated barcodes remain unique')
+    c.true(r['allHaveSkus'],'complete action fills missing SKUs')
+    c.true(r['uniqueSkus'],'all generated SKUs remain unique')
+    c.true(r['health'],'bulk barcode operations preserve catalog integrity')
+    c.eq(r['errors'],[],'bulk barcode actions produce no browser errors')
+    await ctx.close()
