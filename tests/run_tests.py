@@ -1948,4 +1948,22 @@ async def purchase_receipt_rejects_fractional_quantity_without_mutation(br,c):
     await ctx.close()
 
 
+@test
+async def colloquial_cash_register_commands_resolve_to_cash_session_tools(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const U=window.UAI;
+      const phrases=['صندوق رو باز کن','صندوق را باز کن','صندوقو باز کن','شروع شیفت'];
+      const open=phrases.map(x=>U.NLU.understand(x,U.ctx));
+      const close=['صندوق رو ببند','صندوق را ببند','صندوقو ببند','پایان شیفت'].map(x=>U.NLU.understand(x,U.ctx));
+      const tool=info=>info&&info.plan&&info.plan.steps&&info.plan.steps[0]&&info.plan.steps[0].tool;
+      return{open:open.map(tool),close:close.map(tool),unknown:open.concat(close).some(x=>!x||x.unknown)};
+    """)
+    c.eq(r['open'],['open_cash_session']*4,'colloquial open-register phrases resolve to the cash opening action')
+    c.eq(r['close'],['close_cash_session']*4,'colloquial close-register phrases resolve to the cash closing action')
+    c.eq(r['unknown'],False,'cash register phrases are understood locally')
+    c.eq(pg.errs,[],'cash register NLU produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
