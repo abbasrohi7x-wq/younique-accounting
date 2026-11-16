@@ -58,7 +58,7 @@ async def void_flows_restore_everything(br,c):
 @test
 async def invoice_void_reverses_mixed_tender_and_all_ledgers(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,\"\"\"
+    r=await ev(pg,"""
       const S=await T.seed({cash:1000000});
       const purchase=await T.buy(S,S.v,4,1000,{cash:2000,card:1000,bank:1000});
       const sale=await T.sell(S,S.v,1,1500,{cash:500,card:500,bank:500});
@@ -84,7 +84,7 @@ async def invoice_void_reverses_mixed_tender_and_all_ledgers(br,c):
           cash:accountBalance('cash'),card:accountBalance('card'),bank:accountBalance('bank'),
           inventory:accountBalance('inventory'),cashMoves:db.cashMovements.length,
           unbalanced:T.unbalanced(),health:runYouniqueHealthCheck().ok}};
-    \"\"\")
+    """)
     c.eq(r['before']['stock'],3,'sale consumes one unit before void')
     c.eq(r['before']['warehouse'],3,'warehouse stock follows sale')
     c.true(r['voidSale'],'mixed tender sale void succeeds')
