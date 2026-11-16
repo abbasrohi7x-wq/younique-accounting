@@ -66,8 +66,8 @@ async def void_flows_restore_everything(br,c):
       let blocked=null;try{Fin.voidPurchase(p.number,'t')}catch(e){blocked=e.message}
       Fin.voidSale(s.number,'t');Fin.voidPurchase(p.number,'t');let dbl=null;try{Fin.voidSale(s.number,'t')}catch(e){dbl=e.message}
       const b=T.bal();const z=Object.entries(b).filter(([k,v])=>k!=='cash'&&k!=='equity'&&Math.abs(v)>0.01);
-      return{blocked:!!blocked,dbl:!!dbl,nonZero:z,stock:variantBy(S.v).stock,cash:b.cash,unb:T.unbalanced()}''')
-    c.true(r['blocked'],'void purchase must be blocked after stock sold');c.true(r['dbl'],'double void blocked');c.eq(r['nonZero'],[],'all accounts back to zero');c.eq(r['stock'],0,'stock');c.eq(r['cash'],1000000,'cash restored');c.eq(r['unb'],0,'balanced');await ctx.close()
+      return{blocked:!!blocked,dbl:!!dbl,nonZero:z,stock:variantBy(S.v).stock,warehouse:db.warehouseStocks?.MAIN?.[S.v],voidPurchaseMove:(db.warehouseMoves||[]).some(x=>x.variantId===S.v&&x.type==='void_purchase'&&x.qty===-10),cash:b.cash,unb:T.unbalanced()}''')
+    c.true(r['blocked'],'void purchase must be blocked after stock sold');c.true(r['dbl'],'double void blocked');c.eq(r['nonZero'],[],'all accounts back to zero');c.eq(r['stock'],0,'stock');c.eq(r['warehouse'],0,'warehouse stock restored to zero');c.true(r['voidPurchaseMove'],'purchase void writes a matching warehouse movement');c.eq(r['cash'],1000000,'cash restored');c.eq(r['unb'],0,'balanced');await ctx.close()
 
 
 @test
