@@ -729,7 +729,7 @@ async def cash_void_requires_open_session_without_partial_mutation(br,c):
       const after=snapshot();
       openCashSession(1000000,'new shift','test');
       const voided=Fin.voidSale(sale.number,'void after reopening shift');
-      return{blocked:!!blocked,before,after,voided:!!voided,cashAfterPurchase,
+      return{blocked:!!blocked,before,after,voided:!!voided,cashAfterPurchase,salePayments:sale.payments,embeddedPayments:db.payments.filter(x=>x.ref===sale.number),saleJournal:db.journal.find(x=>x.saleId===sale.id&&!x.reversalOf)?.lines,voidJournal:db.journal.find(x=>x.saleId===sale.id&&x.reversalOf)?.lines,
         status:sale.status,stock:variantBy(S.v).stock,
         cash:accountBalance('cash'),unbalanced:T.unbalanced(),
         health:runYouniqueHealthCheck().ok};
@@ -1614,7 +1614,7 @@ async def exclusive_sale_returns_reconcile_dashboard_and_management_reports(br,c
       const ret=Fin.saleReturn({ref:sale.number,qtys:{[sale.items[0]]:1},method:'cash',note:'report test'});
       const t=totals();page='reports';render();
       const body=document.querySelector('#content').innerText;
-      return {return:{total:ret.total,vat:ret.vat,refund:ret.refund},revenue:t.revenue,profit:t.profit,
+      return {return:{total:ret.total,vat:ret.vat,refund:ret.refund},returnsRaw:db.returns.map(x=>({type:x.type,ref:x.ref,refund:x.refund,total:x.total})),reportReturnRows:[...document.querySelectorAll('[data-return-record]')].map(x=>x.innerText),revenue:t.revenue,profit:t.profit,
         reportRevenue:body.includes(money(3300)),reportProfit:body.includes(money(1000)),
         returnRow:body.includes('برگشت فروش'),body:body.slice(0,1600),reportError:!!document.querySelector('#content .error-inline'),unb:T.unbalanced()}''')
     c.eq(r['return'],{'total':1500,'vat':150,'refund':1650},'exclusive VAT return totals')
