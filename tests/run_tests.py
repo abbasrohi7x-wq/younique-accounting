@@ -587,6 +587,13 @@ async def stale_party_and_warehouse_selections_are_rejected_without_writes(br,c)
       purchaseCart=[{id:S.v,qty:1,price:1000}];
       const beforePurchase=snapshot(),purchaseResult=savePurchaseV21();
       const afterPurchase=snapshot(),purchaseMessage=T.msgs[T.msgs.length-1];
+      pur.value=S.sup;
+      const wh=document.querySelector('#purWarehouse');
+      wh.add(new Option('انبار نامعتبر','missing-warehouse'));
+      wh.value='missing-warehouse';
+      purchaseCart=[{id:S.v,qty:1,price:1000}];
+      const beforeWarehouse=snapshot(),warehouseResult=savePurchaseV21();
+      const afterWarehouse=snapshot(),warehouseMessage=T.msgs[T.msgs.length-1];
       page='sale';render();await T.sleep(80);
       const cus=document.querySelector('#saleCustomer');
       cus.add(new Option('شناسه نامعتبر','missing-customer'));
@@ -596,12 +603,16 @@ async def stale_party_and_warehouse_selections_are_rejected_without_writes(br,c)
       const beforeSale=snapshot(),saleResult=saveSaleV21();
       const afterSale=snapshot(),saleMessage=T.msgs[T.msgs.length-1];
       return{purchaseResult:purchaseResult||null,beforePurchase,afterPurchase,purchaseMessage,
+        warehouseResult:warehouseResult||null,beforeWarehouse,afterWarehouse,warehouseMessage,
         saleResult:saleResult||null,beforeSale,afterSale,saleMessage,
         unbalanced:T.unbalanced()};
     """)
     c.eq(r['purchaseResult'],None,'invalid supplier purchase rejected')
     c.eq(r['afterPurchase'],r['beforePurchase'],'invalid supplier causes no purchase writes')
     c.true('تأمین‌کننده' in r['purchaseMessage'],'invalid supplier error is clear')
+    c.eq(r['warehouseResult'],None,'invalid warehouse purchase rejected')
+    c.eq(r['afterWarehouse'],r['beforeWarehouse'],'invalid warehouse causes no purchase writes')
+    c.true('انبار' in r['warehouseMessage'],'invalid warehouse error is clear')
     c.eq(r['saleResult'],None,'invalid customer sale rejected')
     c.eq(r['afterSale'],r['beforeSale'],'invalid customer causes no sale writes')
     c.true('مشتری' in r['saleMessage'],'invalid customer error is clear')
