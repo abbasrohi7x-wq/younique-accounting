@@ -1533,7 +1533,7 @@ async def returns_cannot_exceed_original_quantity_or_be_voided(br,c):
 @test
 async def invoice_payment_split_reconciliation_is_reported(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,\"\"\"
+    r=await ev(pg,"""
       const S=await T.seed({});
       const purchase=await T.buy(S,S.v,3,1000,{cash:3000});
       const sale=await T.sell(S,S.v,1,1500,{cash:1500});
@@ -1548,7 +1548,7 @@ async def invoice_payment_split_reconciliation_is_reported(br,c):
       return{healthy:healthy.ok,sale:brokenSale.issues.some(x=>x.includes('مغایرت تفکیک پرداخت فاکتور فروش')),
         purchase:brokenPurchase.issues.some(x=>x.includes('مغایرت تفکیک پرداخت فاکتور خرید')),
         repaired:repaired.ok,unb:T.unbalanced()};
-    \"\")
+    """)
     c.true(r['healthy'],'valid sale and purchase payment splits pass health check')
     c.true(r['sale'],'sale payment amount mismatch is detected')
     c.true(r['purchase'],'purchase paid/due mismatch is detected')
