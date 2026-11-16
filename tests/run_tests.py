@@ -2087,6 +2087,39 @@ async def colloquial_cash_open_command_asks_amount_then_requires_confirmation(br
     await ctx.close()
 
 
+@test
+async def voids_reject_missing_source_invoice_lines_without_mutation(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const purchase=await T.buy(S,S.v,4,1000,{cash:4000});
+      const sale=await T.sell(S,S.v,2,1500,{cash:3000});
+      const si=db.saleItems.find(x=>x.id===sale.items[0]);
+      const pi=db.purchaseItems.find(x=>x.id===purchase.items[0]);
+      db.saleItems=db.saleItems.filter(x=>x.id!==si.id);
+      db.purchaseItems=db.purchaseItems.filter(x=>x.id!==pi.id);
+      const snap=()=>JSON.stringify({
+        saleStatus:sale.status,purchaseStatus:purchase.status,
+        stock:variantBy(S.v).stock,journal:db.journal.length,payments:db.payments.length,
+        stockMoves:db.stockMoves.length,warehouseMoves:db.warehouseMoves.length,
+        returns:db.returns.length
+      });
+      const before=snap();let saleError='',purchaseError='';
+      try{Fin.voidSale(sale.number,'missing source line')}catch(e){saleError=e.message}
+      try{Fin.voidPurchase(purchase.number,'missing source line')}catch(e){purchaseError=e.message}
+      return{saleError,purchaseError,before,after:snap(),saleStatus:sale.status,
+        purchaseStatus:purchase.status,unb:T.unbalanced(),errors:pg.errs};
+    """)
+    c.true(r['saleError'],'sale void rejects a missing original sale item')
+    c.true(r['purchaseError'],'purchase void rejects a missing original purchase item')
+    c.eq(r['after'],r['before'],'invalid voids leave stock, journals, payments and movements unchanged')
+    c.eq(r['saleStatus'],'confirmed','sale remains confirmed after rejected void')
+    c.eq(r['purchaseStatus'],'confirmed','purchase remains confirmed after rejected void')
+    c.eq(r['unb'],0,'rejected voids preserve balanced journals')
+    c.eq(r['errors'],[],'missing source-line guards produce no uncaught browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
 
 @test
