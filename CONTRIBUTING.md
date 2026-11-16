@@ -35,5 +35,6 @@ python tests/run_tests.py
 ## مستندات
 - `README.md`: راهنمای استفاده و انتشار.
 - `PROJECT_STATUS.md`: وضعیت جاری و ریسک‌ها.
+- `SECURITY.md`: مسیر گزارش خصوصی آسیب‌پذیری.
 - `CHANGES_FA.md`: تاریخچهٔ تغییرات.
 - `docs/`: گزارش‌ها و تصمیم‌های فنی.
