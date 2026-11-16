@@ -5639,8 +5639,9 @@ try{(function(){
 function stocktake(vid,wid,c){var v=variantBy(vid);if(!v)throw Error('کالا پیدا نشد');
 if(!Number.isInteger(c)||c<0)throw Error('تعداد شمارش‌شده باید عدد صحیح و غیرمنفی باشد');
 var cur=whStock(wid,vid),d=c-cur;if(d===0)return 0;
-stockMoveV21(vid,d,'stocktake','ST-'+today(),v.buyPrice,undefined,wid);
-db.stocktakes=db.stocktakes||[];db.stocktakes.push({id:uid(),date:now(),variantId:vid,warehouseId:wid,before:cur,counted:c,diff:d});
+var recordId=uid(),ref='ST-'+recordId;
+stockMoveV21(vid,d,'stocktake',ref,v.buyPrice,undefined,wid);
+db.stocktakes=db.stocktakes||[];db.stocktakes.push({id:recordId,ref,date:now(),variantId:vid,warehouseId:wid,before:cur,counted:c,diff:d});
 saveDB(true);return d}
 window.yqStocktake=stocktake;
 function rerender(){var f=window.proWarehouseV40||window.proWarehouse;if(typeof f==='function')f()}
