@@ -199,9 +199,8 @@ function createFin(db, h, core) {
         throw new Error('سند معکوس قبلاً ثبت شده است');
       }
       // restore stock
-      for (const id of (s.items || [])) {
-        const i = (db.saleItems || []).find(x => x.id === id);
-        if (!i) continue;
+      const saleItems = sourceItems('sale', s);
+      for (const i of saleItems) {
         const warehouseId = i.warehouseId || s.warehouseId || 'MAIN';
         stockMove(i.variantId, num(i.qty), 'void_sale', no, num(i.cost), warehouseId);
       }
@@ -255,9 +254,8 @@ function createFin(db, h, core) {
       if ((db.journal || []).some(x => x.reversalOf === j.id)) {
         throw new Error('سند معکوس قبلاً ثبت شده است');
       }
-      for (const id of (pur.items || [])) {
-        const i = (db.purchaseItems || []).find(x => x.id === id);
-        if (!i) continue;
+      const purchaseItems = sourceItems('purchase', pur);
+      for (const i of purchaseItems) {
         stockMove(i.variantId, -num(i.qty), 'void_purchase', no, num(i.unitPrice), i.warehouseId || pur.warehouseId || 'MAIN');
       }
       for (const pm of (db.payments || []).filter(x => x.ref === no && x.embedded && x.direction === 'out')) {
