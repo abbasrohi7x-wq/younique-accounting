@@ -1584,6 +1584,8 @@ function runYouniqueHealthCheck(){
         if(Math.abs(warehouseQty-num(v.stock))>.001)issues.push('عدم تطابق مجموع موجودی انبارها با موجودی کل: '+variantName(v)+' (کل '+num(v.stock)+'، انبارها '+roundMoney(warehouseQty)+')');
       }
     }
+    const checkInvoicePayments=(docs,type)=>{for(const doc of docs||[]){if(doc.status!=='confirmed'||!Array.isArray(doc.payments)||!doc.payments.length)continue;const label=doc.number||doc.id||'بدون شماره';let cash=0,credit=0,invalid=false;for(const payment of doc.payments){const amount=Number(payment?.amount);if(!Number.isFinite(amount)||amount<0||!['cash','card','bank','credit'].includes(payment?.account)){invalid=true;continue}if(payment.account==='credit')credit+=amount;else cash+=amount}const total=roundMoney(cash+credit);if(invalid||Math.abs(total-num(doc.total))>.01||Math.abs(roundMoney(cash)-num(doc.paid))>.01||Math.abs(roundMoney(credit)-num(doc.due))>.01)issues.push('مغایرت تفکیک پرداخت فاکتور '+(type==='sale'?'فروش ':'خرید ')+label)}};
+    checkInvoicePayments(db.sales,'sale');checkInvoicePayments(db.purchases,'purchase');
     for(const j of (db.journal||[])){
       const debit=num(j.debit),credit=num(j.credit);
       if(Math.abs(debit-credit)>.01)issues.push('سند نامتوازن: '+(j.ref||j.id));
