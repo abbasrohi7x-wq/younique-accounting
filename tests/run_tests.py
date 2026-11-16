@@ -2668,8 +2668,8 @@ async def integrated_warehouse_returns_discrepancy_and_variant_profit_report(br,
       return{pWarehouse:p.warehouseId,sWarehouse:s.warehouseId,moved:{from:moved.from,to:moved.to,qty:moved.qty},
         beforeMismatch,saleReturn:{qty:saleRet.items[0].qty,warehouse:db.stockMoves.filter(x=>x.type==='sale_return').slice(-1)[0].warehouseId},
         purchaseReturn:{qty:purchaseRet.items[0].qty,warehouse:db.stockMoves.filter(x=>x.type==='purchase_return').slice(-1)[0].warehouseId},
-        returnLinks:{sale:{ref:saleRet.ref,source:saleRet.items[0].saleItemId,original:s.items[0]},
-          purchase:{ref:purchaseRet.ref,source:purchaseRet.items[0].purchaseItemId,original:p.items[0]}},
+        returnLinks:{sale:saleRet.ref===s.number&&saleRet.items[0].saleItemId===s.items[0],
+          purchase:purchaseRet.ref===p.number&&purchaseRet.items[0].purchaseItemId===p.items[0]},
         returnJournals:{sale:!!db.journal.find(j=>j.returnId===saleRet.id),
           purchase:!!db.journal.find(j=>j.returnId===purchaseRet.id)},
         mismatchBlocked,diff,stocktake:{ref:stocktake.ref,reason:stocktake.reason,warehouseId:stocktake.warehouseId},
@@ -2683,8 +2683,7 @@ async def integrated_warehouse_returns_discrepancy_and_variant_profit_report(br,
     c.eq(r['beforeMismatch'],{'main':0,'w2':3,'w3':2,'total':5},'multi-warehouse balances after returns')
     c.eq(r['saleReturn'],{'qty':1,'warehouse':'W3'},'sale return restores the original sale warehouse')
     c.eq(r['purchaseReturn'],{'qty':2,'warehouse':'W2'},'purchase return removes stock from the original purchase warehouse')
-    c.eq(r['returnLinks'],{'sale':{'ref':r['pWarehouse'] and r['returnLinks']['sale']['ref'],'source':r['returnLinks']['sale']['original'],'original':r['returnLinks']['sale']['original']},
-      'purchase':{'ref':r['returnLinks']['purchase']['ref'],'source':r['returnLinks']['purchase']['original'],'original':r['returnLinks']['purchase']['original']}},'return records retain original invoice and source-line references')
+    c.true(r['returnLinks']['sale'] and r['returnLinks']['purchase'],'return records retain original invoice and source-line references')
     c.true(r['returnJournals']['sale'] and r['returnJournals']['purchase'],'each return has a linked accounting journal')
     c.true(r['mismatchBlocked'],'transfer refuses inconsistent warehouse totals')
     c.eq(r['diff'],1,'stocktake corrects counted warehouse quantity')
