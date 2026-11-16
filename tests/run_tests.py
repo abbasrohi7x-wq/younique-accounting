@@ -2668,10 +2668,14 @@ async def integrated_warehouse_returns_discrepancy_and_variant_profit_report(br,
       return{pWarehouse:p.warehouseId,sWarehouse:s.warehouseId,moved:{from:moved.from,to:moved.to,qty:moved.qty},
         beforeMismatch,saleReturn:{qty:saleRet.items[0].qty,warehouse:db.stockMoves.filter(x=>x.type==='sale_return').slice(-1)[0].warehouseId},
         purchaseReturn:{qty:purchaseRet.items[0].qty,warehouse:db.stockMoves.filter(x=>x.type==='purchase_return').slice(-1)[0].warehouseId},
+        returnLinks:{sale:{ref:saleRet.ref,source:saleRet.items[0].saleItemId,original:s.items[0]},
+          purchase:{ref:purchaseRet.ref,source:purchaseRet.items[0].purchaseItemId,original:p.items[0]}},
+        returnJournals:{sale:!!db.journal.find(j=>j.returnId===saleRet.id),
+          purchase:!!db.journal.find(j=>j.returnId===purchaseRet.id)},
         mismatchBlocked,diff,stocktake:{ref:stocktake.ref,reason:stocktake.reason,warehouseId:stocktake.warehouseId},
         report:{netSoldQty:report.netSoldQty,netRevenue:report.netRevenue,netCogs:report.netCogs,grossProfit:report.grossProfit,stock:report.stock,w2:report.warehouses.find(x=>x.id==='W2').qty,w3:report.warehouses.find(x=>x.id==='W3').qty},
         reportVisible:body.includes('سودآوری و موجودی هر تنوع کالا')&&body.includes('سوابق مغایرت و انبارگردانی')&&!!document.querySelector('[data-variant-performance="'+S.v+'"]'),
-        unb:T.unbalanced(),health:runYouniqueHealthCheck().ok,errors:[]};
+        reconciliation:reconcileAccounts(),unb:T.unbalanced(),health:runYouniqueHealthCheck().ok,errors:[]};
     ''')
     c.eq(r['pWarehouse'],'W2','purchase is assigned to selected warehouse')
     c.eq(r['sWarehouse'],'W3','sale is assigned to selected warehouse')
@@ -2679,6 +2683,9 @@ async def integrated_warehouse_returns_discrepancy_and_variant_profit_report(br,
     c.eq(r['beforeMismatch'],{'main':0,'w2':3,'w3':2,'total':5},'multi-warehouse balances after returns')
     c.eq(r['saleReturn'],{'qty':1,'warehouse':'W3'},'sale return restores the original sale warehouse')
     c.eq(r['purchaseReturn'],{'qty':2,'warehouse':'W2'},'purchase return removes stock from the original purchase warehouse')
+    c.eq(r['returnLinks'],{'sale':{'ref':r['pWarehouse'] and r['returnLinks']['sale']['ref'],'source':r['returnLinks']['sale']['original'],'original':r['returnLinks']['sale']['original']},
+      'purchase':{'ref':r['returnLinks']['purchase']['ref'],'source':r['returnLinks']['purchase']['original'],'original':r['returnLinks']['purchase']['original']}},'return records retain original invoice and source-line references')
+    c.true(r['returnJournals']['sale'] and r['returnJournals']['purchase'],'each return has a linked accounting journal')
     c.true(r['mismatchBlocked'],'transfer refuses inconsistent warehouse totals')
     c.eq(r['diff'],1,'stocktake corrects counted warehouse quantity')
     c.true(bool(r['stocktake']['ref']),'stocktake keeps a unique reference')
@@ -2688,6 +2695,7 @@ async def integrated_warehouse_returns_discrepancy_and_variant_profit_report(br,
     c.true(r['reportVisible'],'variant and discrepancy report sections render')
     c.eq(r['unb'],0,'all return and adjustment journals remain balanced')
     c.true(r['health'],'integrated inventory workflows preserve data integrity')
+    c.true(r['reconciliation']['ok']&&r['reconciliation']['items'].every(x=>x.status==='ok'),'inventory, receivables and payables reconcile with their ledgers after returns and stocktake')
     c.eq(pg.errs,[],'integrated warehouse and report flows have no browser errors')
     await ctx.close()
 
