@@ -2431,7 +2431,7 @@ async def backup_validation_rejects_broken_references_duplicate_barcodes_and_unb
       await T.sell(S,S.v,1,1500,{cash:1500});
       const base=JSON.parse(exportData()).data;
       const clone=()=>JSON.parse(JSON.stringify(base));
-      const duplicate=clone();
+      const duplicate=clone();duplicate.variants[0].barcode='BACKUP-DUP-1';
       const extra={...duplicate.variants[0],id:'backup-duplicate-barcode',size:String(Number(duplicate.variants[0].size)+1)};
       duplicate.variants.push(extra);
       const dangling=clone();dangling.sales[0].items[0]='missing-backup-sale-line';
