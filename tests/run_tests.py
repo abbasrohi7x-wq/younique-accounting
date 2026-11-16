@@ -2309,4 +2309,58 @@ async def active_returns_reject_incomplete_or_foreign_invoice_lines_atomically(b
     await ctx.close()
 
 
+@test
+async def purchase_order_partial_receipts_get_unique_traceable_refs_and_legacy_warehouse(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const po={id:'PO-PARTIAL-TRACE',number:'PO-PARTIAL-TRACE',status:'draft',supplierId:'',
+        lines:[{variantId:S.v,qty:3,received:0,unitCost:1200}],total:3600};
+      db.purchaseOrders.push(po);
+      const receive=qty=>{
+        window.receivePO(po.id);
+        const f=document.querySelector('#rof41');
+        f.querySelector('[data-rq41="0"]').value=String(qty);
+        f.onsubmit({preventDefault(){}});
+      };
+      receive(1);const afterFirst={status:po.status,received:po.lines[0].received};
+      receive(2);
+      const journals=db.journal.filter(j=>j.purchaseOrderId===po.id);
+      const moves=db.stockMoves.filter(m=>m.type==='purchase_receipt'&&String(m.ref).startsWith(po.number));
+      const refs=journals.map(j=>j.ref);
+      const legacy={id:'PO-LEGACY-WH',number:'PO-LEGACY-WH',status:'draft',supplierId:'',
+        lines:[{variantId:S.v,qty:1,received:0,unitCost:500}],total:500};
+      db.warehouses.find(w=>w.id==='MAIN').active=false;
+      db.warehouses.push({id:'LEGACY-ALT',name:'انبار جایگزین',active:true});
+      db.warehouseStocks['LEGACY-ALT']={};
+      db.purchaseOrders.push(legacy);
+      window.receivePO(legacy.id);
+      const lf=document.querySelector('#rof41');
+      lf.querySelector('[data-rq41="0"]').value='1';
+      lf.onsubmit({preventDefault(){}});
+      return{afterFirst,finalStatus:po.status,received:po.lines[0].received,
+        journalCount:journals.length,uniqueRefs:new Set(refs).size===refs.length,
+        moveRefs:moves.map(m=>m.ref),journalRefs:refs,receiptCount:po.receipts?.length||0,
+        totalReceived:po.receipts?.reduce((a,x)=>a+x.total,0)||0,
+        legacyWarehouse:legacy.warehouseId,legacyReceived:legacy.lines[0].received,
+        legacyStock:db.warehouseStocks['LEGACY-ALT'][S.v],health:runYouniqueHealthCheck().ok,
+        unbalanced:T.unbalanced(),errors:pg.errs};
+    """)
+    c.eq(r['afterFirst'],{'status':'partial','received':1},'first partial receipt updates only its received quantity')
+    c.eq(r['finalStatus'],'received','second receipt completes the order')
+    c.eq(r['received'],3,'partial receipts accumulate to the ordered quantity')
+    c.eq(r['journalCount'],2,'each partial receipt creates its own accounting entry')
+    c.true(r['uniqueRefs'],'each receipt journal has a unique reference')
+    c.eq(r['moveRefs'],r['journalRefs'],'inventory movements and journal entries share receipt references')
+    c.eq(r['receiptCount'],2,'each receipt is retained in the purchase order history')
+    c.eq(r['totalReceived'],3600,'receipt history reconciles to received cost')
+    c.eq(r['legacyWarehouse'],'LEGACY-ALT','legacy order without warehouse uses an active warehouse when MAIN is unavailable')
+    c.eq(r['legacyReceived'],1,'legacy order receipt is recorded')
+    c.eq(r['legacyStock'],1,'legacy receipt enters the resolved destination warehouse')
+    c.true(r['health'],'purchase order receipt history preserves data integrity')
+    c.eq(r['unbalanced'],0,'partial receipt journals remain balanced')
+    c.eq(r['errors'],[],'partial receipt flow produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
