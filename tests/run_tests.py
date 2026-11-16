@@ -2677,4 +2677,39 @@ async def integrated_warehouse_returns_discrepancy_and_variant_profit_report(br,
     await ctx.close()
 
 
+
+
+@test
+async def variant_report_includes_active_variants_without_sales_or_purchase_history(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const base=variantBy(S.v);
+      const v={...base,id:uid(),size:'43',barcode:'B'+uid().slice(0,6),
+        sku:'SKU-'+uid().slice(0,6),stock:2,buyPrice:650,active:true};
+      db.variants.push(v);
+      db.warehouseStocks.MAIN[v.id]=2;
+      saveDB(true);
+      const rows=window.yqVariantPerformanceRows();
+      const row=rows.find(x=>x.variantId===v.id);
+      page='reports';render();
+      const body=document.querySelector('#content').innerText;
+      return{found:!!row,metrics:row&&{
+        stock:row.stock,warehouseTotal:row.warehouseTotal,warehouseDifference:row.warehouseDifference,
+        warehouseBalanced:row.warehouseBalanced,soldQty:row.soldQty,netSoldQty:row.netSoldQty,
+        netRevenue:row.netRevenue,netCogs:row.netCogs,grossProfit:row.grossProfit,
+        purchasedQty:row.purchasedQty,netPurchasedQty:row.netPurchasedQty},
+        visible:body.includes('سودآوری و موجودی هر تنوع کالا')&&!!document.querySelector('[data-variant-performance="'+v.id+'"]'),
+        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    """)
+    c.true(r['found'],'active variant without invoice history is included')
+    c.eq(r['metrics'],{'stock':2,'warehouseTotal':2,'warehouseDifference':0,'warehouseBalanced':True,
+      'soldQty':0,'netSoldQty':0,'netRevenue':0,'netCogs':0,'grossProfit':0,
+      'purchasedQty':0,'netPurchasedQty':0},'stock-only variant has zero turnover and reconciled warehouse quantities')
+    c.true(r['visible'],'stock-only variant is rendered in the management report')
+    c.true(r['health'],'stock-only variant passes integrity validation')
+    c.eq(r['errors'],[],'stock-only report renders without browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
