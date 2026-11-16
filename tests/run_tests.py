@@ -634,6 +634,32 @@ async def negative_split_payments_are_rejected_without_partial_commits(br,c):
 
 
 @test
+async def invalid_purchase_lines_are_rejected_without_partial_commits(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""const S=await T.seed({});
+      const before=()=>({p:db.purchases.length,j:db.journal.length,m:db.payments.length,
+        stock:variantBy(S.v).stock,moves:db.stockMoves.length,items:db.purchaseItems.length});
+      const start=before();
+      await T.buy(S,S.v,-1,1000,{cash:10000});
+      const negativeQty=before();
+      await T.buy(S,S.v,1.5,1000,{cash:10000});
+      const fractionalQty=before();
+      await T.buy(S,S.v,1,-1000,{cash:10000});
+      const negativePrice=before();
+      return{start,negativeQty,fractionalQty,negativePrice,
+        errors:T.msgs.filter(x=>x.startsWith('ERR:')).length,
+        messages:T.msgs.filter(x=>x.startsWith('ERR:')).slice(-3),
+        unb:T.unbalanced(),health:runYouniqueHealthCheck().ok}""")
+    unchanged={'p':0,'j':0,'m':0,'stock':0,'moves':0,'items':0}
+    for key in ('negativeQty','fractionalQty','negativePrice'):
+        c.eq(r[key],r['start'],key+' leaves all purchase, stock and ledger records unchanged')
+    c.true(r['errors']>=3,'each invalid purchase line is rejected with an error')
+    c.eq(r['unb'],0,'rejected purchase lines leave journals balanced')
+    c.true(r['health'],'business health check remains valid')
+    await ctx.close()
+
+
+@test
 async def vat_purchase_return_preserves_original_warehouse(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""const S=await T.seed({vat:10});
