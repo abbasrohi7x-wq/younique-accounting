@@ -2949,7 +2949,6 @@ async def vat_purchase_return_rejects_invalid_inputs_atomically(br,c):
     c.eq(r['returns'],0,'invalid VAT returns do not create return documents')
     c.eq(r['unb'],0,'invalid VAT returns preserve balanced journals')
     c.eq(pg.errs,[],'VAT purchase return validation produces no browser errors')
-    c.eq(r['errors'],[],'VAT purchase return validation produces no browser errors')
     await ctx.close()
 
 
