@@ -1333,14 +1333,14 @@ async def failed_purchase_persistence_preserves_draft_and_rolls_back(br,c):
       window._persist=originalPersist;saveDB(true);
       return{purchases:db.purchases.length,items:db.purchaseItems.length,
         stock:variantBy(S.v).stock,journalDelta:db.journal.length-before.j,
-        paymentDelta:db.payments.length-before.p,cart:purchaseCart.map(x=>({id:x.id,qty:x.qty,price:x.price})),
+        paymentDelta:db.payments.length-before.p,cart:purchaseCart.map(x=>[x.qty,x.price]),
         page,health:runYouniqueHealthCheck().ok}''')
     c.eq(r['purchases'],0,'failed persistence creates no purchase')
     c.eq(r['items'],0,'failed persistence creates no purchase lines')
     c.eq(r['stock'],0,'failed persistence leaves inventory unchanged')
     c.eq(r['journalDelta'],0,'failed persistence leaves no journal entries')
     c.eq(r['paymentDelta'],0,'failed persistence leaves no payment records')
-    c.eq(r['cart'],[{'id':r['cart'][0]['id'],'qty':2,'price':1000}] if r['cart'] else [],'failed persistence preserves the purchase draft')
+    c.eq(r['cart'],[[2,1000]],'failed persistence preserves the purchase draft')
     c.eq(r['page'],'purchase','failed persistence keeps the purchase page open')
     c.true(r['health'],'failed purchase rollback preserves database integrity')
     c.eq(pg.errs,[],'purchase persistence failure produces no uncaught browser errors')
