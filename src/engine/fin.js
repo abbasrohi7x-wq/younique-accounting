@@ -29,6 +29,35 @@ function createFin(db, h, core) {
     return (db.purchases || []).find(p => p.number === ref || p.id === ref) || null;
   }
 
+  function validateReturnMethod(method, partyType, partyId) {
+    if (!['credit', 'cash', 'card', 'bank'].includes(method))
+      throw new Error('روش تسویه برگشت معتبر نیست');
+    if (method === 'credit') {
+      const rows = partyType === 'customer' ? (db.customers || []) : (db.suppliers || []);
+      if (!partyId || !rows.some(x => x.id === partyId))
+        throw new Error(partyType === 'customer' ? 'مشتری فاکتور معتبر نیست' : 'تأمین‌کننده فاکتور معتبر نیست');
+    }
+    if (method === 'cash' && !activeCashSession())
+      throw new Error('برای تسویه نقدی ابتدا صندوق را باز کنید');
+  }
+
+  function sourceItems(type, document) {
+    const ids = Array.isArray(document.items) ? document.items : [];
+    if (!ids.length) throw new Error('فاکتور قلم معتبری برای برگشت ندارد');
+    const table = type === 'sale' ? (db.saleItems || []) : (db.purchaseItems || []);
+    const items = ids.map(id => table.find(x => x.id === id));
+    if (items.some(x => !x)) throw new Error('یکی از اقلام فاکتور اصلی پیدا نشد');
+    const seen = new Set();
+    for (const item of items) {
+      if (seen.has(item.id)) throw new Error('قلم تکراری در فاکتور اصلی وجود دارد');
+      seen.add(item.id);
+      if (!variantBy(item.variantId)) throw new Error('تنوع یکی از اقلام فاکتور اصلی پیدا نشد');
+      if (!Number.isInteger(num(item.qty)) || num(item.qty) <= 0)
+        throw new Error('تعداد قلم فاکتور اصلی نامعتبر است');
+    }
+    return items;
+  }
+
 
   function reverseJournal(j, desc, meta) {
     const lines = (j.lines || []).map(l => ({
@@ -46,10 +75,8 @@ function createFin(db, h, core) {
       const s = findSale(ref);
       if (!s) throw new Error('فاکتور فروش پیدا نشد');
       if (s.status !== 'confirmed') throw new Error('فاکتور باطل‌شده یا نامعتبر قابل برگشت نیست');
-      if (method === 'credit' && !s.customerId) throw new Error('برای تسویه در حساب، فاکتور باید مشتری داشته باشد');
-      if (method === 'cash' && !activeCashSession()) throw new Error('برای برگشت نقدی ابتدا صندوق را باز کنید');
-
-      const items = (s.items || []).map(id => (db.saleItems || []).find(x => x.id === id)).filter(Boolean);
+      validateReturnMethod(method, 'customer', s.customerId);
+      const items = sourceItems('sale', s);
       const sumNet = items.reduce((a, i) => a + num(i.total), 0);
       let total = 0, costTotal = 0;
       const out = [];
@@ -121,9 +148,8 @@ function createFin(db, h, core) {
       const p = findPurchase(ref);
       if (!p) throw new Error('فاکتور خرید پیدا نشد');
       if (p.status !== 'confirmed') throw new Error('فاکتور باطل‌شده قابل برگشت نیست');
-      if (method === 'credit' && !p.supplierId) throw new Error('برای ثبت در حساب، فاکتور باید تأمین‌کننده داشته باشد');
-      if (method === 'cash' && !activeCashSession()) throw new Error('برای دریافت نقدی ابتدا صندوق را باز کنید');
-      const items = (p.items || []).map(id => (db.purchaseItems || []).find(x => x.id === id)).filter(Boolean);
+      validateReturnMethod(method, 'supplier', p.supplierId);
+      const items = sourceItems('purchase', p);
       let total = 0; const out = [];
       for (const i of items) {
         const q = num(qtys[i.id]); if (!q) continue;
