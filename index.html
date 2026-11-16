@@ -363,8 +363,8 @@ function paymentAccount(account){const a=String(account||'cash').trim().toLowerC
 function recordPayment(p){
  if(!p||typeof p!=='object')throw Error('اطلاعات تراکنش معتبر نیست');
  const direction=String(p.direction||'').trim().toLowerCase();if(direction!=='in'&&direction!=='out')throw Error('نوع تراکنش باید دریافت یا پرداخت باشد');
- const rawAmount=Number(p.amount);if(!Number.isFinite(rawAmount)||rawAmount<=0)throw Error('مبلغ تراکنش معتبر نیست');
- const amount=roundMoney(rawAmount),acct=paymentAccount(p.account),partyType=String(p.partyType||'other').trim().toLowerCase();
+ const parsedAmount=cashParseAmount(p.amount);if(parsedAmount===null||parsedAmount<=0)throw Error('مبلغ تراکنش معتبر نیست');
+ const amount=roundMoney(parsedAmount),acct=paymentAccount(p.account),partyType=String(p.partyType||'other').trim().toLowerCase();
  if(!['customer','supplier','other'].includes(partyType))throw Error('نوع طرف حساب تراکنش معتبر نیست');
  if((partyType==='customer'||partyType==='supplier')&&!String(p.partyId||'').trim())throw Error('انتخاب طرف حساب الزامی است');
  return atomic('ثبت دریافت/پرداخت',()=>{
@@ -1180,7 +1180,17 @@ function postCashVarianceJournal(s,diff){
  const j=postJournal(ref,variance<0?'ثبت کسری صندوق':'ثبت اضافه صندوق',lines,{cashSessionId:s.id,entryType:'cash_variance',variance});
  s.varianceJournalRef=ref;return j;
 }
-function cashMove(sessionId,amount,type,ref,note){const delta=num(amount);if(delta<0){const cs=(db.cashSessions||[]).find(x=>x.id===sessionId);if(cs&&cs.status==='open'&&cashSessionExpected(cs)+delta<-0.005)throw Error('موجودی نقدی صندوق ('+money(cashSessionExpected(cs))+') برای این پرداخت کافی نیست');}db.cashMovements.push({id:uid(),date:now(),sessionId,amount:Math.abs(delta),delta,type,ref:ref||'',note:note||''})}
+function cashMove(sessionId,amount,type,ref,note){
+ const raw=Number(amount);if(!Number.isFinite(raw))throw Error('مبلغ گردش صندوق معتبر نیست');
+ const delta=cashRound(raw);if(Math.abs(delta)<0.005)throw Error('مبلغ گردش صندوق باید بیشتر از صفر باشد');
+ const cs=(db.cashSessions||[]).find(x=>x.id===sessionId);
+ if(!cs||cs.status!=='open')throw Error('گردش وجه فقط در صندوق باز مجاز است');
+ const expected=cashSessionExpected(cs);
+ if(delta<0&&expected+delta<-0.005)throw Error('موجودی نقدی صندوق ('+money(expected)+') برای این پرداخت کافی نیست');
+ const row={id:uid(),date:now(),sessionId,amount:Math.abs(delta),delta,type:String(type||'').trim(),ref:ref||'',note:note||''};
+ if(!row.type)throw Error('نوع گردش صندوق مشخص نشده است');
+ db.cashMovements.push(row);return row;
+}
 /* ---- shared finance services (UI forms and AI assistant call the same functions) ---- */
 function recordIncome(amount,note,accountRaw,source){
   const amt=cashParseAmount(amount);if(amt===null||!(roundMoney(amt)>0))throw Error('مبلغ درآمد معتبر نیست');
