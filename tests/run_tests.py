@@ -2159,3 +2159,34 @@ async def bulk_barcode_generation_is_atomic_and_preserves_existing_codes(br,c):
     c.true(r['health'],'bulk barcode operations preserve catalog integrity')
     c.eq(r['errors'],[],'bulk barcode actions produce no browser errors')
     await ctx.close()
+
+@test
+async def invalid_variant_wizard_input_never_mutates_catalog(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const count=db.models.length,original=modelBy(S.m).name;
+      productModal();
+      document.querySelector('#mn').value='کالای نامعتبر';
+      document.querySelector('#mf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      document.querySelector('#customColor').value='سبز';
+      document.querySelector('.vs').checked=true;
+      document.querySelector('#buy').value='-1';
+      document.querySelector('#makeVariants').click();
+      const createUnchanged=db.models.length===count&&!db.models.some(x=>x.name==='کالای نامعتبر');
+      closeModal();
+      productModal(S.m);
+      document.querySelector('#mn').value='نامی که نباید ذخیره شود';
+      document.querySelector('#mf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      document.querySelector('#customColor').value='آبی';
+      document.querySelector('.vs').checked=true;
+      document.querySelector('#sell').value='-5';
+      document.querySelector('#makeVariants').click();
+      const editUnchanged=modelBy(S.m).name===original;
+      return{createUnchanged,editUnchanged,health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    """)
+    c.true(r['createUnchanged'],'invalid new product prices do not insert a partial model')
+    c.true(r['editUnchanged'],'invalid edit prices do not mutate the existing model')
+    c.true(r['health'],'rejected variant wizard input preserves catalog integrity')
+    c.eq(r['errors'],[],'invalid wizard validation produces no browser errors')
+    await ctx.close()
