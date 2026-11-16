@@ -2778,4 +2778,126 @@ async def account_reconciliation_flags_unassigned_customer_and_supplier_balances
     await ctx.close()
 
 
+@test
+async def warehouse_movement_chain_reconciliation_detects_drift(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      await T.buy(S,S.v,3,1000,{cash:3000});
+      const before=reconcileAccounts();
+      const row=db.warehouseMoves.find(x=>x.variantId===S.v&&x.warehouseId==='MAIN');
+      const old=row.balance;
+      row.balance=old+1;
+      const broken=reconcileAccounts();
+      const brokenItem=broken.items.find(x=>x.code==='warehouseMovements');
+      row.balance=old;
+      const repaired=reconcileAccounts();
+      const repairedItem=repaired.items.find(x=>x.code==='warehouseMovements');
+      return{before:before.ok,broken:broken.ok,brokenStatus:brokenItem.status,
+        issues:broken.warehouseMovementIssues,repaired:repaired.ok,
+        repairedStatus:repairedItem.status,stock:variantBy(S.v).stock,
+        warehouse:db.warehouseStocks.MAIN[S.v]};
+    """)
+    c.true(r['before'],'warehouse movement history reconciles after purchase')
+    c.true(not r['broken'],'reconciliation fails when a movement balance is altered')
+    c.eq(r['brokenStatus'],'mismatch','movement mismatch is exposed as a reconciliation item')
+    c.true(any('آخرین مانده گردش' in x for x in r['issues']),'latest movement snapshot is compared with current warehouse balance')
+    c.true(r['repaired'],'restoring movement history restores reconciliation')
+    c.eq(r['repairedStatus'],'ok','movement reconciliation returns to ok')
+    c.eq(r['stock'],r['warehouse'],'global and warehouse quantities remain aligned')
+    c.eq(pg.errs,[],'warehouse movement reconciliation produces no browser errors')
+    await ctx.close()
+
+
+@test
+async def fifo_purchase_return_removes_original_purchase_layer_cost(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({costing:'fifo'});
+      const p1=await T.buy(S,S.v,2,1000,{cash:2000});
+      await T.buy(S,S.v,2,2000,{card:4000});
+      const source=db.purchaseItems.find(x=>x.id===p1.items[0]);
+      const ret=Fin.purchaseReturn({ref:p1.number,qtys:{[source.id]:1},method:'card'});
+      const layers=db.costLayers[S.v]||[];
+      const sourceLayer=layers.find(x=>x.source==='purchase'&&x.ref===p1.number);
+      const laterLayer=layers.find(x=>x.source==='purchase'&&x.ref!==p1.number);
+      const rec=reconcileAccounts();
+      return{cost:ret.costTotal,refund:ret.total,sourceRemaining:sourceLayer?.remaining,
+        laterRemaining:laterLayer?.remaining,costValue:costValue(),
+        inventory:accountBalance('inventory'),variance:db.journal.find(j=>j.returnId===ret.id)?.lines.find(x=>x.account==='purchaseReturnVariance'),
+        reconciled:rec.ok,health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced()};
+    """)
+    c.eq(r['cost'],1000,'FIFO return removes the cost of the original purchase layer')
+    c.eq(r['refund'],1000,'supplier refund follows the original purchase line amount')
+    c.eq(r['sourceRemaining'],1,'only the returned quantity is removed from the source layer')
+    c.eq(r['laterRemaining'],2,'later purchase layer remains untouched')
+    c.eq(r['costValue'],5000,'remaining FIFO layers retain their exact carrying value')
+    c.eq(r['inventory'],5000,'inventory control account equals remaining FIFO layer value')
+    c.true(r['variance'] is None,'return at original layer cost creates no price variance')
+    c.true(r['reconciled'],'FIFO purchase return reconciles with the ledger')
+    c.true(r['health'],'FIFO purchase return passes health validation')
+    c.eq(r['unbalanced'],0,'FIFO return journal remains balanced')
+    c.eq(pg.errs,[],'FIFO purchase return produces no browser errors')
+    await ctx.close()
+
+
+@test
+async def net_profit_includes_purchase_return_variance_and_inventory_adjustments(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({costing:'weighted_average'});
+      const p1=await T.buy(S,S.v,2,1000,{cash:2000});
+      await T.buy(S,S.v,2,2000,{card:4000});
+      const item=db.purchaseItems.find(x=>x.id===p1.items[0]);
+      const before=profit();
+      const ret=Fin.purchaseReturn({ref:p1.number,qtys:{[item.id]:1},method:'card'});
+      const afterReturn=profit();
+      stockMoveV21(S.v,-1,'adjustment','ADJ-NET-PROFIT',1500,undefined,'MAIN');
+      const afterAdjustment=profit();
+      page='reports';render();
+      const reportText=document.querySelector('#content').innerText;
+      return{before,afterReturn,afterAdjustment,variance:db.journal.find(j=>j.returnId===ret.id)?.lines.find(x=>x.account==='purchaseReturnVariance'),
+        adjustment:db.journal.find(j=>j.ref.includes('ADJ-NET-PROFIT'))?.lines.find(x=>x.account==='inventoryAdjustment'),
+        reportVisible:reportText.includes('سود خالص حسابداری'),health:runYouniqueHealthCheck().ok,
+        reconciliation:reconcileAccounts().ok,unbalanced:T.unbalanced()};
+    """)
+    c.eq(r['before'],0,'purchases alone do not create profit or loss')
+    c.eq(r['afterReturn'],-500,'purchase return price/carrying-cost difference reduces net profit')
+    c.eq(r['afterAdjustment'],-2000,'inventory write-off is included in net accounting profit')
+    c.true(r['variance'] is not None,'purchase return variance is posted')
+    c.true(r['adjustment'] is not None,'inventory adjustment is posted to the profit and loss ledger')
+    c.true(r['reportVisible'],'management report exposes net accounting profit')
+    c.true(r['health'],'profit adjustments preserve data integrity')
+    c.true(r['reconciliation'],'inventory ledger remains reconciled after adjustment')
+    c.eq(r['unbalanced'],0,'profit-impacting journals remain balanced')
+    c.eq(pg.errs,[],'net profit report renders without browser errors')
+    await ctx.close()
+
+
+@test
+async def health_check_detects_purchase_return_cost_journal_drift(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({costing:'weighted_average'});
+      const p=await T.buy(S,S.v,2,1000,{cash:2000});
+      await T.buy(S,S.v,2,2000,{card:4000});
+      const source=db.purchaseItems.find(x=>x.id===p.items[0]);
+      const ret=Fin.purchaseReturn({ref:p.number,qtys:{[source.id]:1},method:'card'});
+      const jr=db.journal.find(x=>x.returnId===ret.id);
+      const valid=runYouniqueHealthCheck();
+      const inv=jr.lines.find(x=>x.account==='inventory');
+      const variance=jr.lines.find(x=>x.account==='purchaseReturnVariance');
+      inv.credit+=1;variance.debit+=1;jr.debit+=1;jr.credit+=1;
+      const broken=runYouniqueHealthCheck();
+      return{valid:valid.ok,broken:broken.ok,issues:broken.issues,
+        journalBalanced:Math.abs(jr.debit-jr.credit)<0.01};
+    """)
+    c.true(r['valid'],'correct purchase return cost and journal pass health check')
+    c.true(not r['broken'],'health check rejects a balanced but incorrectly valued return journal')
+    c.true(any('بهای برگشت خرید با سند موجودی' in x for x in r['issues']),'return valuation linkage error is identified precisely')
+    c.true(r['journalBalanced'],'test corruption preserves journal balance to isolate the valuation check')
+    c.eq(pg.errs,[],'purchase return journal validation produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
