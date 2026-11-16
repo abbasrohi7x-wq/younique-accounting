@@ -1687,6 +1687,7 @@ function runYouniqueHealthCheck(){
       if(!doc||doc.status!=='confirmed'){issues.push('سند اصلی برگشت پیدا نشد یا معتبر نیست: '+(ret.ref||ret.id||''));continue}
       const items=Array.isArray(ret.items)?ret.items:[];
       if(!items.length)issues.push('برگشت بدون قلم: '+(ret.ref||ret.id||''));
+      let itemAmount=0,itemCost=0,hasItemAmounts=items.length>0,hasItemCosts=items.length>0;
       for(const item of items){
         const source=sourceRows.find(x=>x.id===item[sourceKey]);
         const label=(ret.ref||ret.id||'')+' / '+(item[sourceKey]||'قلم بدون شناسه');
@@ -1697,9 +1698,36 @@ function runYouniqueHealthCheck(){
         const key=kind+'|'+source.id,used=(returnQty.get(key)||0)+(Number.isFinite(qty)?qty:0);
         returnQty.set(key,used);
         if(used>num(source.qty)+1e-9)issues.push('مجموع برگشت از تعداد فاکتور اصلی بیشتر است: '+label);
+        const amount=kind==='sale'?(item.net!==undefined?Number(item.net):Number(item.total)):Number(item.refund!==undefined?item.refund:item.total);
+        if(!Number.isFinite(amount)||amount<0)hasItemAmounts=false;else itemAmount+=amount;
+        const cost=item.costTotal!==undefined?Number(item.costTotal):(item.cost!==undefined?Number(item.cost)*qty:NaN);
+        if(!Number.isFinite(cost)||cost<0)hasItemCosts=false;else itemCost+=cost;
       }
-      if(!(db.journal||[]).some(j=>j.returnId===ret.id))issues.push('سند حسابداری برگشت مفقود است: '+(ret.ref||ret.id||''));
+      const linkedJournals=(db.journal||[]).filter(j=>j.returnId===ret.id);
+      if(linkedJournals.length!==1)issues.push('سند حسابداری برگشت مفقود یا تکراری است: '+(ret.ref||ret.id||''));
       if(!Number.isFinite(Number(ret.total))||num(ret.total)<0)issues.push('مبلغ برگشت نامعتبر است: '+(ret.ref||ret.id||''));
+      if(hasItemAmounts&&Math.abs(roundMoney(itemAmount)-num(ret.total))>.01)issues.push('جمع مبالغ اقلام با مبلغ برگشت برابر نیست: '+(ret.ref||ret.id||''));
+      const costKnown=ret.costTotal!==undefined||hasItemCosts;
+      const costTotal=ret.costTotal!==undefined?Number(ret.costTotal):itemCost;
+      if(costKnown&&(!Number.isFinite(costTotal)||costTotal<0))issues.push('بهای تمام‌شده برگشت نامعتبر است: '+(ret.ref||ret.id||''));
+      if(costKnown&&hasItemCosts&&Math.abs(roundMoney(itemCost)-roundMoney(costTotal))>.01)issues.push('جمع بهای اقلام با بهای تمام‌شده برگشت برابر نیست: '+(ret.ref||ret.id||''));
+      const journal=linkedJournals[0];
+      if(journal&&costKnown){
+        const amount=(account,side)=>(journal.lines||[]).filter(l=>l.account===account).reduce((sum,l)=>sum+num(l[side]),0);
+        if(kind==='sale'){
+          if(Math.abs(amount('inventory','debit')-costTotal)>.01||Math.abs(amount('cogs','credit')-costTotal)>.01)issues.push('بهای برگشت فروش با سند موجودی و بهای تمام‌شده برابر نیست: '+(ret.ref||ret.id||''));
+        }else{
+          const variance=roundMoney(num(ret.total)-costTotal);
+          if(Math.abs(amount('inventory','credit')-costTotal)>.01||Math.abs(amount('purchaseReturnVariance','credit')-Math.max(0,variance))>.01||Math.abs(amount('purchaseReturnVariance','debit')-Math.max(0,-variance))>.01)issues.push('بهای برگشت خرید با سند موجودی و اختلاف قیمت برابر نیست: '+(ret.ref||ret.id||''));
+        }
+      }
+      if(journal&&ret.method){
+        const amount=(account,side)=>(journal.lines||[]).filter(l=>l.account===account).reduce((sum,l)=>sum+num(l[side]),0);
+        const settlement=kind==='sale'?(ret.refund!==undefined?num(ret.refund):num(ret.total)):num(ret.total);
+        const account=ret.method==='credit'?(kind==='sale'?'receivable':'payable'):ret.method;
+        const side=kind==='sale'?'credit':'debit';
+        if(Math.abs(amount(account,side)-settlement)>.01)issues.push('مبلغ تسویه با سند برگشت برابر نیست: '+(ret.ref||ret.id||''));
+      }
     }
   }catch(e){issues.push('خطای کنترل سلامت: '+(e.message||e))}
   return {ok:issues.length===0,issues,version:window.YOUNIQUE_VERSION};
