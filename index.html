@@ -1687,6 +1687,28 @@ function runYouniqueHealthCheck(){
     }
     const checkInvoicePayments=(docs,type)=>{for(const doc of docs||[]){if(doc.status!=='confirmed'||!Array.isArray(doc.payments)||!doc.payments.length)continue;const label=doc.number||doc.id||'بدون شماره';let cash=0,credit=0,invalid=false;for(const payment of doc.payments){const amount=Number(payment?.amount);if(!Number.isFinite(amount)||amount<0||!['cash','card','bank','credit'].includes(payment?.account)){invalid=true;continue}if(payment.account==='credit')credit+=amount;else cash+=amount}const total=roundMoney(cash+credit);if(invalid||Math.abs(total-num(doc.total))>.01||Math.abs(roundMoney(cash)-num(doc.paid))>.01||Math.abs(roundMoney(credit)-num(doc.due))>.01)issues.push('مغایرت تفکیک پرداخت فاکتور '+(type==='sale'?'فروش ':'خرید ')+label)}};
     checkInvoicePayments(db.sales,'sale');checkInvoicePayments(db.purchases,'purchase');
+    // Reconcile every cash/card/bank payment row to exactly one journal reference.
+    // Split invoice tenders are grouped by reference, account and direction before comparison.
+    const paymentGroups=new Map();
+    for(const payment of (db.payments||[])){
+      const ref=String(payment?.ref||'').trim(),account=String(payment?.account||'').trim(),direction=String(payment?.direction||'').trim();
+      const amount=Number(payment?.amount);
+      if(!ref||!['cash','card','bank'].includes(account)||!['in','out'].includes(direction)||!Number.isFinite(amount)||amount<=0){
+        issues.push('تراکنش پرداخت با مرجع، حساب، جهت یا مبلغ نامعتبر: '+String(payment?.id||ref||'بدون شناسه'));continue;
+      }
+      const key=[ref,account,direction].join('|');
+      const group=paymentGroups.get(key)||{ref,account,direction,amount:0,count:0};
+      group.amount+=amount;group.count++;paymentGroups.set(key,group);
+    }
+    for(const group of paymentGroups.values()){
+      const linked=(db.journal||[]).filter(j=>String(j.ref||'')===group.ref);
+      if(linked.length!==1){issues.push('پرداخت فاقد سند حسابداری یکتا یا دارای ارجاع تکراری است: '+group.ref);continue}
+      const side=group.direction==='in'?'debit':'credit';
+      const posted=roundMoney((linked[0].lines||[]).filter(l=>l.account===group.account).reduce((sum,l)=>sum+num(l[side]),0));
+      if(Math.abs(posted-roundMoney(group.amount))>.01)
+        issues.push('مبلغ پرداخت با گردش حساب '+group.account+' در سند برابر نیست: '+group.ref);
+    }
+
     for(const j of (db.journal||[])){
       const debit=num(j.debit),credit=num(j.credit);
       if(Math.abs(debit-credit)>.01)issues.push('سند نامتوازن: '+(j.ref||j.id));
