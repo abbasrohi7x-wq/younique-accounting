@@ -2363,4 +2363,33 @@ async def purchase_order_partial_receipts_get_unique_traceable_refs_and_legacy_w
     await ctx.close()
 
 
+@test
+async def variant_edit_rejects_case_insensitive_barcode_and_rolls_back_failed_save(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const v=variantBy(S.v);
+      const sibling={...v,id:'variant-case-barcode',size:String(Number(v.size)+1),barcode:'Case-Barcode-42',sku:'SKU-CASE-42'};
+      db.variants.push(sibling);
+      variantEdit(S.v);document.querySelector('#vb').value='case-barcode-42';
+      document.querySelector('#vf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      const duplicateRejected=variantBy(S.v).barcode!== 'case-barcode-42';
+      const before=variantBy(S.v),snapshot={color:before.color,size:before.size,barcode:before.barcode,
+        sku:before.sku,purchasePrice:before.purchasePrice,sellPrice:before.sellPrice,minStock:before.minStock};
+      variantEdit(S.v);document.querySelector('#vc').value='تغییر نباید ذخیره شود';
+      const originalSave=window.saveDB;window.saveDB=()=>false;
+      document.querySelector('#vf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      window.saveDB=originalSave;
+      const after=variantBy(S.v);
+      const unchanged=JSON.stringify({color:after.color,size:after.size,barcode:after.barcode,sku:after.sku,
+        purchasePrice:after.purchasePrice,sellPrice:after.sellPrice,minStock:after.minStock})===JSON.stringify(snapshot);
+      return{duplicateRejected,unchanged,health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    """)
+    c.true(r['duplicateRejected'],'barcode uniqueness is case-insensitive')
+    c.true(r['unchanged'],'failed persistence restores the original variant values')
+    c.true(r['health'],'variant edit rollback preserves catalog integrity')
+    c.eq(r['errors'],[],'variant edit persistence failure is handled without browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
