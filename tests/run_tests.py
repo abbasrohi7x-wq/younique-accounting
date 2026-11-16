@@ -274,6 +274,70 @@ async def bulk_variant_price_edit_is_atomic_on_storage_failure(br,c):
 
 
 @test
+async def grouped_color_size_creation_skips_existing_combinations(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      const original=variantBy(S.v);
+      page='products';render();productModal(S.m);
+      document.querySelector('#mf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      const color=[...document.querySelectorAll('.vc')].find(x=>x.value===original.color);
+      const size=[...document.querySelectorAll('.vs')].find(x=>x.value===String(original.size));
+      const nextSize=[...document.querySelectorAll('.vs')].find(x=>x.value!==String(original.size));
+      if(!color||!size||!nextSize)throw Error('required color/size choices are unavailable');
+      color.checked=true;size.checked=true;nextSize.checked=true;
+      document.querySelector('#customColor').value='سفید گروهی';
+      document.querySelector('#makeVariants').click();
+      const rows=db.variants.filter(v=>v.modelId===S.m);
+      return{count:rows.length,uniqueCombos:new Set(rows.map(v=>String(v.color).trim().toLowerCase()+'|'+String(v.size).trim())).size,
+        completeCodes:rows.every(v=>v.barcode&&v.sku),
+        uniqueBarcodes:new Set(rows.map(v=>v.barcode)).size===rows.length,
+        uniqueSkus:new Set(rows.map(v=>v.sku.toLowerCase())).size===rows.length,
+        health:runYouniqueHealthCheck().ok,errors:[]};
+    ''')
+    c.eq(r['count'],4,'two colors by two sizes create four total variants, including the existing one')
+    c.eq(r['uniqueCombos'],4,'every color/size combination is unique')
+    c.true(r['completeCodes'],'all generated variants receive SKU and barcode')
+    c.true(r['uniqueBarcodes'],'generated barcodes are unique')
+    c.true(r['uniqueSkus'],'generated SKUs are unique')
+    c.true(r['health'],'grouped variant creation preserves catalog integrity')
+    c.eq(r['errors'],[],'grouped color/size creation has no browser errors')
+    await ctx.close()
+
+
+@test
+async def purchase_sale_items_and_stock_movements_share_invoice_references(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      const purchase=await T.buy(S,S.v,6,1200,{cash:7200});
+      const sale=await T.sell(S,S.v,2,1800,{cash:3600});
+      const pi=db.purchaseItems.find(x=>purchase&&purchase.items.includes(x.id));
+      const si=db.saleItems.find(x=>sale&&sale.items.includes(x.id));
+      const pm=db.stockMoves.find(x=>x.type==='purchase'&&x.ref===purchase.number&&x.variantId===S.v);
+      const sm=db.stockMoves.find(x=>x.type==='sale'&&x.ref===sale.number&&x.variantId===S.v);
+      const pj=db.journal.find(x=>x.purchaseId===purchase.id&&!x.reversalOf);
+      const sj=db.journal.find(x=>x.saleId===sale.id&&!x.reversalOf);
+      return{purchase:!!purchase,sale:!!sale,purchaseLine:pi&&[pi.variantId,pi.qty,pi.unitPrice,pi.total],
+        saleLine:si&&[si.variantId,si.qty,si.unitPrice,si.total],
+        purchaseMove:pm&&[pm.qty,pm.ref,pm.warehouseId],saleMove:sm&&[sm.qty,sm.ref,sm.warehouseId],
+        journalLinks:!!pj&&!!sj,stock:variantBy(S.v).stock,
+        health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:[]};
+    ''')
+    c.true(r['purchase'] and r['sale'],'purchase and sale both save successfully')
+    c.eq(r['purchaseLine'],[r['purchaseLine'][0],6,1200,7200],'purchase item stores exact variant, quantity and unit cost')
+    c.eq(r['saleLine'],[r['saleLine'][0],2,1800,3600],'sale item stores exact variant, quantity and unit price')
+    c.eq(r['purchaseMove'][0],6,'purchase movement increases stock by purchased quantity')
+    c.eq(r['purchaseMove'][1],r['purchaseLine'][0] and r['purchaseMove'][1],'purchase movement carries its invoice reference')
+    c.eq(r['saleMove'][0],-2,'sale movement decreases stock by sold quantity')
+    c.eq(r['saleMove'][1],r['saleMove'][1],'sale movement has an invoice reference')
+    c.true(r['journalLinks'],'purchase and sale journals link back to their invoice records')
+    c.eq(r['stock'],4,'stock equals purchase quantity minus sale quantity')
+    c.true(r['health'],'purchase-to-sale flow preserves data integrity')
+    c.eq(r['unbalanced'],0,'purchase and sale journals remain balanced')
+    c.eq(r['errors'],[],'purchase-to-sale linkage produces no browser errors')
+    await ctx.close()
+
+
+@test
 async def invalid_inputs_are_rejected(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,10,1000,{cash:10000});const n0=db.sales.length;
       await T.sell(S,S.v,-2,1500,{cash:100});await T.sell(S,S.v,0.5,1500,{cash:100});await T.sell(S,S.v,1,1500,{cash:0},999999);await T.sell(S,S.v,99,1500,{cash:100});
