@@ -360,7 +360,23 @@ function accountBalance(account,partyType='',partyId=''){let n=0;for(const j of 
 function customerBalance(id){return Math.max(0,accountBalance('receivable','customer',id))}
 function supplierBalance(id){return Math.max(0,-accountBalance('payable','supplier',id))}
 function paymentAccount(account){const a=String(account||'cash').trim().toLowerCase();return (a==='card'||/کارت/.test(a))?'card':(a==='bank'||/بانک|حواله|شبا/.test(a))?'bank':'cash'}
-function recordPayment(p){const amount=num(p.amount),acct=paymentAccount(p.account);if(amount<=0)throw Error('مبلغ تراکنش معتبر نیست');if(acct==='cash'&&!activeCashSession())throw Error('برای تراکنش نقدی ابتدا صندوق را باز کنید');const row={id:uid(),date:now(),...p,amount};db.payments.push(row);const party=p.partyType==='customer'?'receivable':p.partyType==='supplier'?'payable':null;if(p.direction==='in'){postJournal(p.ref||row.id,'دریافت وجه',[{account:acct,debit:amount,credit:0},{account:party||'income',debit:0,credit:amount,partyType:p.partyType,partyId:p.partyId}])}else{postJournal(p.ref||row.id,'پرداخت وجه',[{account:party||'expense',debit:amount,credit:0,partyType:p.partyType,partyId:p.partyId},{account:acct,debit:0,credit:amount}])}if(acct==='cash')cashMove(activeCashSession().id,p.direction==='in'?amount:-amount,p.direction==='in'?'receipt':'payment',p.ref||row.id,p.note||'');audit(p.direction==='in'?'دریافت وجه':'پرداخت وجه',p.partyId||'',p.note||'');return row}
+function recordPayment(p){
+ if(!p||typeof p!=='object')throw Error('اطلاعات تراکنش معتبر نیست');
+ const direction=String(p.direction||'').trim().toLowerCase();if(direction!=='in'&&direction!=='out')throw Error('نوع تراکنش باید دریافت یا پرداخت باشد');
+ const rawAmount=Number(p.amount);if(!Number.isFinite(rawAmount)||rawAmount<=0)throw Error('مبلغ تراکنش معتبر نیست');
+ const amount=roundMoney(rawAmount),acct=paymentAccount(p.account),partyType=String(p.partyType||'other').trim().toLowerCase();
+ if(!['customer','supplier','other'].includes(partyType))throw Error('نوع طرف حساب تراکنش معتبر نیست');
+ if((partyType==='customer'||partyType==='supplier')&&!String(p.partyId||'').trim())throw Error('انتخاب طرف حساب الزامی است');
+ return atomic('ثبت دریافت/پرداخت',()=>{
+  const session=acct==='cash'?activeCashSession():null;if(acct==='cash'&&!session)throw Error('برای تراکنش نقدی ابتدا صندوق را باز کنید');
+  const id=uid(),ref=String(p.ref||id),row={...p,id,date:now(),amount,direction,account:acct,partyType,partyId:p.partyId||''};
+  db.payments.push(row);const party=partyType==='customer'?'receivable':partyType==='supplier'?'payable':null;
+  if(direction==='in')postJournal(ref,'دریافت وجه',[{account:acct,debit:amount,credit:0},{account:party||'income',debit:0,credit:amount,partyType,partyId:row.partyId}]);
+  else postJournal(ref,'پرداخت وجه',[{account:party||'expense',debit:amount,credit:0,partyType,partyId:row.partyId},{account:acct,debit:0,credit:amount}]);
+  if(session)cashMove(session.id,direction==='in'?amount:-amount,direction==='in'?'receipt':'payment',ref,p.note||'');
+  audit(direction==='in'?'دریافت وجه':'پرداخت وجه',row.partyId,p.note||'');return row;
+ });
+}
 function addPayment(p){return recordPayment(p)}
 const memo={key:'',value:null};
 function saleReturnProfitValue(r){const original=(db.sales||[]).find(s=>s.number===r.ref),vat=original&&original.vatMode==='inclusive'?num(r.vat):0;return roundMoney(num(r.total)-vat-num(r.costTotal))}
