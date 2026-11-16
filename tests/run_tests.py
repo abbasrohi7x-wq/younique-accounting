@@ -1926,4 +1926,26 @@ async def purchase_order_receipt_uses_order_destination_warehouse(br,c):
     await ctx.close()
 
 
+@test
+async def purchase_receipt_rejects_fractional_quantity_without_mutation(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      await T.buy(S,S.v,3,1000,{cash:3000});
+      const po={id:'PO-FRACTION',number:'PO-FRACTION',status:'draft',supplierId:'',
+        warehouseId:'MAIN',lines:[{variantId:S.v,qty:2,received:0,unitCost:1000}],total:2000};
+      db.purchaseOrders.push(po);
+      const snap=()=>JSON.stringify({stock:variantBy(S.v).stock,warehouse:db.warehouseStocks.MAIN[S.v],
+        moves:db.stockMoves.length,journal:db.journal.length,received:po.lines[0].received,status:po.status});
+      const before=snap();window.receivePO(po.id);
+      const form=document.querySelector('#rof41');
+      form.querySelector('[data-rq41="0"]').value='1.5';
+      form.onsubmit({preventDefault(){}});
+      return{before,after:snap(),errors:pg.errs};
+    """)
+    c.eq(r['after'],r['before'],'fractional receipt is rejected before any inventory or accounting mutation')
+    c.eq(r['errors'],[],'invalid fractional receipt produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
