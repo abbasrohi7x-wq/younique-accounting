@@ -2722,7 +2722,7 @@ async def variant_report_includes_active_variants_without_sales_or_purchase_hist
         netRevenue:row.netRevenue,netCogs:row.netCogs,grossProfit:row.grossProfit,
         purchasedQty:row.purchasedQty,netPurchasedQty:row.netPurchasedQty},
         visible:body.includes('سودآوری و موجودی هر تنوع کالا')&&!!document.querySelector('[data-variant-performance="'+v.id+'"]'),
-        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+        health:runYouniqueHealthCheck().ok};
     """)
     c.true(r['found'],'active variant without invoice history is included')
     c.eq(r['metrics'],{'stock':2,'warehouseTotal':2,'warehouseDifference':0,'warehouseBalanced':True,
@@ -2730,7 +2730,7 @@ async def variant_report_includes_active_variants_without_sales_or_purchase_hist
       'purchasedQty':0,'netPurchasedQty':0},'stock-only variant has zero turnover and reconciled warehouse quantities')
     c.true(r['visible'],'stock-only variant is rendered in the management report')
     c.true(r['health'],'stock-only variant passes integrity validation')
-    c.eq(r['errors'],[],'stock-only report renders without browser errors')
+    c.eq(pg.errs,[],'stock-only report renders without browser errors')
     await ctx.close()
 
 
