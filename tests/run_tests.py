@@ -1530,4 +1530,32 @@ async def returns_cannot_exceed_original_quantity_or_be_voided(br,c):
     c.eq(pg.errs,[],'return guardrails produce no uncaught browser errors')
     await ctx.close()
 
+@test
+async def invoice_payment_split_reconciliation_is_reported(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\"
+      const S=await T.seed({});
+      const purchase=await T.buy(S,S.v,3,1000,{cash:3000});
+      const sale=await T.sell(S,S.v,1,1500,{cash:1500});
+      const healthy=runYouniqueHealthCheck();
+      sale.payments[0].amount+=1;
+      const brokenSale=runYouniqueHealthCheck();
+      sale.payments[0].amount-=1;
+      purchase.due=1;
+      const brokenPurchase=runYouniqueHealthCheck();
+      purchase.due=0;
+      const repaired=runYouniqueHealthCheck();
+      return{healthy:healthy.ok,sale:brokenSale.issues.some(x=>x.includes('مغایرت تفکیک پرداخت فاکتور فروش')),
+        purchase:brokenPurchase.issues.some(x=>x.includes('مغایرت تفکیک پرداخت فاکتور خرید')),
+        repaired:repaired.ok,unb:T.unbalanced()};
+    \"\")
+    c.true(r['healthy'],'valid sale and purchase payment splits pass health check')
+    c.true(r['sale'],'sale payment amount mismatch is detected')
+    c.true(r['purchase'],'purchase paid/due mismatch is detected')
+    c.true(r['repaired'],'restoring invoice payment values clears integrity warnings')
+    c.eq(r['unb'],0,'payment split validation does not unbalance accounting journals')
+    c.eq(pg.errs,[],'invoice payment reconciliation produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
