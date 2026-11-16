@@ -1285,4 +1285,34 @@ async def offline_voice_dialog_uses_local_assistant_and_manual_fallback(br,c):
     await ctx.close()
 
 
+
+@test
+async def cash_session_open_and_close_roll_back_on_persistence_failure(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const original=window.saveDB;
+      db.cashSessions=[];db.cashMovements=[];db.journal=[];db.audit=[];saveDB(true);
+      const j0=db.journal.length;
+      window.saveDB=()=>false;let openError='';
+      try{openCashSession(500,'failed open','test')}catch(e){openError=e.message}
+      window.saveDB=original;
+      const openState={error:!!openError,sessions:db.cashSessions.length,journals:db.journal.length-j0,
+        openingAudits:db.audit.filter(x=>x.action==='باز کردن صندوق').length};
+      const session=openCashSession(1000,'close test','test');
+      const expected=cashSessionExpected(session),beforeJ=db.journal.length;
+      window.saveDB=()=>false;let closeError='';
+      try{closeCashSession(expected-100,'variance test','test')}catch(e){closeError=e.message}
+      window.saveDB=original;
+      const active=activeCashSession();
+      return{openState,close:{error:!!closeError,status:active?.status,journalDelta:db.journal.length-beforeJ,
+        varianceRef:active?.varianceJournalRef||null,expected:cashSessionExpected(active),opening:active?.openingCash},
+        health:runYouniqueHealthCheck().ok,pageErrors:pg.errs}''')
+    c.eq(r['openState'],{error:true,sessions:0,journals:0,openingAudits:0},
+      'failed cash opening rolls back session, opening journal and opening audit')
+    c.eq(r['close'],{error:true,status:'open',journalDelta:0,varianceRef:null,expected:1000,opening:1000},
+      'failed cash closing rolls back variance journal and keeps the session open')
+    c.true(r['health'],'cash persistence rollback preserves a healthy database')
+    c.eq(r['pageErrors'],[],'cash rollback produces no uncaught browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())

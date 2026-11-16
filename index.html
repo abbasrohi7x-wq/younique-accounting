@@ -1198,28 +1198,33 @@ function transferFunds(from,to,amount,note,source){
 function cashParseAmount(v){if(typeof v==='number')return Number.isFinite(v)?v:null;const t=String(v??'').replace(/[٬,\s]/g,'').replace(/[۰-۹]/g,d=>'۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g,d=>'٠١٢٣٤٥٦٧٨٩'.indexOf(d));if(t==='')return null;const x=Number(t);return Number.isFinite(x)?x:null}
 function openCashSession(amount,note,source){
   ensureV17();
-  if(activeCashSession())throw Error('صندوق دیگری باز است');
-  const rawA=cashParseAmount(amount);if(rawA===null)throw Error('مبلغ موجودی اولیه معتبر نیست');
-  const openingCash=cashRound(rawA);
-  if(!Number.isFinite(openingCash)||openingCash<0)throw Error('موجودی اولیه نمی‌تواند منفی یا نامعتبر باشد');
-  const firstSession=db.cashSessions.length===0;
-  const row={id:uid(),number:nextCashSessionNumber(),date:now(),status:'open',openingCash,opening:openingCash,openedBy:source==='ai'?'ai':'local',openedAt:now(),note:String(note||'').trim()};
-  db.cashSessions.push(row);
-  try{postCashOpeningJournal(row,firstSession);audit('باز کردن صندوق'+(source==='ai'?' (دستیار)':''),row.number,String(row.openingCash));if(saveDB(true)===false)throw Error('ذخیره اطلاعات ناموفق بود')}
-  catch(err){const i=db.cashSessions.indexOf(row);if(i>=0)db.cashSessions.splice(i,1);throw err}
-  return row;
+  return atomic('باز کردن صندوق',()=>{
+    if(activeCashSession())throw Error('صندوق دیگری باز است');
+    const rawA=cashParseAmount(amount);if(rawA===null)throw Error('مبلغ موجودی اولیه معتبر نیست');
+    const openingCash=cashRound(rawA);
+    if(!Number.isFinite(openingCash)||openingCash<0)throw Error('موجودی اولیه نمی‌تواند منفی یا نامعتبر باشد');
+    const firstSession=db.cashSessions.length===0;
+    const row={id:uid(),number:nextCashSessionNumber(),date:now(),status:'open',openingCash,opening:openingCash,openedBy:source==='ai'?'ai':'local',openedAt:now(),note:String(note||'').trim()};
+    db.cashSessions.push(row);
+    postCashOpeningJournal(row,firstSession);
+    audit('باز کردن صندوق'+(source==='ai'?' (دستیار)':''),row.number,String(row.openingCash));
+    if(saveDB(true)===false)throw Error('ذخیره اطلاعات ناموفق بود');
+    return row;
+  });
 }
 function closeCashSession(actualAmount,note,source){
-  const s=activeCashSession();if(!s)throw Error('صندوق بازی وجود ندارد');
-  const rawC=cashParseAmount(actualAmount);if(rawC===null)throw Error('مبلغ شمارش‌شده معتبر نیست');
-  const expected=cashSessionExpected(s),actual=cashRound(rawC),diff=cashRound(actual-expected),n=String(note||'').trim();
-  if(!Number.isFinite(actual)||actual<0)throw Error('موجودی شمارش‌شده نمی‌تواند منفی یا نامعتبر باشد');
-  if(Math.abs(diff)>=0.005&&!n)throw Error('برای اختلاف صندوق، شرح وارد کنید');
-  postCashVarianceJournal(s,diff);
-  s.status='closed';s.closedAt=now();s.closing=actual;s.actualCash=actual;s.expectedCash=expected;s.difference=diff;s.variance=diff;s.closeNote=n;
-  audit('بستن صندوق'+(source==='ai'?' (دستیار)':''),s.number,`مورد انتظار ${expected} · واقعی ${actual} · اختلاف ${diff}`);
-  saveDB(true);
-  return{number:s.number,expected,actual,diff};
+  return atomic('بستن صندوق',()=>{
+    const s=activeCashSession();if(!s)throw Error('صندوق بازی وجود ندارد');
+    const rawC=cashParseAmount(actualAmount);if(rawC===null)throw Error('مبلغ شمارش‌شده معتبر نیست');
+    const expected=cashSessionExpected(s),actual=cashRound(rawC),diff=cashRound(actual-expected),n=String(note||'').trim();
+    if(!Number.isFinite(actual)||actual<0)throw Error('موجودی شمارش‌شده نمی‌تواند منفی یا نامعتبر باشد');
+    if(Math.abs(diff)>=0.005&&!n)throw Error('برای اختلاف صندوق، شرح وارد کنید');
+    postCashVarianceJournal(s,diff);
+    s.status='closed';s.closedAt=now();s.closing=actual;s.actualCash=actual;s.expectedCash=expected;s.difference=diff;s.variance=diff;s.closeNote=n;
+    audit('بستن صندوق'+(source==='ai'?' (دستیار)':''),s.number,`مورد انتظار ${expected} · واقعی ${actual} · اختلاف ${diff}`);
+    if(saveDB(true)===false)throw Error('ذخیره اطلاعات ناموفق بود؛ بستن صندوق انجام نشد.');
+    return{number:s.number,expected,actual,diff};
+  });
 }
 function openCashSessionModal(){
  const s=activeCashSession();
