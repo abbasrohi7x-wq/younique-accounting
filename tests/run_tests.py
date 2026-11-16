@@ -1470,6 +1470,45 @@ async def return_persistence_failure_rolls_back_stock_and_ledgers(br,c):
 
 
 @test
+async def invoice_void_persistence_failure_rolls_back_all_ledgers(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const snap=(S,doc,type)=>JSON.stringify({
+        status:doc.status,stock:variantBy(S.v).stock,
+        warehouse:db.warehouseStocks.MAIN[S.v],
+        stockMoves:db.stockMoves,warehouseMoves:db.warehouseMoves,
+        payments:db.payments,journal:db.journal,
+        cashMoves:db.cashMovements,inventory:accountBalance('inventory'),
+        cash:accountBalance('cash'),card:accountBalance('card'),
+        costLayers:db.costLayers[S.v]
+      });
+      const S1=await T.seed({});const salePurchase=await T.buy(S1,S1.v,4,1000,{cash:4000});
+      const sale=await T.sell(S1,S1.v,1,1500,{cash:1500});
+      const beforeSale=snap(S1,sale,'sale'),originalSaveDB=window.saveDB;
+      window.saveDB=()=>false;let saleError='';
+      try{Fin.voidSale(sale.number,'test persistence failure')}catch(e){saleError=e.message}
+      window.saveDB=originalSaveDB;saveDB(true);
+      const afterSale=snap(S1,sale,'sale');
+      const S2=await T.seed({});const purchase=await T.buy(S2,S2.v,4,1000,{cash:4000});
+      const beforePurchase=snap(S2,purchase,'purchase');
+      window.saveDB=()=>false;let purchaseError='';
+      try{Fin.voidPurchase(purchase.number,'test persistence failure')}catch(e){purchaseError=e.message}
+      window.saveDB=originalSaveDB;saveDB(true);
+      const afterPurchase=snap(S2,purchase,'purchase');
+      return{saleError:!!saleError,beforeSale,afterSale,purchaseError:!!purchaseError,
+        beforePurchase,afterPurchase,health:runYouniqueHealthCheck().ok,unb:T.unbalanced()};
+    """)
+    c.true(r['saleError'],'sale void persistence failure is surfaced')
+    c.eq(r['afterSale'],r['beforeSale'],'failed sale void restores status, stock, payments, journals and movement ledgers')
+    c.true(r['purchaseError'],'purchase void persistence failure is surfaced')
+    c.eq(r['afterPurchase'],r['beforePurchase'],'failed purchase void restores status, stock, cost layers and ledgers')
+    c.true(r['health'],'void rollback preserves database integrity')
+    c.eq(r['unb'],0,'void rollback leaves balanced journals')
+    c.eq(pg.errs,[],'void persistence rollback produces no uncaught browser errors')
+    await ctx.close()
+
+
+@test
 async def warehouse_stock_reconciliation_is_reported(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
