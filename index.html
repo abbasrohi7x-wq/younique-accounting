@@ -1467,15 +1467,13 @@ function stockMoveV21(variantId,qty,type,ref,cost=0,totalValue,warehouseId){
 function saleCostForItems(items){return roundMoney(items.reduce((sum,i)=>sum+num(i.costTotal||num(i.cost)*num(i.qty)),0));}
 function saveSaleV21(){let savedNumber='';try{atomic('ثبت فروش',()=>{
   if(!saleCart.length)throw Error('فاکتور خالی است');
-  if(!saleCart.length)throw Error('فاکتور خالی است');
   const validationError=saleValidationError(saleCart,num($('#saleDiscount').value));if(validationError)throw Error(validationError);
   const customerId=$('#saleCustomer').value,total=saleTotal(saleCart,num($('#saleDiscount').value));if(total<=0)throw Error('مبلغ فاکتور معتبر نیست');
   const p=window.__salePayments||{cash:0,card:0,bank:0,credit:0};for(const k of ['cash','card','bank','credit']){const a=num(p[k]);if(!Number.isFinite(a)||a<0)throw Error('مبلغ پرداخت نامعتبر است')}const paid=num(p.cash)+num(p.card)+num(p.bank),credit=num(p.credit),covered=paid+credit;
   if(covered>total+.01)throw Error('مجموع پرداخت و نسیه از مبلغ فاکتور بیشتر است');
   const due=Math.max(0,total-covered);if((credit>0||due>0)&&!customerId)throw Error('برای نسیه یا مانده، مشتری را انتخاب کنید');
   if(due>.01)throw Error('تسویه کامل نیست؛ مبلغ نسیه را دقیقاً برابر مانده وارد کنید');
-  requireOpenCashSession('sale');const warehouseId=saleWarehouseId();if(!(db.warehouses||[]).some(w=>w.id===warehouseId&&w.active!==false))throw Error('انبار انتخاب‌شده معتبر نیست');for(const x of saleCart){if(num(x.qty)>warehouseAvailable(warehouseId,x.id)+1e-9){const v0=variantBy(x.id);throw Error(`موجودی «${variantName(v0||{})}» در انبار انتخاب‌شده کافی نیست`)}}
-  for(const x of saleCart){const v=variantBy(x.id);if(!v||x.qty<=0||x.qty>v.stock)throw Error(`موجودی «${variantName(v||{})}» کافی نیست`)}
+  requireOpenCashSession('sale');const warehouseId=saleWarehouseId();if(!(db.warehouses||[]).some(w=>w.id===warehouseId&&w.active!==false))throw Error('انبار انتخاب‌شده معتبر نیست');const requestedByVariant=new Map();for(const x of saleCart){const id=String(x.id||''),qty=num(x.qty);requestedByVariant.set(id,(requestedByVariant.get(id)||0)+qty)}for(const [variantId,requestedQty] of requestedByVariant){const v=variantBy(variantId);if(!v||!Number.isFinite(requestedQty)||requestedQty<=0||!Number.isInteger(requestedQty))throw Error('تعداد یا کالای فاکتور معتبر نیست');if(requestedQty>warehouseAvailable(warehouseId,variantId)+1e-9)throw Error(`موجودی «${variantName(v)}» در انبار انتخاب‌شده کافی نیست`);if(requestedQty>num(v.stock)+1e-9)throw Error(`موجودی «${variantName(v)}» کافی نیست`)}
   ensureCostingState();const no=nextNumber('sale'),discount=num($('#saleDiscount').value);
   const items=saleCart.map(x=>{const v=variantBy(x.id),ci=previewCost(v.id,num(x.qty),v.buyPrice);return {id:uid(),variantId:x.id,qty:num(x.qty),unitPrice:roundMoney(x.price),discount:roundMoney(x.discount),total:roundMoney(num(x.qty)*num(x.price)-num(x.discount)),cost:roundMoney(ci.unitCost||num(v.buyPrice)),costTotal:roundMoney(ci.cost),costDetails:ci.details}});
   const vat=yqSaleVat(saleCart,discount),vcfg=yqVatCfg(),vatCost=vat&&vcfg.mode==='inclusive'?vat:0;
