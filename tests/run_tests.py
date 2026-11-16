@@ -1966,4 +1966,60 @@ async def colloquial_cash_register_commands_resolve_to_cash_session_tools(br,c):
     await ctx.close()
 
 
+@test
+async def finance_transfers_recheck_balance_inside_atomic_transaction(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      postJournal('TEST-BANK-SEED','seed bank',[{account:'bank',debit:1000,credit:0},{account:'equity',debit:0,credit:1000}]);
+      const before=JSON.stringify({transfers:db.fundTransfers||[],journal:db.journal,
+        bank:accountBalance('bank'),card:accountBalance('card')});
+      const original=window.atomic;
+      window.atomic=(label,fn)=>original(label,()=>{
+        postJournal('TEST-BANK-RACE','concurrent bank outflow',
+          [{account:'expense',debit:800,credit:0},{account:'bank',debit:0,credit:800}]);
+        return fn();
+      });
+      let rejected=false;
+      try{transferFunds('bank','card',500,'race test','test')}catch(e){rejected=/موجودی حساب مبدأ/.test(e.message)}
+      window.atomic=original;
+      const after=JSON.stringify({transfers:db.fundTransfers||[],journal:db.journal,
+        bank:accountBalance('bank'),card:accountBalance('card')});
+      return{rejected,before,after,health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    """)
+    c.true(r['rejected'],'transfer rejects when source balance falls below amount inside the transaction')
+    c.eq(r['after'],r['before'],'failed transfer rolls back the transaction and intervening ledger mutation')
+    c.true(r['health'],'rejected transfer leaves the database healthy')
+    c.eq(r['errors'],[],'transfer race validation produces no browser errors')
+    await ctx.close()
+
+
+@test
+async def cash_income_revalidates_open_session_inside_atomic_transaction(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const before=JSON.stringify({incomes:db.incomes,journal:db.journal,
+        movements:db.cashMovements,sessions:db.cashSessions});
+      const original=window.atomic;
+      window.atomic=(label,fn)=>original(label,()=>{
+        activeCashSession().status='closed';
+        return fn();
+      });
+      let rejected=false;
+      try{recordIncome(2500,'income race','cash','test')}catch(e){rejected=/صندوق/.test(e.message)}
+      window.atomic=original;
+      const after=JSON.stringify({incomes:db.incomes,journal:db.journal,
+        movements:db.cashMovements,sessions:db.cashSessions});
+      return{rejected,before,after,active:!!activeCashSession(),
+        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    """)
+    c.true(r['rejected'],'cash income rejects when its session is no longer open at commit time')
+    c.eq(r['after'],r['before'],'rejected cash income rolls back all financial and session changes')
+    c.true(r['active'],'rollback restores the active cash session')
+    c.true(r['health'],'rejected cash income leaves the database healthy')
+    c.eq(r['errors'],[],'cash income session validation produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
