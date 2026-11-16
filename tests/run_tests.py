@@ -2120,8 +2120,6 @@ async def voids_reject_missing_source_invoice_lines_without_mutation(br,c):
     await ctx.close()
 
 
-asyncio.run(main())
-
 @test
 async def returns_reject_invalid_settlement_and_missing_source_items_atomically(br,c):
     pg,ctx=await page(br)
@@ -2223,3 +2221,5 @@ async def invalid_variant_wizard_input_never_mutates_catalog(br,c):
     c.true(r['health'],'rejected variant wizard input preserves catalog integrity')
     c.eq(r['errors'],[],'invalid wizard validation produces no browser errors')
     await ctx.close()
+
+asyncio.run(main())
