@@ -98,6 +98,7 @@ python3 tests/run_tests.py نام_آزمون
 - [گزارش استخراج موتور](docs/ENGINE_EXTRACTION.md)
 - [قواعد نگهداری مخزن](docs/GITHUB_REPOSITORY_GUIDE.md)
 - [گزارش ممیزی مخازن و تنظیمات GitHub](docs/GITHUB_AUDIT.md)
+- [راهنمای گفتار فارسی آفلاین](docs/OFFLINE_VOICE.md)
 
 ## مشارکت و تغییرات
 
