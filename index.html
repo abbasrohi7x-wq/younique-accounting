@@ -2269,7 +2269,7 @@ window.Fin={
    audit('ثبت برگشت',ref,`sale · ${total} · cost ${costTotal}`);return row})},
  purchaseReturn({ref,qtys,method='credit',note=''}){return atomic('برگشت از خرید '+ref,()=>{
    const p=db.purchases.find(x=>x.number===ref);if(!p)throw Error('فاکتور خرید پیدا نشد');if(p.status!=='confirmed')throw Error('فاکتور باطل‌شده قابل برگشت نیست');
-   if(method==='credit'&&!p.supplierId)throw Error('برای ثبت در حساب، فاکتور باید تأمین‌کننده داشته باشد');
+   if(!['credit','cash','card','bank'].includes(method))throw Error('روش تسویه برگشت خرید نامعتبر است');if(method==='credit'&&!p.supplierId)throw Error('برای ثبت در حساب، فاکتور باید تأمین‌کننده داشته باشد');
    if(method==='cash'&&!activeCashSession())throw Error('برای دریافت نقدی ابتدا صندوق را باز کنید');
    const items=p.items.map(id=>db.purchaseItems.find(x=>x.id===id)).filter(Boolean);let total=0,costTotal=0;const out=[];
    for(const i of items){const q=num(qtys[i.id]);if(!q)continue;if(!Number.isInteger(q)||q<0)throw Error('تعداد برگشت باید عدد صحیح مثبت باشد');
