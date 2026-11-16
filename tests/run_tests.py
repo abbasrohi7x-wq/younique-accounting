@@ -754,10 +754,15 @@ async def voice_recognition_never_falls_back_to_remote_service(br,c):
       Object.defineProperty(window,'webkitSpeechRecognition',{value:undefined,configurable:true,writable:true});
       window.__speech=null;
       await voiceRecord();
-      return{starts,messages:T.msgs.slice(-2)}
+      const title=document.querySelector('#modal h2')?.textContent||'';
+      const manual=document.querySelector('#yqVText')?.textContent||'';
+      const transcript=!!document.querySelector('#yqVTranscript');
+      return{starts,title,manual,transcript}
     """)
     c.eq(r['starts'],0,'remote-only speech recognition is never started')
-    c.true(any('تایپ' in m and any(k in m for k in ('آفلاین','محلی','پشتیبانی')) for m in r['messages']),'unsupported local speech shows a clear text-entry fallback')
+    c.eq(r['title'],'دستیار گفتاری آفلاین فارسی','voice entry opens the on-device Vosk dialog')
+    c.eq(r['manual'],'ورود متن','manual text entry remains available when speech is unavailable')
+    c.true(r['transcript'],'a reviewable transcript field is available before applying text')
     await ctx.close()
 
 
