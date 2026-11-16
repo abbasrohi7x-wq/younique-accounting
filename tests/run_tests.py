@@ -314,23 +314,25 @@ async def purchase_sale_items_and_stock_movements_share_invoice_references(br,c)
       const si=db.saleItems.find(x=>sale&&sale.items.includes(x.id));
       const pm=db.stockMoves.find(x=>x.type==='purchase'&&x.ref===purchase.number&&x.variantId===S.v);
       const sm=db.stockMoves.find(x=>x.type==='sale'&&x.ref===sale.number&&x.variantId===S.v);
-      const pj=db.journal.find(x=>x.purchaseId===purchase.id&&!x.reversalOf);
-      const sj=db.journal.find(x=>x.saleId===sale.id&&!x.reversalOf);
+      const pj=db.journal.find(x=>purchase&&x.purchaseId===purchase.id&&!x.reversalOf);
+      const sj=db.journal.find(x=>sale&&x.saleId===sale.id&&!x.reversalOf);
       return{purchase:!!purchase,sale:!!sale,
         purchaseLine:pi&&[pi.variantId,pi.qty,pi.unitPrice,pi.total],
         saleLine:si&&[si.variantId,si.qty,si.unitPrice,si.total],
         purchaseMove:pm&&[pm.qty,pm.ref,pm.warehouseId],
         saleMove:sm&&[sm.qty,sm.ref,sm.warehouseId],
+        purchaseLinked:!!pi&&pi.variantId===S.v&&!!pm&&pm.ref===purchase.number,
+        saleLinked:!!si&&si.variantId===S.v&&!!sm&&sm.ref===sale.number,
         journalLinks:!!pj&&!!sj,stock:variantBy(S.v).stock,
         health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:[]};
     ''')
     c.true(r['purchase'] and r['sale'],'purchase and sale both save successfully')
-    c.eq(r['purchaseLine'],[r['purchaseLine'][0],6,1200,7200],'purchase item stores exact variant, quantity and unit cost')
-    c.eq(r['saleLine'],[r['saleLine'][0],2,1800,3600],'sale item stores exact variant, quantity and unit price')
+    c.eq(r['purchaseLine'][1:], [6,1200,7200],'purchase item stores exact quantity and unit cost')
+    c.eq(r['saleLine'][1:], [2,1800,3600],'sale item stores exact quantity and unit price')
+    c.true(r['purchaseLinked'],'purchase item and stock movement share the exact variant and invoice reference')
+    c.true(r['saleLinked'],'sale item and stock movement share the exact variant and invoice reference')
     c.eq(r['purchaseMove'][0],6,'purchase movement increases stock by purchased quantity')
-    c.eq(r['purchaseMove'][1],r['purchase']['number'] if isinstance(r['purchase'],dict) else r['purchaseMove'][1],'purchase movement carries its invoice reference')
     c.eq(r['saleMove'][0],-2,'sale movement decreases stock by sold quantity')
-    c.true(bool(r['purchaseMove'][1]) and bool(r['saleMove'][1]),'both stock movements carry invoice references')
     c.true(r['journalLinks'],'purchase and sale journals link back to their invoice records')
     c.eq(r['stock'],4,'stock equals purchase quantity minus sale quantity')
     c.true(r['health'],'purchase-to-sale flow preserves data integrity')
