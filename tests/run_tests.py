@@ -241,7 +241,7 @@ async def bulk_barcode_assignment_rolls_back_on_storage_failure(br,c):
       const original=window.saveDB;window.saveDB=()=>false;
       document.querySelector('#bulkBar').click();
       window.saveDB=original;
-      return{before,after:{barcode:v.barcode,sku:v.sku,seq:{...db.seq}},
+      return{before,after:{barcode:variantBy(S.v).barcode,sku:variantBy(S.v).sku,seq:{...db.seq}},
         health:runYouniqueHealthCheck().ok,errors:[]};
     ''')
     c.eq(r['after'],r['before'],'failed bulk barcode persistence restores codes and counters')
@@ -264,7 +264,7 @@ async def bulk_variant_price_edit_is_atomic_on_storage_failure(br,c):
       window.confirm=()=>true;window.saveDB=()=>false;
       document.querySelector('#bulkPriceForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
       window.confirm=originalConfirm;window.saveDB=originalSave;
-      return{before,after:{purchasePrice:v.purchasePrice,sellPrice:v.sellPrice,minStock:v.minStock},
+      const after=variantBy(S.v);return{before,after:{purchasePrice:after.purchasePrice,sellPrice:after.sellPrice,minStock:after.minStock},
         health:runYouniqueHealthCheck().ok,errors:[]};
     ''')
     c.eq(r['after'],r['before'],'failed bulk price persistence restores all selected variant fields')
