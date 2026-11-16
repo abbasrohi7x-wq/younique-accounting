@@ -95,6 +95,17 @@ jobs:
           grep -Fq model/conf/model.conf $RUNNER_TEMP/model-files.txt
           test $(stat -c%s $GITHUB_WORKSPACE/vendor/vosk/model.tar.gz) -lt 95000000
 
+      - name: Validate installed offline voice assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s vendor/vosk/vosk.js
+          test -s vendor/vosk/model.tar.gz
+          node --check vendor/vosk/vosk.js
+          tar -tzf vendor/vosk/model.tar.gz > /tmp/unique-vosk-model-files.txt
+          grep -Fq model/am/final.mdl /tmp/unique-vosk-model-files.txt
+          grep -Fq model/conf/model.conf /tmp/unique-vosk-model-files.txt
+
       - name: Commit voice assets to main
         if: steps.existing.outputs.ready != 'true'
         shell: bash
