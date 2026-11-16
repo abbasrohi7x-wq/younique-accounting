@@ -5636,12 +5636,12 @@ window.__yqUnitUnknown=false;r.warnings.unshift('واحد مبلغ فاکتور 
 else{window.__yqUnitUnknown=true;r.warnings=r.warnings.filter(function(w){return String(w).indexOf('واحد پول فاکتور از تصویر')!==0});r.warnings.unshift('⚠ واحد مبلغ فاکتور (تومان یا ریال) در تصویر تشخیص داده نشد و مبالغ بدون تبدیل ثبت شده است. اگر فاکتور به تومان است، دکمهٔ «مبالغ تومان است (×۱۰)» را بزنید.')}}}}catch(e){console.warn('invoice post-process',e)}return r};
 h.__yq=true;window.parseLocalInvoiceText=h})()}catch(_){}
 try{(function(){
-function stocktake(vid,wid,c){return atomic('انبارگردانی',function(){var v=variantBy(vid);if(!v)throw Error('کالا پیدا نشد');
+function stocktake(vid,wid,c,reason=''){return atomic('انبارگردانی',function(){var v=variantBy(vid);if(!v)throw Error('کالا پیدا نشد');
 if(!Number.isInteger(c)||c<0)throw Error('تعداد شمارش‌شده باید عدد صحیح و غیرمنفی باشد');
 var cur=whStock(wid,vid),d=c-cur;if(d===0)return 0;
 var recordId=uid(),ref='ST-'+recordId;
 stockMoveV21(vid,d,'stocktake',ref,v.buyPrice,undefined,wid);
-db.stocktakes=db.stocktakes||[];db.stocktakes.push({id:recordId,ref,date:now(),variantId:vid,warehouseId:wid,before:cur,counted:c,diff:d});
+db.stocktakes=db.stocktakes||[];db.stocktakes.push({id:recordId,ref,date:now(),variantId:vid,warehouseId:wid,before:cur,counted:c,diff:d,reason:String(reason||'').trim()});
 return d})}
 window.yqStocktake=stocktake;
 function rerender(){var f=window.proWarehouseV40||window.proWarehouse;if(typeof f==='function')f()}
@@ -6051,5 +6051,59 @@ try{new MutationObserver(run).observe(document.body,{childList:true,subtree:true
 })();
 </script>
 <script src="./src/ui/offline-voice.js"></script>
+
+<script id="yq-integrated-warehouse-returns-variant-reports">
+(function(){
+'use strict';
+/* One coherent management view: net performance per variant + warehouse stock + discrepancy trail. */
+function variantPerformanceRows(){
+ const rows=new Map();
+ const get=id=>{if(!rows.has(id)){const v=variantBy(id);if(!v)return null;rows.set(id,{variantId:id,name:variantName(v),barcode:v.barcode||'',sku:v.sku||'',color:v.color||'',size:v.size||'',model:modelBy(v.modelId)?.name||'',soldQty:0,saleReturnQty:0,netSoldQty:0,salesRevenue:0,saleReturnRevenue:0,netRevenue:0,cogs:0,returnedCogs:0,netCogs:0,grossProfit:0,purchasedQty:0,purchaseReturnQty:0,netPurchasedQty:0,purchaseCost:0,purchaseReturnValue:0,netPurchaseValue:0,stock:num(v.stock),unitCost:num(v.buyPrice),stockValue:num(v.stock)*num(v.buyPrice),warehouses:(db.warehouses||[]).filter(w=>w.active!==false).map(w=>({id:w.id,name:w.name,qty:num(db.warehouseStocks?.[w.id]?.[id])}))})}return rows.get(id)};
+ const sales=(db.sales||[]).filter(s=>s.status==='confirmed');
+ for(const s of sales){const items=(s.items||[]).map(id=>(db.saleItems||[]).find(i=>i.id===id)).filter(Boolean),sum=items.reduce((a,i)=>a+num(i.total),0),discount=num(s.discount),afterDiscount=Math.max(0,sum-discount);
+  for(const i of items){const r=get(i.variantId);if(!r)continue;const lineBase=Math.max(0,num(i.total)-(sum?discount*num(i.total)/sum:0));const vatShare=s.vatMode==='inclusive'&&afterDiscount>0?num(s.vat)*lineBase/afterDiscount:0;r.soldQty+=num(i.qty);r.salesRevenue+=lineBase-vatShare;r.cogs+=num(i.costTotal||num(i.cost)*num(i.qty));}}
+ for(const ret of (db.returns||[]).filter(x=>x.type==='sale')){const original=sales.find(s=>s.number===ret.ref);for(const i of ret.items||[]){const r=get(i.variantId);if(!r)continue;const returnedNet=num(i.net??num(i.qty)*num(i.unitPrice));const vatShare=original?.vatMode==='inclusive'&&num(ret.total)>0?num(ret.vat)*returnedNet/num(ret.total):0;r.saleReturnQty+=num(i.qty);r.saleReturnRevenue+=returnedNet-vatShare;r.returnedCogs+=num(i.costTotal||num(i.cost)*num(i.qty));}}
+ const purchases=(db.purchases||[]).filter(p=>p.status==='confirmed');
+ for(const p of purchases){for(const id of p.items||[]){const i=(db.purchaseItems||[]).find(x=>x.id===id);if(!i)continue;const r=get(i.variantId);if(!r)continue;r.purchasedQty+=num(i.qty);r.purchaseCost+=num(i.total??num(i.qty)*num(i.unitPrice));}}
+ for(const ret of (db.returns||[]).filter(x=>x.type==='purchase')){for(const i of ret.items||[]){const r=get(i.variantId);if(!r)continue;r.purchaseReturnQty+=num(i.qty);r.purchaseReturnValue+=num(i.refund??num(i.qty)*num(i.unitPrice));}}
+ return Array.from(rows.values()).map(r=>({...r,netSoldQty:r.soldQty-r.saleReturnQty,netRevenue:roundMoney(r.salesRevenue-r.saleReturnRevenue),netCogs:roundMoney(r.cogs-r.returnedCogs),grossProfit:roundMoney((r.salesRevenue-r.saleReturnRevenue)-(r.cogs-r.returnedCogs)),netPurchasedQty:r.purchasedQty-r.purchaseReturnQty,netPurchaseValue:roundMoney(r.purchaseCost-r.purchaseReturnValue)})).sort((a,b)=>a.name.localeCompare(b.name,'fa'));
+}
+window.yqVariantPerformanceRows=variantPerformanceRows;
+/* Make the stocktake reason part of the persisted trace, not merely a UI note. */
+document.addEventListener('click',function(e){
+ const btn=e.target&&e.target.closest&&e.target.closest('#pc');
+ if(!btn)return;
+ e.preventDefault();e.stopImmediatePropagation();
+ const variants=activeVariants(),warehouses=(db.warehouses||[]).filter(w=>w.active!==false);
+ if(!variants.length||!warehouses.length)return toast('برای انبارگردانی ابتدا کالا و انبار فعال تعریف کنید',true);
+ modal('<div class="modalhead"><h2>ثبت مغایرت و انبارگردانی</h2><button class="close" data-close>×</button></div><form id="yqDiscrepancyForm"><div class="formgrid"><label class="field">انبار<select id="yqDw">'+warehouses.map(w=>'<option value="'+esc(w.id)+'">'+esc(w.name)+'</option>').join('')+'</select></label><label class="field span3">تنوع کالا<select id="yqDv">'+variants.map(v=>'<option value="'+esc(v.id)+'">'+esc(variantName(v))+' · '+esc(v.barcode||'بدون بارکد')+'</option>').join('')+'</select></label><label class="field">موجودی سیستمی<input id="yqExpected" readonly></label><label class="field">شمارش واقعی<input id="yqCount" type="number" min="0" step="1" required></label><label class="field span2">علت / توضیحات<input id="yqReason" required placeholder="مثلاً کسری، آسیب، خطای ثبت یا شمارش دوره‌ای"></label></div><p id="yqDiffPreview" class="muted"></p><div class="modal-actions"><button type="button" class="btn" data-close>انصراف</button><button class="btn primary">ثبت و اصلاح موجودی</button></div></form>');
+ const expected=document.querySelector('#yqExpected'),count=document.querySelector('#yqCount'),variant=document.querySelector('#yqDv'),wh=document.querySelector('#yqDw'),preview=document.querySelector('#yqDiffPreview');
+ const refresh=()=>{const q=whStock(wh.value,variant.value);expected.value=String(q);if(count.value==='')count.value=String(q);const d=num(count.value)-q;preview.textContent='مغایرت: '+(d>0?'+':'')+d+' واحد · '+(d>0?'اضافه موجودی':d<0?'کسری موجودی':'بدون مغایرت')};
+ wh.onchange=()=>{count.value='';refresh()};variant.onchange=()=>{count.value='';refresh()};count.oninput=refresh;refresh();
+ document.querySelector('#yqDiscrepancyForm').onsubmit=function(ev){ev.preventDefault();const q=Number(count.value),reason=document.querySelector('#yqReason').value.trim();if(!Number.isInteger(q)||q<0||!reason)return toast('تعداد صحیح و علت مغایرت را وارد کنید',true);try{const d=window.yqStocktake(variant.value,wh.value,q,reason);closeModal();toast(d===0?'شمارش ثبت شد؛ مغایرتی وجود نداشت':'مغایرت '+(d>0?'+':'')+d+' ثبت و موجودی اصلاح شد');if(typeof window.proWarehouse==='function')window.proWarehouse()}catch(err){toast(err.message||'ثبت مغایرت ناموفق بود',true)}};
+},true);
+reports=function(){
+ const sales=(db.sales||[]).filter(x=>x.status==='confirmed'),purchases=(db.purchases||[]).filter(x=>x.status==='confirmed');
+ const saleReturns=(db.returns||[]).filter(x=>x.type==='sale'),purchaseReturns=(db.returns||[]).filter(x=>x.type==='purchase');
+ const rev=sales.reduce((a,x)=>a+num(x.total),0)-saleReturns.reduce((a,x)=>a+num(x.refund??x.total),0);
+ const buy=purchases.reduce((a,x)=>a+num(x.total),0)-purchaseReturns.reduce((a,x)=>a+num(x.total),0);
+ const profit=sales.reduce((a,x)=>a+num(x.profit),0)-saleReturns.reduce((a,x)=>a+saleReturnProfitValue(x),0);
+ const variants=variantPerformanceRows(),warehouses=(db.warehouses||[]).filter(w=>w.active!==false);
+ const variantHeaders=['کالا','مدل','رنگ','سایز','بارکد','فروش خالص تعدادی','فروش خالص مبلغی','بهای تمام‌شده خالص','سود ناخالص','خرید خالص تعدادی','موجودی کل','بهای واحد','ارزش موجودی',...warehouses.map(w=>'موجودی '+w.name)];
+ const variantCsv=[variantHeaders,...variants.map(r=>[r.name,r.model,r.color,r.size,r.barcode,r.netSoldQty,r.netRevenue,r.netCogs,r.grossProfit,r.netPurchasedQty,r.stock,r.unitCost,r.stockValue,...warehouses.map(w=>r.warehouses.find(x=>x.id===w.id)?.qty||0)])];
+ const discrepancyRows=[...(db.stocktakes||[])].slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')));
+ $('#content').innerHTML=pageHead('گزارش‌ها','عملکرد خالص، سود و موجودی به تفکیک مدل، رنگ، سایز و انبار','<button class="btn" id="csv">خروجی گردش اسناد</button><button class="btn primary" id="variantCsv">خروجی گزارش تنوع‌ها</button>')+
+ '<div class="grid">'+metricCard('فروش خالص',money(rev),sales.length+' فاکتور · پس از برگشت')+metricCard('خرید خالص',money(buy),purchases.length+' فاکتور · پس از برگشت')+metricCard('سود ناخالص خالص',money(profit),'پس از برگشت و اصلاح مالیات','green')+metricCard('ارزش موجودی',money(variants.reduce((a,v)=>a+v.stockValue,0)),'بر مبنای بهای واحد ثبت‌شده','amber')+'</div>'+
+ '<div class="card section"><div class="section-title"><h3>سودآوری و موجودی هر تنوع کالا</h3><span class="muted">محاسبه‌شده پس از برگشت‌های ثبت‌شده</span></div><div class="tablewrap"><table><thead><tr><th>کالا / مدل</th><th>رنگ</th><th>سایز</th><th>بارکد</th><th>فروش خالص</th><th>فروش مبلغی خالص</th><th>بهای تمام‌شده</th><th>سود ناخالص</th><th>خرید خالص</th><th>موجودی</th><th>بهای واحد</th><th>ارزش موجودی</th>'+warehouses.map(w=>'<th>'+esc(w.name)+'</th>').join('')+'</tr></thead><tbody>'+variants.map(r=>'<tr data-variant-performance="'+esc(r.variantId)+'"><td>'+esc(r.name)+'<small class="muted"> '+esc(r.model)+'</small></td><td>'+esc(r.color)+'</td><td>'+esc(r.size)+'</td><td>'+esc(r.barcode)+'</td><td>'+r.netSoldQty+'</td><td>'+money(r.netRevenue)+'</td><td>'+money(r.netCogs)+'</td><td>'+money(r.grossProfit)+'</td><td>'+r.netPurchasedQty+'</td><td>'+r.stock+'</td><td>'+money(r.unitCost)+'</td><td>'+money(r.stockValue)+'</td>'+warehouses.map(w=>'<td>'+num(r.warehouses.find(x=>x.id===w.id)?.qty)+'</td>').join('')+'</tr>').join('')||'<tr><td colspan="13"><div class="empty">تنوع کالایی برای گزارش وجود ندارد.</div></td></tr>'+'</tbody></table></div></div>'+
+ '<div class="card section"><div class="section-title"><h3>سوابق مغایرت و انبارگردانی</h3><span class="muted">'+discrepancyRows.length+' رکورد</span></div><div class="tablewrap"><table><thead><tr><th>مرجع</th><th>تاریخ</th><th>تنوع کالا</th><th>انبار</th><th>سیستمی</th><th>شمارش</th><th>مغایرت</th><th>علت / توضیح</th></tr></thead><tbody>'+discrepancyRows.slice(0,100).map(x=>'<tr><td>'+esc(x.ref||x.id||'—')+'</td><td>'+String(x.date||'').slice(0,10)+'</td><td>'+esc(variantName(variantBy(x.variantId))||'—')+'</td><td>'+esc((db.warehouses||[]).find(w=>w.id===x.warehouseId)?.name||x.warehouseId||'—')+'</td><td>'+num(x.before)+'</td><td>'+num(x.counted)+'</td><td><b class="'+(num(x.diff)<0?'pill red':num(x.diff)>0?'pill green':'pill')+'">'+(num(x.diff)>0?'+':'')+num(x.diff)+'</b></td><td>'+esc(x.reason||'—')+'</td></tr>').join('')||'<tr><td colspan="8"><div class="empty">هنوز انبارگردانی ثبت نشده است.</div></td></tr>'+'</tbody></table></div></div>'+
+ '<div class="card section"><div class="tablewrap"><table><thead><tr><th>نوع سند</th><th>شماره</th><th>تاریخ</th><th>مبلغ خالص</th><th>مانده</th></tr></thead><tbody>'+
+ [...sales.map(x=>({...x,type:'فروش'})),...purchases.map(x=>({...x,type:'خرید'})),...saleReturns.map(x=>({number:x.ref,date:x.date,type:'برگشت فروش',total:-num(x.refund??x.total),due:0})),...purchaseReturns.map(x=>({number:x.ref,date:x.date,type:'برگشت خرید',total:-num(x.total),due:0}))].sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))).slice(0,100).map(x=>'<tr><td>'+x.type+'</td><td>'+esc(x.number||'—')+'</td><td>'+String(x.date||'').slice(0,10)+'</td><td>'+money(x.total)+'</td><td>'+money(x.due)+'</td></tr>').join('')+'</tbody></table></div></div>';
+ $('#csv').onclick=()=>{const rows=[['نوع','شماره','تاریخ','مبلغ','مانده'],...sales.map(x=>['فروش',x.number,x.date.slice(0,10),x.total,x.due]),...purchases.map(x=>['خرید',x.number,x.date.slice(0,10),x.total,x.due]),...saleReturns.map(x=>['برگشت فروش',x.ref,x.date,-num(x.refund??x.total),0]),...purchaseReturns.map(x=>['برگشت خرید',x.ref,x.date,-num(x.total),0])];download('گزارش-گردش-یونیک-'+today()+'.csv','\ufeff'+rows.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\n'),'text/csv;charset=utf-8')};
+ $('#variantCsv').onclick=()=>download('گزارش-سود-و-موجودی-تنوع-ها-'+today()+'.csv','\ufeff'+variantCsv.map(r=>r.map(v=>'"'+String(v??'').replaceAll('"','""')+'"').join(',')).join('\n'),'text/csv;charset=utf-8');
+};
+window.yqVariantPerformanceRows=variantPerformanceRows;
+})();
+</script>
+
 
 </body></html>
