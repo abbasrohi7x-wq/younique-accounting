@@ -231,6 +231,49 @@ async def stocktake_records_have_unique_traceable_references(br,c):
 
 
 @test
+async def bulk_barcode_assignment_rolls_back_on_storage_failure(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      const v=variantBy(S.v);v.barcode='';v.sku='';
+      page='products';render();
+      const row=document.querySelector('.pv');row.checked=true;
+      const before={barcode:v.barcode,sku:v.sku,seq:{...db.seq}};
+      const original=window.saveDB;window.saveDB=()=>false;
+      document.querySelector('#bulkBar').click();
+      window.saveDB=original;
+      return{before,after:{barcode:v.barcode,sku:v.sku,seq:{...db.seq}},
+        health:runYouniqueHealthCheck().ok,errors:[]};
+    ''')
+    c.eq(r['after'],r['before'],'failed bulk barcode persistence restores codes and counters')
+    c.true(r['health'],'bulk barcode rollback preserves catalog integrity')
+    c.eq(r['errors'],[],'bulk barcode storage failure is handled')
+    await ctx.close()
+
+
+@test
+async def bulk_variant_price_edit_is_atomic_on_storage_failure(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      const v=variantBy(S.v),before={purchasePrice:v.purchasePrice,sellPrice:v.sellPrice,minStock:v.minStock};
+      page='products';render();document.querySelector('.pv').checked=true;
+      document.querySelector('#bulkPrices').click();
+      document.querySelector('#bpBuy').value='2222';
+      document.querySelector('#bpSell').value='3333';
+      document.querySelector('#bpMin').value='7';
+      const originalConfirm=window.confirm,originalSave=window.saveDB;
+      window.confirm=()=>true;window.saveDB=()=>false;
+      document.querySelector('#bulkPriceForm').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      window.confirm=originalConfirm;window.saveDB=originalSave;
+      return{before,after:{purchasePrice:v.purchasePrice,sellPrice:v.sellPrice,minStock:v.minStock},
+        health:runYouniqueHealthCheck().ok,errors:[]};
+    ''')
+    c.eq(r['after'],r['before'],'failed bulk price persistence restores all selected variant fields')
+    c.true(r['health'],'bulk price rollback preserves catalog integrity')
+    c.eq(r['errors'],[],'bulk price storage failure is handled')
+    await ctx.close()
+
+
+@test
 async def invalid_inputs_are_rejected(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,10,1000,{cash:10000});const n0=db.sales.length;
       await T.sell(S,S.v,-2,1500,{cash:100});await T.sell(S,S.v,0.5,1500,{cash:100});await T.sell(S,S.v,1,1500,{cash:0},999999);await T.sell(S,S.v,99,1500,{cash:100});
