@@ -2935,7 +2935,7 @@ async def vat_purchase_return_rejects_invalid_inputs_atomically(br,c):
       return{methodRejected:!!methodError,methodUnchanged,foreignRejected:!!foreignError,
         foreignUnchanged,warehouseRejected:!!warehouseError,warehouseUnchanged,
         sourceRejected:!!sourceError,sourceUnchanged,stock:variantBy(S.v).stock,
-        returns:db.returns.length,unb:T.unbalanced(),errors:pg.errs};
+        returns:db.returns.length,unb:T.unbalanced()};
     """)
     c.true(r['methodRejected'],'VAT purchase return rejects unsupported settlement methods')
     c.true(r['methodUnchanged'],'invalid settlement leaves every ledger and stock record unchanged')
@@ -2948,6 +2948,7 @@ async def vat_purchase_return_rejects_invalid_inputs_atomically(br,c):
     c.eq(r['stock'],3,'invalid VAT returns preserve original stock')
     c.eq(r['returns'],0,'invalid VAT returns do not create return documents')
     c.eq(r['unb'],0,'invalid VAT returns preserve balanced journals')
+    c.eq(pg.errs,[],'VAT purchase return validation produces no browser errors')
     c.eq(r['errors'],[],'VAT purchase return validation produces no browser errors')
     await ctx.close()
 
