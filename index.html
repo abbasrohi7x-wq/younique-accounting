@@ -492,11 +492,31 @@ function reconcileAccounts(){
   if(Math.abs(cents(current)-cents(row.balance))>.001)
    movementIssues.push('آخرین مانده گردش با موجودی فعلی انبار برابر نیست: '+String(row.warehouseId)+' / '+String(row.variantId));
  }
+ // Transfers are a paired stock-card operation: one source debit and one destination credit,
+ // both tied to the same posted transfer document and its canonical stock-move reference.
+ const transferDocs=Array.isArray(db.transfers)?db.transfers:[];
+ const transferRefs=new Set();
+ for(const t of transferDocs){
+  if(t.status&&t.status!=='posted')continue;
+  const ref=t.ref||('TR-'+String(t.id||'').slice(-6));
+  transferRefs.add(String(ref));
+  const pair=movementRows.filter(m=>String(m.ref||'')===String(ref)&&String(m.variantId)===String(t.variantId));
+  const outs=pair.filter(m=>m.type==='transfer_out'&&String(m.warehouseId)===String(t.from)&&Math.abs(num(m.qty)+num(t.qty))<.0001);
+  const ins=pair.filter(m=>m.type==='transfer_in'&&String(m.warehouseId)===String(t.to)&&Math.abs(num(m.qty)-num(t.qty))<.0001);
+  if(pair.length!==2||outs.length!==1||ins.length!==1)
+   movementIssues.push('سند انتقال فاقد دو گردش مبدأ و مقصد متناظر یا دارای گردش تکراری است: '+String(ref));
+  const stockRows=(db.stockMoves||[]).filter(m=>String(m.ref||'')===String(ref)&&m.type==='transfer'&&String(m.variantId)===String(t.variantId)&&String(m.from)===String(t.from)&&String(m.to)===String(t.to)&&Math.abs(num(m.transferQty)-num(t.qty))<.0001);
+  if(stockRows.length!==1)movementIssues.push('سند انتقال به حرکت موجودی یکتا و متناظر متصل نیست: '+String(ref));
+ }
+ for(const m of movementRows){
+  if((m.type==='transfer_in'||m.type==='transfer_out')&&!transferRefs.has(String(m.ref||'')))
+   movementIssues.push('گردش انتقال بدون سند انتقال معتبر است: '+String(m.ref||m.id||''));
+ }
  const items=[
   {code:'inventory',label:'ارزش موجودی کالا',ledger:cents(inventoryLedger),subledger:inventoryBook===null?null:cents(inventoryBook),difference:inventoryBook===null?null:cents(inventoryLedger-inventoryBook),note:'مقایسه حساب موجودی دفتر کل با ارزش لایه‌های بهای تمام‌شده'},
   {code:'receivable',label:'مطالبات مشتریان',ledger:cents(receivableControl),subledger:cents(customerSubledger),difference:cents(receivableControl-customerSubledger),note:'کنترل حساب دریافتنی در برابر مانده تفصیلی مشتریان'},
   {code:'payable',label:'بدهی تأمین‌کنندگان',ledger:cents(payableControl),subledger:cents(supplierSubledger),difference:cents(payableControl-supplierSubledger),note:'کنترل حساب پرداختنی در برابر مانده تفصیلی تأمین‌کنندگان'},
-  {code:'warehouseMovements',label:'پیوستگی گردش انبار',ledger:movementRows.length,subledger:movementRows.length-movementIssues.length,difference:movementIssues.length,note:movementRows.length?'کنترل زنجیره مانده هر انبار و اتصال گردش‌ها به stockMoves':'تاریخچه گردش انبار برای کنترل پیوستگی موجود نیست'}
+  {code:'warehouseMovements',label:'پیوستگی گردش انبار',ledger:movementRows.length,subledger:movementRows.length-movementIssues.length,difference:movementIssues.length,note:movementRows.length?'کنترل زنجیره مانده، جفت انتقال‌ها و اتصال گردش‌ها به اسناد':'تاریخچه گردش انبار برای کنترل پیوستگی موجود نیست'}
  ].map(x=>({...x,status:x.code==='warehouseMovements'&&!movementRows.length?'unknown':x.difference===null?'unknown':(x.code==='warehouseMovements'?x.difference===0:Math.abs(x.difference)<=0.01)?'ok':'mismatch'}));
  const unassignedReceivable=cents(balance('receivable',l=>l.partyType!=='customer'||!l.partyId||!(db.customers||[]).some(p=>String(p.id)===String(l.partyId))));
  const unassignedPayable=cents(-balance('payable',l=>l.partyType!=='supplier'||!l.partyId||!(db.suppliers||[]).some(p=>String(p.id)===String(l.partyId))));
