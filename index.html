@@ -398,6 +398,9 @@ function validateBackupData(data){
   const required=['sales','purchases','customers','suppliers'];
   const missing=required.filter(k=>!Array.isArray(data[k]));
   if(missing.length)throw Error('فایل ناقص است؛ بخش‌های ضروری موجود نیست: '+missing.join('، '));
+  const objectKeys=['settings','seq','warehouseStocks','pro','security','taxProfile','ledgerMeta'];
+  const malformedObjects=objectKeys.filter(k=>data[k]!==undefined&&(!data[k]||typeof data[k]!=='object'||Array.isArray(data[k])));
+  if(malformedObjects.length)throw Error('ساختار بخش‌های تنظیماتی فایل پشتیبان نادرست است: '+malformedObjects.join('، '));
   const arrayKeys=Object.keys(fresh()).filter(k=>Array.isArray(fresh()[k]));
   const malformed=arrayKeys.filter(k=>data[k]!==undefined&&!Array.isArray(data[k]));
   if(malformed.length)throw Error('نوع داده در این بخش‌ها نادرست است: '+malformed.join('، '));
