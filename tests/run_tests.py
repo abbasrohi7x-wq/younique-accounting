@@ -1348,3 +1348,36 @@ async def failed_purchase_persistence_preserves_draft_and_rolls_back(br,c):
 
 
 asyncio.run(main())
+
+
+@test
+async def cash_opening_variance_is_atomic_with_session_creation(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const originalPersist=window._persist;
+      db.cashSessions=[];db.cashMovements=[];db.journal=[];db.audit=[];saveDB(true);
+      openCashSession(1000,'first shift','test');
+      closeCashSession(1000,'close first shift','test');
+      const before={sessions:db.cashSessions.length,journal:db.journal.length,audit:db.audit.length,cash:accountBalance('cash')};
+      window._persist=()=>false;let error='';
+      try{openCashSession(900,'second shift','test')}catch(e){error=e.message}
+      window._persist=originalPersist;saveDB(true);
+      const failed={sessions:db.cashSessions.length,journal:db.journal.length,audit:db.audit.length,
+        variance:db.journal.filter(j=>j.entryType==='cash_open_variance').length,active:!!activeCashSession()};
+      const second=openCashSession(900,'second shift retry','test');
+      const variance=db.journal.find(j=>j.ref===second.number+'-OPEN-VARIANCE');
+      return{before,failed,error:!!error,success:{sessions:db.cashSessions.length,variance:variance&&variance.variance,
+        entryType:variance&&variance.entryType,balanced:variance&&Math.abs(variance.debit-variance.credit)<0.01,
+        cash:accountBalance('cash'),health:runYouniqueHealthCheck().ok}}
+    ''')
+    c.eq(r['before']['cash'],1000,'first shift establishes the ledger cash balance')
+    c.true(r['error'],'failed persistence is surfaced to the caller')
+    c.eq(r['failed'],{'sessions':1,'journal':r['before']['journal'],'audit':r['before']['audit'],'variance':0,'active':False},
+      'failed second opening rolls back the session and opening variance together')
+    c.eq(r['success']['sessions'],2,'retry opens the next cash session')
+    c.eq(r['success']['variance'],-100,'opening shortage equals counted cash minus ledger cash')
+    c.eq(r['success']['entryType'],'cash_open_variance','opening variance has a dedicated journal type')
+    c.true(r['success']['balanced'],'opening variance journal is balanced')
+    c.eq(r['success']['cash'],900,'cash ledger reconciles to the counted opening amount')
+    c.true(r['success']['health'],'database integrity remains valid after reconciliation')
+    c.eq(pg.errs,[],'opening variance rollback produces no uncaught browser errors')
+    await ctx.close()
