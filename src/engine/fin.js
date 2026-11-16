@@ -85,15 +85,25 @@ function createFin(db, h, core) {
         const q = num(qtys[i.id]);
         if (!q) continue;
         if (!Number.isInteger(q) || q < 0) throw new Error('تعداد برگشت باید عدد صحیح مثبت باشد');
-        const already = returnedQty('sale', 'saleItemId', i.id);
+        const priorReturns = (db.returns || [])
+          .filter(r => r.type === 'sale' && r.ref === ref)
+          .flatMap(r => r.items || [])
+          .filter(x => x.saleItemId === i.id);
+        const already = priorReturns.reduce((a, x) => a + num(x.qty), 0);
         if (q + already > num(i.qty) + 1e-9) throw new Error('تعداد برگشت بیشتر از مقدار قابل برگشت است');
 
-        // Proportional net after invoice-level discount allocation
+        // Allocate invoice discount and recorded FIFO cost cumulatively.
+        // The final partial return receives the exact remaining cents.
         const net = R(num(i.total) - (sumNet ? num(s.discount) * num(i.total) / sumNet : 0));
-        const doneNet = 0; // simplified cumulative for first extraction
-        const rev = R(net * (q / num(i.qty)));
+        const doneNet = priorReturns.reduce((a, x) => a + num(x.net !== undefined ? x.net : num(x.qty) * num(x.unitPrice)), 0);
+        const rev = q + already >= num(i.qty) - 1e-9
+          ? R(net - doneNet)
+          : R(net * (q / num(i.qty)));
         const costAll = num(i.costTotal) || R(num(i.cost) * num(i.qty));
-        const cst = R(costAll * (q / num(i.qty)));
+        const doneCost = priorReturns.reduce((a, x) => a + num(x.costTotal !== undefined ? x.costTotal : num(x.cost) * num(x.qty)), 0);
+        const cst = q + already >= num(i.qty) - 1e-9
+          ? R(costAll - doneCost)
+          : R(costAll * (q / num(i.qty)));
 
         stockMove(i.variantId, q, 'sale_return', ref, cst / q, i.warehouseId || s.warehouseId || 'MAIN');
         total += rev; costTotal += cst;
