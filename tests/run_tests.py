@@ -540,6 +540,37 @@ async def cash_void_requires_open_session_without_partial_mutation(br,c):
     await ctx.close()
 
 
+
+@test
+async def duplicate_variant_lines_cannot_oversell_combined_stock(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      await T.buy(S,S.v,3,1000,{cash:3000});
+      page='sale';render();await T.sleep(80);
+      saleCart=[{id:S.v,qty:2,price:1500,discount:0},
+                {id:S.v,qty:2,price:1500,discount:0}];
+      document.querySelector('#saleCustomer').value=S.cus;
+      document.querySelector('#saleDiscount').value='0';
+      window.__salePayments={cash:6000,card:0,bank:0,credit:0};
+      const before={sales:db.sales.length,journal:db.journal.length,
+        payments:db.payments.length,stock:variantBy(S.v).stock,
+        warehouse:warehouseAvailable('MAIN',S.v)};
+      const result=saveSaleV21();
+      return{result:result||null,before,
+        after:{sales:db.sales.length,journal:db.journal.length,
+          payments:db.payments.length,stock:variantBy(S.v).stock,
+          warehouse:warehouseAvailable('MAIN',S.v)},
+        message:T.msgs[T.msgs.length-1],unbalanced:T.unbalanced()};
+    """)
+    c.eq(r['result'],None,'oversell rejected')
+    c.eq(r['after'],r['before'],'rejected duplicate lines leave all ledgers and stock unchanged')
+    c.true('کافی نیست' in r['message'],'clear combined-stock error is shown')
+    c.eq(r['unbalanced'],0,'ledger remains balanced')
+    c.eq(pg.errs,[],'no browser errors')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
