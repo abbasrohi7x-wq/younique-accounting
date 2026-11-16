@@ -1414,7 +1414,7 @@ function syncVariantCost(v){
 function stockMoveV21(variantId,qty,type,ref,cost=0,totalValue,warehouseId){
   ensureCostingState();
   const v=variantBy(variantId);if(!v)throw Error('تنوع کالا پیدا نشد');
-  const q=num(qty),next=num(v.stock)+q;if(next<0)throw Error(`موجودی «${variantName(v)}» کافی نیست`);
+  const q=num(qty),currentStock=num(v.stock),next=currentStock+q;if(!Number.isFinite(q)||!Number.isInteger(q))throw Error('تعداد گردش موجودی باید عدد صحیح باشد');if(!Number.isFinite(currentStock)||!Number.isInteger(currentStock)||currentStock<0)throw Error('موجودی فعلی کالا نامعتبر است؛ ابتدا انبارگردانی را انجام دهید');if(next<0)throw Error(`موجودی «${variantName(v)}» کافی نیست`);
   if(typeof window.proInit==='function')window.proInit();
   db.warehouses=Array.isArray(db.warehouses)&&db.warehouses.length?db.warehouses:[{id:'MAIN',name:'انبار اصلی',active:true}];
   db.warehouseStocks=db.warehouseStocks&&typeof db.warehouseStocks==='object'?db.warehouseStocks:{};
