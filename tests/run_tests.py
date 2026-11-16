@@ -2245,4 +2245,32 @@ async def sale_void_restores_recorded_fifo_unit_cost(br,c):
     c.eq(r['errors'],[],'FIFO void reversal produces no browser errors')
 
 
+@test
+async def extracted_fin_partial_sale_returns_reconcile_exact_cents(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({vat:0});
+      await T.buy(S,S.v,3,700,{cash:2100});
+      const sale=await T.sell(S,S.v,3,1001,{cash:3003});
+      const item=db.saleItems.find(x=>x.id===sale.items[0]);
+      sale.discount=1;
+      const beforeCost=Number(item.costTotal||item.cost*item.qty);
+      const parity=window.__YQ_FIN_PARITY_ONLY;
+      if(!parity)throw Error('extracted finance parity module unavailable');
+      const rows=[];
+      for(let n=0;n<3;n++)rows.push(parity.saleReturn({ref:sale.number,qtys:{[item.id]:1},method:'cash'}));
+      return{net:rows.reduce((a,x)=>a+x.total,0),cost:rows.reduce((a,x)=>a+x.costTotal,0),
+        expectedNet:Number(item.total)-1,expectedCost:beforeCost,
+        qty:rows.reduce((a,x)=>a+x.items[0].qty,0),
+        stock:variantBy(S.v).stock,unbalanced:T.unbalanced(),errors:pg.errs};
+    """)
+    c.eq(r['net'],r['expectedNet'],'split returns reconcile to the exact discounted line net')
+    c.eq(r['cost'],r['expectedCost'],'split returns reconcile to the original recorded cost')
+    c.eq(r['qty'],3,'all original units are returned across partial returns')
+    c.eq(r['stock'],3,'all returned units restore stock')
+    c.eq(r['unbalanced'],0,'split return journals remain balanced')
+    c.eq(r['errors'],[],'split returns produce no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
