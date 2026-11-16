@@ -14,9 +14,9 @@
    ========================================================================== */
 'use strict';
 
-const VERSION = '1.15.0';
+const VERSION = '1.15.1';
 const SHELL_CACHE = 'unique-shell-' + VERSION;
-const OCR_CACHE = 'unique-ocr-v1';
+const OCR_CACHE = 'unique-ocr-v2';
 const VOICE_CACHE = 'unique-voice-v1';
 
 const SHELL_FILES = [
@@ -25,12 +25,12 @@ const SHELL_FILES = [
 ];
 /* Everything OCR needs. core/tesseract-core-lstm is the no-SIMD fallback. */
 const OCR_FILES = [
-  './vendor/tesseract/tesseract.min.js',
-  './vendor/tesseract/worker.min.js',
-  './vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js',
-  './vendor/tesseract/core/tesseract-core-lstm.wasm.js',
-  './vendor/tesseract/lang/fas.traineddata.gz',
-  './vendor/tesseract/lang/eng.traineddata.gz'
+  { url: './vendor/tesseract/tesseract.min.js', bytes: 66695 },
+  { url: './vendor/tesseract/worker.min.js', bytes: 123722 },
+  { url: './vendor/tesseract/core/tesseract-core-simd-lstm.wasm.js', bytes: 3899472 },
+  { url: './vendor/tesseract/core/tesseract-core-lstm.wasm.js', bytes: 3896484 },
+  { url: './vendor/tesseract/lang/fas.traineddata.gz', bytes: 430555 },
+  { url: './vendor/tesseract/lang/eng.traineddata.gz', bytes: 10863619 }
 ];
 const NAV_TIMEOUT_MS = 3000;
 
@@ -74,9 +74,15 @@ self.addEventListener('message', (event) => {
 
 async function ocrStatus() {
   const cache = await caches.open(OCR_CACHE);
-  const have = [];
-  for (const f of OCR_FILES) if (await cache.match(f)) have.push(f);
-  return { total: OCR_FILES.length, cached: have.length, ready: have.length === OCR_FILES.length };
+  let cached = 0;
+  for (const file of OCR_FILES) {
+    const hit = await cache.match(file.url);
+    if (!hit) continue;
+    const declared = Number(hit.headers.get('content-length'));
+    if (declared && declared !== file.bytes) { await cache.delete(file.url); continue; }
+    cached++;
+  }
+  return { total: OCR_FILES.length, cached, ready: cached === OCR_FILES.length };
 }
 
 async function precacheOcr(client) {
@@ -84,15 +90,24 @@ async function precacheOcr(client) {
   let done = 0;
   for (const file of OCR_FILES) {
     try {
-      if (!(await cache.match(file))) {
-        const res = await fetch(file, { cache: 'reload' });
-        if (!res.ok) throw new Error(file + ' → ' + res.status);
-        await cache.put(file, res);
+      let hit = await cache.match(file.url);
+      if (hit && Number(hit.headers.get('content-length')) && Number(hit.headers.get('content-length')) !== file.bytes) {
+        await cache.delete(file.url);
+        hit = null;
+      }
+      if (!hit) {
+        const res = await fetch(file.url, { cache: 'reload' });
+        if (!res.ok) throw new Error(file.url + ' → HTTP ' + res.status);
+        const body = await res.arrayBuffer();
+        if (body.byteLength !== file.bytes) throw new Error(file.url + ' → اندازه فایل نادرست است (' + body.byteLength + ' از ' + file.bytes + ' بایت)');
+        const headers = new Headers(res.headers);
+        headers.set('content-length', String(body.byteLength));
+        await cache.put(file.url, new Response(body, { status: 200, headers }));
       }
       done++;
-      if (client) client.postMessage({ type: 'OCR_PROGRESS', done, total: OCR_FILES.length, file });
+      if (client) client.postMessage({ type: 'OCR_PROGRESS', done, total: OCR_FILES.length, file: file.url });
     } catch (err) {
-      if (client) client.postMessage({ type: 'OCR_ERROR', message: String(err && err.message || err), file });
+      if (client) client.postMessage({ type: 'OCR_ERROR', message: String(err && err.message || err), file: file.url });
       return;
     }
   }
