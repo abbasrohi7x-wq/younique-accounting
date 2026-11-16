@@ -2694,7 +2694,7 @@ async def integrated_warehouse_returns_discrepancy_and_variant_profit_report(br,
     c.true(r['reportVisible'],'variant and discrepancy report sections render')
     c.eq(r['unb'],0,'all return and adjustment journals remain balanced')
     c.true(r['health'],'integrated inventory workflows preserve data integrity')
-    c.true(r['reconciliation']['ok']&&r['reconciliation']['items'].every(x=>x.status==='ok'),'inventory, receivables and payables reconcile with their ledgers after returns and stocktake')
+    c.true(r['reconciliation']['ok'] and all(x['status']=='ok' for x in r['reconciliation']['items']),'inventory, receivables and payables reconcile with their ledgers after returns and stocktake')
     c.eq(pg.errs,[],'integrated warehouse and report flows have no browser errors')
     await ctx.close()
 
