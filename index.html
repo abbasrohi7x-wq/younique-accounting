@@ -365,9 +365,12 @@ function recordPayment(p){
  const direction=String(p.direction||'').trim().toLowerCase();if(direction!=='in'&&direction!=='out')throw Error('نوع تراکنش باید دریافت یا پرداخت باشد');
  const parsedAmount=cashParseAmount(p.amount);if(parsedAmount===null||parsedAmount<=0)throw Error('مبلغ تراکنش معتبر نیست');
  const amount=roundMoney(parsedAmount),acct=paymentAccount(p.account),partyType=String(p.partyType||'other').trim().toLowerCase();
+ if(!(amount>0))throw Error('مبلغ پس از گرد کردن باید بیشتر از صفر باشد');
  if(!['customer','supplier','other'].includes(partyType))throw Error('نوع طرف حساب تراکنش معتبر نیست');
  if((partyType==='customer'||partyType==='supplier')&&!String(p.partyId||'').trim())throw Error('انتخاب طرف حساب الزامی است');
  return atomic('ثبت دریافت/پرداخت',()=>{
+  if(partyType==='customer'&&!db.customers.some(x=>x.id===p.partyId))throw Error('مشتری انتخاب‌شده برای تراکنش معتبر نیست');
+  if(partyType==='supplier'&&!db.suppliers.some(x=>x.id===p.partyId))throw Error('تأمین‌کننده انتخاب‌شده برای تراکنش معتبر نیست');
   const session=acct==='cash'?activeCashSession():null;if(acct==='cash'&&!session)throw Error('برای تراکنش نقدی ابتدا صندوق را باز کنید');
   const id=uid(),ref=String(p.ref||id).trim();if(!ref)throw Error('شماره مرجع تراکنش معتبر نیست');if((db.payments||[]).some(x=>String(x.ref||'')===ref&&!x.embedded))throw Error('این شماره مرجع قبلاً برای دریافت/پرداخت ثبت شده است');const row={...p,id,date:now(),amount,direction,account:acct,partyType,partyId:p.partyId||'',ref};
   db.payments.push(row);const party=partyType==='customer'?'receivable':partyType==='supplier'?'payable':null;
