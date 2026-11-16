@@ -1871,4 +1871,29 @@ async def purchase_order_receipt_rolls_back_partial_multi_line_failure(br,c):
     await ctx.close()
 
 
+@test
+async def payments_reject_unknown_counterparties_and_zero_after_rounding(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\"
+      await T.seed({});
+      const snap=()=>JSON.stringify({payments:db.payments,journal:db.journal,cash:accountBalance('cash'),
+        bank:accountBalance('bank'),card:accountBalance('card')});
+      const before=snap();let customer='',supplier='',rounded='';
+      try{recordPayment({direction:'in',amount:1000,account:'bank',partyType:'customer',partyId:'MISSING-C'})}catch(e){customer=e.message}
+      try{recordPayment({direction:'out',amount:1000,account:'bank',partyType:'supplier',partyId:'MISSING-S'})}catch(e){supplier=e.message}
+      try{recordPayment({direction:'in',amount:0.001,account:'bank',partyType:'other'})}catch(e){rounded=e.message}
+      const after=snap();
+      return{customer:!!customer,supplier:!!supplier,rounded:!!rounded,before,after,unb:T.unbalanced(),
+        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    \"\"\")
+    c.true(r['customer'],'payment rejects an unknown customer')
+    c.true(r['supplier'],'payment rejects an unknown supplier')
+    c.true(r['rounded'],'payment rejects an amount that rounds to zero')
+    c.eq(r['after'],r['before'],'rejected payments do not mutate payment rows, journal or account balances')
+    c.eq(r['unb'],0,'rejected payments leave balanced journals')
+    c.true(r['health'],'payment validation preserves database health')
+    c.eq(r['errors'],[],'payment validation produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
