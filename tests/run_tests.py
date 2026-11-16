@@ -2235,7 +2235,7 @@ async def sale_void_restores_recorded_fifo_unit_cost(br,c):
       const before=db.stockMoves.length;
       Fin.voidSale(sale.number,'FIFO cost reversal regression');
       const movement=db.stockMoves.slice(before).find(x=>x.type==='void_sale');
-      return{expected,actual:movement&&movement.unitCost,stock:variantBy(S.v).stock,
+      return{expected,actual:movement&&movement.cost,stock:variantBy(S.v).stock,
         health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:pg.errs};
     """)
     c.eq(r['actual'],r['expected'],'sale void restores stock at the exact recorded FIFO unit cost')
