@@ -2392,4 +2392,34 @@ async def variant_edit_rejects_case_insensitive_barcode_and_rolls_back_failed_sa
     await ctx.close()
 
 
+@test
+async def product_creation_rolls_back_model_variants_and_codes_on_save_failure(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      await T.seed({});
+      const before={models:db.models.length,variants:db.variants.length,
+        barcodeSeq:db.seq.barcode,skuSeq:db.seq.sku};
+      productModal();
+      document.querySelector('#mn').value='کفش تست تراکنشی';
+      document.querySelector('#mb').value='برند تست';
+      document.querySelector('#mf').dispatchEvent(new Event('submit',{bubbles:true,cancelable:true}));
+      document.querySelector('.vc').checked=true;
+      document.querySelector('.vs').checked=true;
+      const originalSave=window.saveDB;window.saveDB=()=>false;
+      document.querySelector('#makeVariants').click();
+      window.saveDB=originalSave;
+      const after={models:db.models.length,variants:db.variants.length,
+        barcodeSeq:db.seq.barcode,skuSeq:db.seq.sku};
+      return{before,after,partialModel:db.models.some(m=>m.name==='کفش تست تراکنشی'),
+        partialVariant:db.variants.some(v=>v.modelId&&modelBy(v.modelId)?.name==='کفش تست تراکنشی'),
+        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+    """)
+    c.eq(r['after'],r['before'],'failed product save restores model, variants and generated code counters')
+    c.true(not r['partialModel'],'failed product save leaves no partial model')
+    c.true(not r['partialVariant'],'failed product save leaves no partial variants')
+    c.true(r['health'],'product creation rollback preserves catalog integrity')
+    c.eq(r['errors'],[],'product creation persistence failure is handled without browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
