@@ -2902,4 +2902,54 @@ async def health_check_detects_purchase_return_cost_journal_drift(br,c):
     await ctx.close()
 
 
+@test
+async def vat_purchase_return_rejects_invalid_inputs_atomically(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\"
+      const S=await T.seed({vat:10});
+      const p=await T.buy(S,S.v,3,1000,{cash:3300});
+      const item=db.purchaseItems.find(x=>x.id===p.items[0]);
+      const snapshot=()=>JSON.stringify({
+        stock:variantBy(S.v).stock,warehouseStocks:db.warehouseStocks,
+        costLayers:db.costLayers,returns:db.returns,journal:db.journal,
+        payments:db.payments,stockMoves:db.stockMoves,warehouseMoves:db.warehouseMoves
+      });
+      const before=snapshot();
+      let methodError='',foreignError='',warehouseError='',sourceError='';
+      try{Fin.purchaseReturn({ref:p.number,qtys:{[item.id]:1},method:'crypto'})}catch(e){methodError=e.message}
+      const methodUnchanged=snapshot()===before;
+      try{Fin.purchaseReturn({ref:p.number,qtys:{[item.id]:1,FOREIGN_ITEM:1},method:'card'})}catch(e){foreignError=e.message}
+      const foreignUnchanged=snapshot()===before;
+      const main=db.warehouses.find(w=>w.id==='MAIN');
+      main.active=false;
+      const inactiveBefore=snapshot();
+      try{Fin.purchaseReturn({ref:p.number,qtys:{[item.id]:1},method:'card'})}catch(e){warehouseError=e.message}
+      const warehouseUnchanged=snapshot()===inactiveBefore;
+      main.active=true;
+      const current=db.purchases.find(x=>x.number===p.number),originalIds=current.items.slice();
+      current.items=['MISSING_PURCHASE_LINE'];
+      const missingBefore=snapshot();
+      try{Fin.purchaseReturn({ref:p.number,qtys:{MISSING_PURCHASE_LINE:1},method:'card'})}catch(e){sourceError=e.message}
+      const sourceUnchanged=snapshot()===missingBefore;
+      db.purchases.find(x=>x.number===p.number).items=originalIds;
+      return{methodRejected:!!methodError,methodUnchanged,foreignRejected:!!foreignError,
+        foreignUnchanged,warehouseRejected:!!warehouseError,warehouseUnchanged,
+        sourceRejected:!!sourceError,sourceUnchanged,stock:variantBy(S.v).stock,
+        returns:db.returns.length,unb:T.unbalanced(),errors:pg.errs};
+    \"\")
+    c.true(r['methodRejected'],'VAT purchase return rejects unsupported settlement methods')
+    c.true(r['methodUnchanged'],'invalid settlement leaves every ledger and stock record unchanged')
+    c.true(r['foreignRejected'],'VAT purchase return rejects invoice lines outside the source purchase')
+    c.true(r['foreignUnchanged'],'foreign invoice line leaves every ledger and stock record unchanged')
+    c.true(r['warehouseRejected'],'VAT purchase return rejects an inactive source warehouse')
+    c.true(r['warehouseUnchanged'],'inactive warehouse rejection is atomic')
+    c.true(r['sourceRejected'],'VAT purchase return rejects missing source invoice lines')
+    c.true(r['sourceUnchanged'],'missing source line rejection is atomic')
+    c.eq(r['stock'],3,'invalid VAT returns preserve original stock')
+    c.eq(r['returns'],0,'invalid VAT returns do not create return documents')
+    c.eq(r['unb'],0,'invalid VAT returns preserve balanced journals')
+    c.eq(r['errors'],[],'VAT purchase return validation produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
