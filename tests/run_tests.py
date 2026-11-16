@@ -503,6 +503,43 @@ async def ai_sale_decline_and_permission_recheck(br,c):
     await ctx.close()
 
 
+@test
+async def cash_void_requires_open_session_without_partial_mutation(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({cash:1000000});
+      const purchase=await T.buy(S,S.v,2,1000,{cash:2000});
+      const sale=await T.sell(S,S.v,1,1500,{cash:1500});
+      const session=activeCashSession();
+      closeCashSession(cashSessionExpected(session),'close before void','test');
+      const snapshot=()=>JSON.stringify({
+        status:sale.status,stock:variantBy(S.v).stock,
+        payments:db.payments,journal:db.journal,
+        cashMoves:db.cashMovements,stockMoves:db.stockMoves,
+        warehouseMoves:db.warehouseMoves,cash:accountBalance('cash')
+      });
+      const before=snapshot();let blocked='';
+      try{Fin.voidSale(sale.number,'void after shift close')}catch(e){blocked=e.message}
+      const after=snapshot();
+      openCashSession(1000000,'new shift','test');
+      const voided=Fin.voidSale(sale.number,'void after reopening shift');
+      return{blocked:!!blocked,before,after,voided:!!voided,
+        status:sale.status,stock:variantBy(S.v).stock,
+        cash:accountBalance('cash'),unbalanced:T.unbalanced(),
+        health:runYouniqueHealthCheck().ok};
+    """)
+    c.true(r['blocked'],'cash sale void is blocked when no cash session is open')
+    c.eq(r['after'],r['before'],'blocked cash sale void leaves every ledger unchanged')
+    c.true(r['voided'],'cash sale void succeeds after opening a new cash session')
+    c.eq(r['status'],'voided','sale status is voided after retry')
+    c.eq(r['stock'],2,'successful retry restores stock exactly once')
+    c.eq(r['cash'],1000000,'cash account returns to its opening balance')
+    c.eq(r['unbalanced'],0,'cash session guard preserves balanced journals')
+    c.true(r['health'],'cash session guard preserves database health')
+    c.eq(pg.errs,[],'cash session guard produces no browser errors')
+    await ctx.close()
+
+
 async def main():
     flt=sys.argv[1] if len(sys.argv)>1 else '';t0=time.time()
     async with async_playwright() as p:
