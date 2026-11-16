@@ -91,6 +91,7 @@ python3 tests/run_tests.py نام_آزمون
 
 ## مستندات
 
+- [فهرست مستندات و نقشهٔ پوشه‌ها](docs/README.md)
 - [وضعیت و ریسک‌های فعلی](PROJECT_STATUS.md)
 - [تاریخچهٔ تغییرات](CHANGES_FA.md)
 - [راهنمای آزمون‌ها](tests/README.md)
