@@ -359,7 +359,7 @@ function postJournal(ref,desc,lines,meta={}){if(!Array.isArray(lines)||!lines.le
 function accountBalance(account,partyType='',partyId=''){let n=0;for(const j of db.journal||[])for(const l of j.lines||[]){if(l.account!==account)continue;if(partyType&&l.partyType!==partyType)continue;if(partyId&&l.partyId!==partyId)continue;n+=num(l.debit)-num(l.credit)}return n}
 function customerBalance(id){return Math.max(0,accountBalance('receivable','customer',id))}
 function supplierBalance(id){return Math.max(0,-accountBalance('payable','supplier',id))}
-function paymentAccount(account){const a=String(account||'cash').trim().toLowerCase();return (a==='card'||/کارت/.test(a))?'card':(a==='bank'||/بانک|حواله|شبا/.test(a))?'bank':'cash'}
+function paymentAccount(account){const a=String(account??'cash').trim().toLowerCase();if(!a||['cash','نقد','نقدی','وجه نقد'].includes(a)||/نقد/.test(a))return'cash';if(['card','pos',' کارتخوان'].includes(a)||/کارت|پوز/.test(a))return'card';if(['bank','transfer','wire'].includes(a)||/بانک|حواله|شبا|انتقال/.test(a))return'bank';throw Error('روش پرداخت نامعتبر است؛ فقط نقد، کارت یا بانک مجاز است')}
 function recordPayment(p){
  if(!p||typeof p!=='object')throw Error('اطلاعات تراکنش معتبر نیست');
  const direction=String(p.direction||'').trim().toLowerCase();if(direction!=='in'&&direction!=='out')throw Error('نوع تراکنش باید دریافت یا پرداخت باشد');
