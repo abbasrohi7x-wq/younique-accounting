@@ -2812,6 +2812,34 @@ async def warehouse_movement_chain_reconciliation_detects_drift(br,c):
 
 
 @test
+async def payment_rows_reconcile_to_unique_journal_refs_and_amounts(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const p=await T.buy(S,S.v,2,1000,{cash:2000});
+      const payment=db.payments.find(x=>x.ref===p.number&&x.account==='cash');
+      const valid=runYouniqueHealthCheck();
+      const original=payment.amount;
+      payment.amount=original+100;
+      const wrongAmount=runYouniqueHealthCheck();
+      const amountIssues=wrongAmount.issues;
+      payment.amount=original;
+      const source=db.journal.find(x=>x.ref===p.number);
+      db.journal.push({...JSON.parse(JSON.stringify(source)),id:uid()});
+      const duplicateRef=runYouniqueHealthCheck();
+      return{valid:valid.ok,wrongAmount:wrongAmount.ok,amountIssues,
+        duplicateRef:duplicateRef.ok,duplicateIssues:duplicateRef.issues};
+    """)
+    c.true(r['valid'],'valid invoice tender and journal references pass health check')
+    c.true(not r['wrongAmount'],'health check detects payment amount drift against its journal')
+    c.true(any('مبلغ پرداخت با گردش حساب' in x for x in r['amountIssues']),'payment amount mismatch is reported')
+    c.true(not r['duplicateRef'],'health check rejects duplicate journal references for a payment')
+    c.true(any('سند حسابداری یکتا' in x for x in r['duplicateIssues']),'duplicate payment journal reference is reported')
+    c.eq(pg.errs,[],'payment reference reconciliation produces no browser errors')
+    await ctx.close()
+
+
+@test
 async def warehouse_transfer_reconciliation_requires_complete_pair(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
