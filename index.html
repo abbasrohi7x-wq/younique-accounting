@@ -642,23 +642,7 @@ window.accounting=accounting20;if(!db.seq.journal){db.seq.journal=1;saveDB(true)
 
 
 
-<script id="yq-regression-guardrails-2026-11-16">
-(function(){
-'use strict';
-try{
- const original=stockMoveV21;
- stockMoveV21=function(variantId,qty,type,ref,cost,totalValue,warehouseId){
-   const v=variantBy(variantId);if(!v)throw Error('تنوع کالا پیدا نشد');
-   const q=num(qty),whId=warehouseId||((db.warehouses||[]).find(w=>w.id==='MAIN'&&w.active!==false)||{}).id;
-   const wh=(db.warehouses||[]).find(w=>w.id===whId&&w.active!==false);
-   if(!wh)throw Error('انبار انتخاب‌شده برای گردش موجودی معتبر یا فعال نیست');
-   const current=Object.prototype.hasOwnProperty.call(db.warehouseStocks?.[whId]||{},variantId)?num(db.warehouseStocks[whId][variantId]):(whId==='MAIN'?num(v.stock):0);
-   if(q<0&&current+q<-.0001)throw Error('موجودی انبار «'+wh.name+'» برای این گردش کافی نیست.');
-   return original(variantId,qty,type,ref,cost,totalValue,whId);
- };
-}catch(e){console.warn('warehouse preflight guard unavailable',e)}
-})();
-</script></body></html>`);w.document.close();w.focus();setTimeout(()=>w.print(),300)}
+</body></html>`);w.document.close();w.focus();setTimeout(()=>w.print(),300)}
 function people(type){const isC=type==='customer',arr=isC?db.customers:db.suppliers;$('#content').innerHTML=pageHead(isC?'مشتریان':'تأمین‌کنندگان',isC?'مدیریت مشتری، مطالبات و دریافت‌ها':'مدیریت تأمین‌کننده، بدهی و پرداخت‌ها',`<button class="btn primary" id="newPerson">＋ ${isC?'مشتری':'تأمین‌کننده'} جدید</button>`)+`<div class="card"><div class="tablewrap"><table><thead><tr><th>نام</th><th>تلفن</th><th>تعداد سند</th><th>${isC?'مطالبات':'بدهی'}</th><th>عملیات</th></tr></thead><tbody>${(()=>{const cnt=new Map();for(const d of (isC?db.sales:db.purchases)){const k=isC?d.customerId:d.supplierId;cnt.set(k,(cnt.get(k)||0)+1)}return arr.map(x=>{const bal=isC?customerBalance(x.id):supplierBalance(x.id),count=cnt.get(x.id)||0;return `<tr><td><b>${esc(x.name)}</b><small class="muted">${esc(x.note||'')}</small></td><td>${esc(x.phone||'-')}</td><td>${count}</td><td>${money(bal)}${(()=>{const c=isC?Math.max(0,-accountBalance('receivable','customer',x.id)):Math.max(0,accountBalance('payable','supplier',x.id));return c>0?` <small class='pill green'>اعتبار ${money(c)}</small>`:''})()}</td><td><button class="btn" data-pay="${x.id}">${isC?'دریافت':'پرداخت'}</button><button class="btn" data-editp="${x.id}">ویرایش</button></td></tr>`}).join('')})()||'<tr><td colspan="5"><div class="empty">موردی ثبت نشده است.</div></td></tr>'}</tbody></table></div></div>`;$('#newPerson').onclick=()=>personModal(type);$$('[data-editp]').forEach(b=>b.onclick=()=>personModal(type,b.dataset.editp));$$('[data-pay]').forEach(b=>b.onclick=()=>personPayment(type,b.dataset.pay))}
 function personModal(type,id=''){const arr=type==='customer'?db.customers:db.suppliers,p=id?arr.find(x=>x.id===id):null;modal(`<div class="modalhead"><h2>${id?'ویرایش':'ثبت'} ${type==='customer'?'مشتری':'تأمین‌کننده'}</h2><button class="close" data-close>×</button></div><form id="pf"><div class="formgrid"><label class="field span2">نام<input id="pn" required value="${esc(p?.name||'')}"></label><label class="field">تلفن<input id="pp" value="${esc(p?.phone||'')}"></label><label class="field span4">یادداشت<textarea id="pnote">${esc(p?.note||'')}</textarea></label></div><div class="modal-actions"><button class="btn primary">ذخیره</button></div></form>`);$('#pf').onsubmit=e=>{e.preventDefault();const o={id:id||uid(),name:$('#pn').value.trim(),phone:$('#pp').value.trim(),note:$('#pnote').value.trim()};if(!o.name)return toast('نام الزامی است',true);if(p)Object.assign(p,o);else arr.push(o);saveDB();closeModal();toast('اطلاعات ذخیره شد');people(type)}}
 function personPayment(type,id){const isC=type==='customer';modal(`<div class="modalhead"><h2>${isC?'دریافت از مشتری':'پرداخت به تأمین‌کننده'}</h2><button class="close" data-close>×</button></div><form id="payf"><div class="formgrid"><label class="field">مبلغ<input id="pa" type="number" min="1" required></label><label class="field">حساب<input id="pac" value="صندوق"></label><label class="field span2">شرح<input id="pnote" value="${isC?'دریافت از مشتری':'پرداخت به تأمین‌کننده'}"></label></div><div class="modal-actions"><button class="btn primary">ثبت</button></div></form>`);$('#payf').onsubmit=e=>{e.preventDefault();const amount=num($('#pa').value);if(!(amount>0))return toast('مبلغ معتبر نیست',true);/* v42.1: block over-payment/over-receipt and double submit; surface errors */const owed=isC?customerBalance(id):supplierBalance(id);if(amount>owed+0.01)return toast(`مبلغ بیشتر از مانده حساب است (مانده: ${money(owed)})`,true);const sb=e.target.querySelector('button');if(sb){if(sb.disabled)return;sb.disabled=true}try{atomic(isC?'دریافت از مشتری':'پرداخت به تأمین‌کننده',()=>{const current=isC?customerBalance(id):supplierBalance(id);if(amount>current+0.01)throw Error('مبلغ بیشتر از مانده حساب است؛ مانده فعلی: '+money(current));addPayment({direction:isC?'in':'out',partyType:type,partyId:id,amount,account:$('#pac').value,ref:'',note:$('#pnote').value})});closeModal();toast('تراکنش ثبت شد');people(type)}catch(err){if(sb)sb.disabled=false;toast(err.message||'ثبت تراکنش ناموفق بود',true)}}}
@@ -6123,4 +6107,20 @@ window.yqVariantPerformanceRows=variantPerformanceRows;
 </script>
 
 
-</body></html>
+<script id="yq-regression-guardrails-2026-11-16">
+(function(){
+'use strict';
+try{
+ const original=stockMoveV21;
+ stockMoveV21=function(variantId,qty,type,ref,cost,totalValue,warehouseId){
+   const v=variantBy(variantId);if(!v)throw Error('تنوع کالا پیدا نشد');
+   const q=num(qty),whId=warehouseId||((db.warehouses||[]).find(w=>w.id==='MAIN'&&w.active!==false)||{}).id;
+   const wh=(db.warehouses||[]).find(w=>w.id===whId&&w.active!==false);
+   if(!wh)throw Error('انبار انتخاب‌شده برای گردش موجودی معتبر یا فعال نیست');
+   const current=Object.prototype.hasOwnProperty.call(db.warehouseStocks?.[whId]||{},variantId)?num(db.warehouseStocks[whId][variantId]):(whId==='MAIN'?num(v.stock):0);
+   if(q<0&&current+q<-.0001)throw Error('موجودی انبار «'+wh.name+'» برای این گردش کافی نیست.');
+   return original(variantId,qty,type,ref,cost,totalValue,whId);
+ };
+}catch(e){console.warn('warehouse preflight guard unavailable',e)}
+})();
+</script></body></html>
