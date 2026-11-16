@@ -1635,7 +1635,9 @@ function runYouniqueHealthCheck(){
       }
     }
     for(const v of (db.variants||[])){
-      const warehouseRows=(db.warehouses||[]).map(w=>({warehouse:w,qty:db.warehouseStocks?.[w.id]?.[v.id]}));
+      const knownWarehouses=db.warehouses||[],stockMap=db.warehouseStocks||{};
+      const warehouseIds=[...new Set([...knownWarehouses.map(w=>w.id),...Object.keys(stockMap)])];
+      const warehouseRows=warehouseIds.map(id=>({warehouse:knownWarehouses.find(w=>w.id===id)||{id,name:'انبار نامشخص '+id},qty:stockMap[id]?.[v.id]}));
       const warehouseQty=warehouseRows.reduce((sum,x)=>sum+num(x.qty),0);
       const hasGlobalOrWarehouseStock=num(v.stock)!==0||warehouseRows.some(x=>x.qty!==undefined&&x.qty!==null);
       for(const x of warehouseRows){if(x.qty!==undefined&&x.qty!==null&&(!Number.isFinite(Number(x.qty))||Number(x.qty)<0||!Number.isInteger(Number(x.qty))))issues.push('موجودی نامعتبر در انبار '+x.warehouse.name+': '+variantName(v))}
@@ -6069,7 +6071,7 @@ function variantPerformanceRows(){
  const purchases=(db.purchases||[]).filter(p=>p.status==='confirmed');
  for(const p of purchases){for(const id of p.items||[]){const i=(db.purchaseItems||[]).find(x=>x.id===id);if(!i)continue;const r=get(i.variantId);if(!r)continue;r.purchasedQty+=num(i.qty);r.purchaseCost+=num(i.total??num(i.qty)*num(i.unitPrice));}}
  for(const ret of (db.returns||[]).filter(x=>x.type==='purchase')){for(const i of ret.items||[]){const r=get(i.variantId);if(!r)continue;r.purchaseReturnQty+=num(i.qty);r.purchaseReturnValue+=num(i.refund??num(i.qty)*num(i.unitPrice));}}
- return Array.from(rows.values()).map(r=>{const warehouseTotal=(db.warehouses||[]).reduce((sum,w)=>sum+num(db.warehouseStocks?.[w.id]?.[r.variantId]),0);return {...r,warehouseTotal,warehouseDifference:roundMoney(r.stock-warehouseTotal),warehouseBalanced:Math.abs(r.stock-warehouseTotal)<=.001,netSoldQty:r.soldQty-r.saleReturnQty,netRevenue:roundMoney(r.salesRevenue-r.saleReturnRevenue),netCogs:roundMoney(r.cogs-r.returnedCogs),grossProfit:roundMoney((r.salesRevenue-r.saleReturnRevenue)-(r.cogs-r.returnedCogs)),netPurchasedQty:r.purchasedQty-r.purchaseReturnQty,netPurchaseValue:roundMoney(r.purchaseCost-r.purchaseReturnValue)}}).sort((a,b)=>a.name.localeCompare(b.name,'fa'));
+ return Array.from(rows.values()).map(r=>{const warehouseTotal=Object.values(db.warehouseStocks||{}).reduce((sum,stockByVariant)=>sum+num(stockByVariant?.[r.variantId]),0);return {...r,warehouseTotal,warehouseDifference:roundMoney(r.stock-warehouseTotal),warehouseBalanced:Math.abs(r.stock-warehouseTotal)<=.001,netSoldQty:r.soldQty-r.saleReturnQty,netRevenue:roundMoney(r.salesRevenue-r.saleReturnRevenue),netCogs:roundMoney(r.cogs-r.returnedCogs),grossProfit:roundMoney((r.salesRevenue-r.saleReturnRevenue)-(r.cogs-r.returnedCogs)),netPurchasedQty:r.purchasedQty-r.purchaseReturnQty,netPurchaseValue:roundMoney(r.purchaseCost-r.purchaseReturnValue)}}).sort((a,b)=>a.name.localeCompare(b.name,'fa'));
 }
 window.yqVariantPerformanceRows=variantPerformanceRows;
 /* Make the stocktake reason part of the persisted trace, not merely a UI note. */
