@@ -1419,7 +1419,7 @@ async def sale_persistence_failure_rolls_back_invoice_and_preserves_draft(br,c):
       window.__salePayments={cash:700,card:800,bank:0,credit:0};
       const before={sales:db.sales.length,items:db.saleItems.length,journal:db.journal.length,payments:db.payments.length,
         moves:db.cashMovements.length,stock:variantBy(S.v).stock,cash:accountBalance('cash'),card:accountBalance('card')};
-      const originalPersist=window._persist;window._persist=()=>false;saveSale();window._persist=originalPersist;saveDB(true);
+      const originalSaveDB=window.saveDB;window.saveDB=()=>false;saveSale();window.saveDB=originalSaveDB;saveDB(true);
       return{before,after:{sales:db.sales.length,items:db.saleItems.length,journal:db.journal.length,payments:db.payments.length,
         moves:db.cashMovements.length,stock:variantBy(S.v).stock,cash:accountBalance('cash'),card:accountBalance('card')},
         cart:saleCart.map(x=>[x.qty,x.price]),page,health:runYouniqueHealthCheck().ok}
