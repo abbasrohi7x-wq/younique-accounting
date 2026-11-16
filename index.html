@@ -1199,12 +1199,14 @@ function recordIncome(amount,note,accountRaw,source){
   const amt=cashParseAmount(amount);if(amt===null||!(roundMoney(amt)>0))throw Error('مبلغ درآمد معتبر نیست');
   const n=String(note||'').trim();if(!n)throw Error('شرح درآمد را وارد کنید');
   const a=roundMoney(amt),account=paymentAccount(accountRaw||'cash');
-  if(account==='cash'&&!activeCashSession())throw Error('برای تراکنش نقدی ابتدا صندوق را باز کنید');
   atomic('ثبت درآمد'+(source==='ai'?' (دستیار)':''),()=>{
-    db.incomes.push({id:uid(),date:now(),amount:a,note:n,account});
-    postJournal('INC-'+uid(),'درآمد',[{account,debit:a,credit:0},{account:'income',debit:0,credit:a}]);
-    if(account==='cash')cashMove(activeCashSession().id,a,'income','INC','دریافت درآمد');
-    if(source!=='ui')audit('ثبت تراکنش مالی (درآمد'+(source==='ai'?'، دستیار':'')+')','',n)});
+    const cs=account==='cash'?activeCashSession():null;
+    if(account==='cash'&&!cs)throw Error('برای تراکنش نقدی ابتدا صندوق را باز کنید');
+    const id=uid(),ref='INC-'+id;
+    db.incomes.push({id,date:now(),amount:a,note:n,account,ref});
+    postJournal(ref,'درآمد',[{account,debit:a,credit:0},{account:'income',debit:0,credit:a}],{transactionType:'income'});
+    if(account==='cash')cashMove(cs.id,a,'income',ref,'دریافت درآمد');
+    if(source!=='ui')audit('ثبت تراکنش مالی (درآمد'+(source==='ai'?'، دستیار':'')+')',ref,n)});
   return{amount:a,note:n,account};
 }
 function transferFunds(from,to,amount,note,source){
@@ -1212,11 +1214,12 @@ function transferFunds(from,to,amount,note,source){
   if(!['cash','bank','card'].includes(from)||!['cash','bank','card'].includes(to))throw Error('حساب مبدأ و مقصد باید صندوق، بانک یا کارتخوان باشد');
   if(from===to)throw Error('حساب مبدأ و مقصد باید متفاوت باشند');
   if(!(a>0))throw Error('مبلغ معتبر وارد کنید');
-  const cs=activeCashSession();
-  if((from==='cash'||to==='cash')&&!cs)throw Error('برای انتقال از/به صندوق، ابتدا صندوق را باز کنید');
-  if(accountBalance(from)+0.005<a)throw Error('موجودی حساب مبدأ ('+money(accountBalance(from))+') کافی نیست');
   const n=String(note||'').trim();
   atomic('انتقال وجه'+(source==='ai'?' (دستیار)':''),()=>{
+    const cs=(from==='cash'||to==='cash')?activeCashSession():null;
+    if((from==='cash'||to==='cash')&&!cs)throw Error('برای انتقال از/به صندوق، ابتدا صندوق را باز کنید');
+    const available=cashRound(accountBalance(from));
+    if(available+0.005<a)throw Error('موجودی حساب مبدأ ('+money(available)+') کافی نیست');
     db.fundTransfers=Array.isArray(db.fundTransfers)?db.fundTransfers:[];
     const id=uid(),ref='FTR-'+id;
     postJournal(ref,'انتقال وجه '+accountName(from)+' به '+accountName(to)+(n?' · '+n:''),[{account:to,debit:a,credit:0},{account:from,debit:0,credit:a}],{transactionType:'fund-transfer'});
