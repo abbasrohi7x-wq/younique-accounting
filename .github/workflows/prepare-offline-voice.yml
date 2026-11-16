@@ -1,0 +1,128 @@
+name: Prepare offline Persian voice assets
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/prepare-offline-voice.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prepare-offline-voice-main
+  cancel-in-progress: false
+
+jobs:
+  package:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Check whether voice assets already exist
+        id: existing
+        shell: bash
+        run: |
+          if [ -s vendor/vosk/vosk.js ] && [ -s vendor/vosk/model.tar.gz ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up Node
+        if: steps.existing.outputs.ready != 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Download and prepare the local Vosk engine and Persian model
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p vendor/vosk "$RUNNER_TEMP/vosk-model" "$RUNNER_TEMP/vosk-npm"
+
+          # Vosk Browser 0.0.8 is Apache-2.0 and exposes window.Vosk.
+          cd "$RUNNER_TEMP/vosk-npm"
+          npm pack vosk-browser@0.0.8 --silent
+          tar -xzf vosk-browser-0.0.8.tgz
+          test -s package/dist/vosk.js
+          cp package/dist/vosk.js "$GITHUB_WORKSPACE/vendor/vosk/vosk.js"
+          if [ -f package/LICENSE ]; then
+            cp package/LICENSE "$GITHUB_WORKSPACE/vendor/vosk/LICENSE-vosk-browser.txt"
+          fi
+
+          # Official Persian small model: suitable for mobile/desktop, Apache-2.0.
+          curl --fail --location --retry 3 --connect-timeout 30 \
+            https://alphacephei.com/vosk/models/vosk-model-small-fa-0.42.zip \
+            --output "$RUNNER_TEMP/vosk-fa.zip"
+          test "$(stat -c%s "$RUNNER_TEMP/vosk-fa.zip")" -gt 40000000
+          test "$(stat -c%s "$RUNNER_TEMP/vosk-fa.zip")" -lt 80000000
+          unzip -q "$RUNNER_TEMP/vosk-fa.zip" -d "$RUNNER_TEMP/vosk-model"
+
+          MODEL_DIR="$RUNNER_TEMP/vosk-model/vosk-model-small-fa-0.42"
+          test -s "$MODEL_DIR/am/final.mdl"
+          test -s "$MODEL_DIR/conf/mfcc.conf"
+          test -s "$MODEL_DIR/graph/Gr.fst"
+          test -s "$MODEL_DIR/graph/phones/word_boundary.int"
+
+          # vosk-browser consumes a gzipped tar archive with a top-level model/ directory.
+          mkdir -p "$RUNNER_TEMP/model/conf"
+          cp -a "$MODEL_DIR/." "$RUNNER_TEMP/model/"
+          cat > "$RUNNER_TEMP/model/conf/model.conf" <<'EOF'
+          --min-active=200
+          --max-active=3000
+          --beam=10.0
+          --lattice-beam=2.0
+          --acoustic-scale=1.0
+          --frame-subsampling-factor=3
+          --endpoint.silence-phones=1:2:3:4:5:6:7:8:9:10
+          --endpoint.rule2.min-trailing-silence=0.5
+          --endpoint.rule3.min-trailing-silence=0.75
+          --endpoint.rule4.min-trailing-silence=1.0
+          EOF
+          tar -czf "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz" -C "$RUNNER_TEMP" model
+
+          curl --fail --location --retry 3 \
+            https://www.apache.org/licenses/LICENSE-2.0.txt \
+            --output "$GITHUB_WORKSPACE/vendor/vosk/LICENSE-model-Apache-2.0.txt"
+
+          cat > "$GITHUB_WORKSPACE/vendor/vosk/README.md" <<'EOF'
+          # Offline Persian speech assets
+
+          - `vosk.js`: Vosk Browser 0.0.8, Apache-2.0, bundled locally.
+          - `model.tar.gz`: official `vosk-model-small-fa-0.42` Persian model, repackaged in the gzipped-tar format required by Vosk Browser; Apache-2.0.
+          - Model source: https://alphacephei.com/vosk/models
+          - Browser engine source: https://github.com/ccoreilly/vosk-browser
+          - The model is downloaded once by the app and cached on-device. Speech recognition runs locally after the assets are available.
+          EOF
+
+          test -s "$GITHUB_WORKSPACE/vendor/vosk/vosk.js"
+          test -s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz"
+          tar -tzf "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz" | grep -q '^model/am/final.mdl$'
+          tar -tzf "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz" | grep -q '^model/conf/model.conf$'
+          test "$(stat -c%s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz")" -lt 95000000
+
+      - name: Commit voice assets to main
+        if: steps.existing.outputs.ready != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add vendor/vosk
+          if git diff --cached --quiet; then
+            echo "No voice asset changes to commit."
+            exit 0
+          fi
+          git commit -m "build: add offline Persian Vosk assets"
+          git push origin HEAD:main
