@@ -1315,4 +1315,36 @@ async def cash_session_open_and_close_roll_back_on_persistence_failure(br,c):
     await ctx.close()
 
 
+@test
+async def failed_purchase_persistence_preserves_draft_and_rolls_back(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      page='purchase';render();await T.sleep(100);
+      addPurchase(S.v);purchaseCart[0].qty=2;purchaseCart[0].price=1000;renderPurchaseCart();
+      document.querySelector('#purSup').value=S.sup;
+      document.querySelector('#purCash').value='2000';
+      document.querySelector('#purCard').value='0';
+      document.querySelector('#purBank').value='0';
+      document.querySelector('#purCredit').value='0';
+      renderPurchasePaymentSummary();
+      const before={j:db.journal.length,p:db.payments.length,stock:variantBy(S.v).stock};
+      const originalPersist=window._persist;window._persist=()=>false;
+      savePurchase();
+      window._persist=originalPersist;saveDB(true);
+      return{purchases:db.purchases.length,items:db.purchaseItems.length,
+        stock:variantBy(S.v).stock,journalDelta:db.journal.length-before.j,
+        paymentDelta:db.payments.length-before.p,cart:purchaseCart.map(x=>({id:x.id,qty:x.qty,price:x.price})),
+        page,health:runYouniqueHealthCheck().ok}''')
+    c.eq(r['purchases'],0,'failed persistence creates no purchase')
+    c.eq(r['items'],0,'failed persistence creates no purchase lines')
+    c.eq(r['stock'],0,'failed persistence leaves inventory unchanged')
+    c.eq(r['journalDelta'],0,'failed persistence leaves no journal entries')
+    c.eq(r['paymentDelta'],0,'failed persistence leaves no payment records')
+    c.eq(r['cart'],[{'id':r['cart'][0]['id'],'qty':2,'price':1000}] if r['cart'] else [],'failed persistence preserves the purchase draft')
+    c.eq(r['page'],'purchase','failed persistence keeps the purchase page open')
+    c.true(r['health'],'failed purchase rollback preserves database integrity')
+    c.eq(pg.errs,[],'purchase persistence failure produces no uncaught browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
