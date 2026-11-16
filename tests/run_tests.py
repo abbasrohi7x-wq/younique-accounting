@@ -218,7 +218,7 @@ async def stocktake_records_have_unique_traceable_references(br,c):
       return{refs,moveRefs,diffs:rows.map(x=>x.diff),stock:variantBy(S.v).stock,
         unb:T.unbalanced(),health:runYouniqueHealthCheck().ok};
     ''')
-    c.eq(r['refs'].length,2,'two stocktake records created')
+    c.eq(len(r['refs']),2,'two stocktake records created')
     c.true(r['refs'].every(Boolean),'each stocktake has a reference')
     c.true(r['refs'][0]!=r['refs'][1],'same-day stocktakes receive distinct references')
     c.eq(sorted(r['moveRefs']),sorted(r['refs']),'stock movements point back to their exact stocktake records')
