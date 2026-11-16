@@ -928,6 +928,7 @@ async def inventory_purchase_precedes_sale_and_split_payment(br,c):
     c.eq(r['stock'],3,'sale decrements received inventory')
     c.eq(r['unb'],0,'purchase and sale ledgers remain balanced')
     c.true(r['health'],'business health check remains valid')
+    c.true(r['reconciliation'],'VAT purchase return reconciles warehouse movements and inventory ledger')
     await ctx.close()
 
 
@@ -1090,12 +1091,14 @@ async def vat_purchase_return_preserves_original_warehouse(br,c):
       const ret=Fin.purchaseReturn({ref:p.number,qtys:{[item.id]:1},method:'card'});
       const move=db.warehouseMoves.at(-1),b=T.bal();
       return{purchaseWarehouse:p.warehouseId,itemWarehouse:item.warehouseId,returnWarehouse:move.warehouseId,
+        linkedMoveWarehouse:db.stockMoves.find(x=>x.ref===p.number&&x.type==='purchase_return')?.warehouseId,
         stock:variantBy(S.v).stock,main:whStock('MAIN',S.v),w2:whStock('W2',S.v),
         returnVat:ret.vat,inventory:b.inventory,value:costValue(),unb:T.unbalanced(),
-        health:runYouniqueHealthCheck().ok}""")
+        health:runYouniqueHealthCheck().ok,reconciliation:reconcileAccounts().ok}""")
     c.eq(r['purchaseWarehouse'],'W2','purchase header records selected warehouse')
     c.eq(r['itemWarehouse'],'W2','purchase line records selected warehouse')
     c.eq(r['returnWarehouse'],'W2','VAT purchase return movement uses original warehouse')
+    c.eq(r['linkedMoveWarehouse'],'W2','VAT purchase return stock move is linked to the original warehouse')
     c.eq(r['stock'],3,'one returned unit is removed from total stock')
     c.eq(r['main'],0,'main warehouse remains unchanged')
     c.eq(r['w2'],3,'return is deducted from original warehouse')
