@@ -5514,7 +5514,7 @@ if(window.__yqUnitUnknown&&!document.querySelector('#invoiceToman')){var t=docum
 var rr=document.createElement('button');rr.className='btn';rr.id='invoiceRial';rr.type='button';rr.textContent='مبالغ ریال است';box.insertBefore(rr,b);
 rr.onclick=function(){window.__yqUnitUnknown=false;rr.disabled=true;t.disabled=true;toast('واحد ریال تأیید شد؛ مبالغ بدون تبدیل ثبت می‌شوند.')};
 t.onclick=function(){if(t.__done)return;t.__done=true;t.disabled=true;document.querySelectorAll('[data-inv-price],[data-inv-total],#invSubtotal,#invDiscount,#invTax,#invTotal').forEach(function(e){e.value=String(Number(num(e.value))*10);e.dispatchEvent(new Event('input',{bubbles:true}))});window.__yqUnitUnknown=false;rr.disabled=true;toast('مبالغ ×۱۰ شد (تومان ← ریال)')}}
-b.onclick=function(){var made=0,skipped=[];try{var rows=n.items;if(!rows.some(function(i){return i.matchedVariantId}))return toast('هیچ ردیفی با کالای انبار تطبیق نیافت؛ ابتدا کالاها را تعریف کنید',true);
+b.onclick=function(){if(window.__yqUnitUnknown)return toast('برای ثبت سفارش نیز ابتدا واحد مبلغ فاکتور را مشخص کنید.',true);var made=0,skipped=[];try{var rows=n.items;if(!rows.some(function(i){return i.matchedVariantId}))return toast('هیچ ردیفی با کالای انبار تطبیق نیافت؛ ابتدا کالاها را تعریف کنید',true);
 var cid='';var ph=cust.phone||'',nm=(cust.name||'').trim();
 atomic('سفارش از فاکتور OCR',function(){
 db.orders=db.orders||[];db.reservations=db.reservations||[];db.customers=db.customers||[];
