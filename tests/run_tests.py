@@ -2273,4 +2273,40 @@ async def extracted_fin_partial_sale_returns_reconcile_exact_cents(br,c):
     await ctx.close()
 
 
+@test
+async def active_returns_reject_incomplete_or_foreign_invoice_lines_atomically(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const purchase=await T.buy(S,S.v,5,1000,{cash:5000});
+      const sale=await T.sell(S,S.v,2,1500,{cash:3000});
+      const saleItem=sale.items[0],purchaseItem=purchase.items[0];
+      const snap=()=>({returns:db.returns.length,stock:variantBy(S.v).stock,
+        stockMoves:db.stockMoves.length,warehouseMoves:db.warehouseMoves.length,
+        payments:db.payments.length,journal:db.journal.length});
+      const before=snap(),saleIds=[...sale.items],purchaseIds=[...purchase.items];
+      sale.items=[...saleIds,'missing-sale-source-line'];
+      purchase.items=[...purchaseIds,'missing-purchase-source-line'];
+      let saleMissing='',purchaseMissing='';
+      try{Fin.saleReturn({ref:sale.number,qtys:{[saleItem]:1},method:'cash'})}catch(e){saleMissing=e.message}
+      try{Fin.purchaseReturn({ref:purchase.number,qtys:{[purchaseItem]:1},method:'card'})}catch(e){purchaseMissing=e.message}
+      sale.items=saleIds;purchase.items=purchaseIds;
+      let saleForeign='',purchaseForeign='';
+      try{Fin.saleReturn({ref:sale.number,qtys:{'foreign-sale-line':1},method:'cash'})}catch(e){saleForeign=e.message}
+      try{Fin.purchaseReturn({ref:purchase.number,qtys:{'foreign-purchase-line':1},method:'card'})}catch(e){purchaseForeign=e.message}
+      return{before,after:snap(),saleMissing:!!saleMissing,purchaseMissing:!!purchaseMissing,
+        saleForeign:!!saleForeign,purchaseForeign:!!purchaseForeign,
+        health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:pg.errs};
+    """)
+    c.true(r['saleMissing'],'sale return rejects a missing source invoice line')
+    c.true(r['purchaseMissing'],'purchase return rejects a missing source invoice line')
+    c.true(r['saleForeign'],'sale return rejects a line ID from another invoice')
+    c.true(r['purchaseForeign'],'purchase return rejects a line ID from another invoice')
+    c.eq(r['after'],r['before'],'all rejected returns leave stock, journals, payments and movement ledgers unchanged')
+    c.true(r['health'],'restored source invoices preserve business health')
+    c.eq(r['unbalanced'],0,'rejected returns preserve balanced journals')
+    c.eq(r['errors'],[],'return source validation produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
