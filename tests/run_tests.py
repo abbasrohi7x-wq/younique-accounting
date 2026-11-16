@@ -2222,4 +2222,27 @@ async def invalid_variant_wizard_input_never_mutates_catalog(br,c):
     c.eq(r['errors'],[],'invalid wizard validation produces no browser errors')
     await ctx.close()
 
+@test
+async def sale_void_restores_recorded_fifo_unit_cost(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      await T.buy(S,S.v,2,1000,{cash:2000});
+      await T.buy(S,S.v,2,2000,{cash:4000});
+      const sale=await T.sell(S,S.v,3,3000,{cash:9000});
+      const item=db.saleItems.find(x=>x.id===sale.items[0]);
+      const expected=Number((num(item.costTotal)/num(item.qty)).toFixed(2));
+      const before=db.stockMoves.length;
+      Fin.voidSale(sale.number,'FIFO cost reversal regression');
+      const movement=db.stockMoves.slice(before).find(x=>x.type==='void_sale');
+      return{expected,actual:movement&&movement.unitCost,stock:variantBy(S.v).stock,
+        health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:pg.errs};
+    """)
+    c.eq(r['actual'],r['expected'],'sale void restores stock at the exact recorded FIFO unit cost')
+    c.eq(r['stock'],4,'void restores all sold units')
+    c.true(r['health'],'FIFO void reversal preserves data integrity')
+    c.eq(r['unbalanced'],0,'FIFO void reversal keeps journals balanced')
+    c.eq(r['errors'],[],'FIFO void reversal produces no browser errors')
+
+
 asyncio.run(main())
