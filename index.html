@@ -1208,7 +1208,6 @@ function openCashSession(amount,note,source){
     db.cashSessions.push(row);
     postCashOpeningJournal(row,firstSession);
     audit('باز کردن صندوق'+(source==='ai'?' (دستیار)':''),row.number,String(row.openingCash));
-    if(saveDB(true)===false)throw Error('ذخیره اطلاعات ناموفق بود');
     return row;
   });
 }
@@ -1222,7 +1221,6 @@ function closeCashSession(actualAmount,note,source){
     postCashVarianceJournal(s,diff);
     s.status='closed';s.closedAt=now();s.closing=actual;s.actualCash=actual;s.expectedCash=expected;s.difference=diff;s.variance=diff;s.closeNote=n;
     audit('بستن صندوق'+(source==='ai'?' (دستیار)':''),s.number,`مورد انتظار ${expected} · واقعی ${actual} · اختلاف ${diff}`);
-    if(saveDB(true)===false)throw Error('ذخیره اطلاعات ناموفق بود؛ بستن صندوق انجام نشد.');
     return{number:s.number,expected,actual,diff};
   });
 }
