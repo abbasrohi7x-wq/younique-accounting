@@ -202,7 +202,10 @@ function createFin(db, h, core) {
       const saleItems = sourceItems('sale', s);
       for (const i of saleItems) {
         const warehouseId = i.warehouseId || s.warehouseId || 'MAIN';
-        stockMove(i.variantId, num(i.qty), 'void_sale', no, num(i.cost), warehouseId);
+        const unitCost = num(i.costTotal) > 0
+          ? R(num(i.costTotal) / num(i.qty))
+          : num(i.cost);
+        stockMove(i.variantId, num(i.qty), 'void_sale', no, unitCost, warehouseId);
       }
       // reverse embedded payments
       for (const pm of (db.payments || []).filter(x => x.ref === no && x.embedded && x.direction === 'in')) {
