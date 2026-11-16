@@ -1467,4 +1467,27 @@ async def return_persistence_failure_rolls_back_stock_and_ledgers(br,c):
 
 
 
+
+@test
+async def warehouse_stock_reconciliation_is_reported(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      await T.buy(S,S.v,4,1000,{cash:4000});
+      const healthy=runYouniqueHealthCheck();
+      const before=variantBy(S.v).stock;
+      db.warehouseStocks.MAIN[S.v]=num(db.warehouseStocks.MAIN[S.v])+1;
+      const broken=runYouniqueHealthCheck();
+      db.warehouseStocks.MAIN[S.v]=before;
+      const repaired=runYouniqueHealthCheck();
+      return{healthy:healthy.ok,broken:broken.issues.some(x=>x.includes('عدم تطابق مجموع موجودی انبارها')),
+        repaired:repaired.ok,stock:variantBy(S.v).stock,warehouse:db.warehouseStocks.MAIN[S.v]};
+    """)
+    c.true(r['healthy'],'balanced warehouse stock passes integrity check')
+    c.true(r['broken'],'warehouse/variant stock mismatch is detected')
+    c.true(r['repaired'],'restoring warehouse quantity clears the integrity warning')
+    c.eq(r['stock'],r['warehouse'],'warehouse total equals variant stock')
+    c.eq(pg.errs,[],'stock reconciliation check produces no browser errors')
+    await ctx.close()
+
 asyncio.run(main())
