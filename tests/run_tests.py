@@ -1896,4 +1896,34 @@ async def payments_reject_unknown_counterparties_and_zero_after_rounding(br,c):
     await ctx.close()
 
 
+@test
+async def purchase_order_receipt_uses_order_destination_warehouse(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\"
+      const S=await T.seed({});
+      await T.buy(S,S.v,2,1000,{cash:2000});
+      db.warehouses.push({id:'ALT-PO',name:'انبار دوم',active:true});
+      db.warehouseStocks['ALT-PO']={};
+      const po={id:'PO-ALT',number:'PO-ALT',status:'draft',supplierId:'',warehouseId:'ALT-PO',
+        lines:[{variantId:S.v,qty:2,received:0,unitCost:1000}],total:2000};
+      db.purchaseOrders.push(po);
+      window.receivePO(po.id);
+      const form=document.querySelector('#rof41');
+      form.querySelector('[data-rq41="0"]').value='1';
+      form.onsubmit({preventDefault(){}});
+      return{global:variantBy(S.v).stock,main:db.warehouseStocks.MAIN[S.v]||0,
+        alternate:db.warehouseStocks['ALT-PO'][S.v],received:po.lines[0].received,
+        destination:po.warehouseId,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
+    \"\"\")
+    c.eq(r['global'],3,'partial purchase receipt increases global stock')
+    c.eq(r['main'],2,'purchase receipt does not incorrectly route stock to MAIN')
+    c.eq(r['alternate'],1,'purchase receipt increases the order destination warehouse')
+    c.eq(r['received'],1,'purchase order records the received quantity')
+    c.eq(r['destination'],'ALT-PO','purchase order retains its destination warehouse')
+    c.true(r['health'],'multi-warehouse purchase receipt preserves stock integrity')
+    c.eq(r['unb'],0,'multi-warehouse purchase receipt keeps journals balanced')
+    c.eq(r['errors'],[],'multi-warehouse receipt produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
