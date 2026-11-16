@@ -29,7 +29,7 @@ async def runtime_boot_diagnostics(br,c):
         db:!!window.db,version:window.YOUNIQUE_VERSION,title:document.title,
         body:document.body.innerText.slice(0,500)};
     """)
-    c.eq(r['cash'],'function','cash-session service is exposed after boot: '+JSON.stringify(r))
+    c.eq(r['cash'],'function','cash-session service is exposed after boot: '+str(r))
     c.eq(r['stockMove'],'function','warehouse movement service is exposed after boot: '+JSON.stringify(r))
     c.true(r['db'],'database is initialized after boot: '+JSON.stringify(r))
     c.eq(pg.errs,[],'boot has no uncaught browser exceptions')
