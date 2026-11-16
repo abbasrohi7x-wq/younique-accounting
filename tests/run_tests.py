@@ -2812,6 +2812,41 @@ async def warehouse_movement_chain_reconciliation_detects_drift(br,c):
 
 
 @test
+async def warehouse_transfer_reconciliation_requires_complete_pair(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      db.warehouses.push({id:'W2',name:'انبار دوم',active:true});
+      db.warehouseStocks.W2={};
+      await T.buy(S,S.v,4,1000,{cash:4000},'MAIN');
+      const transfer=recordTransfer('MAIN','W2',S.v,2);
+      const ref='TR-'+String(transfer.id).slice(-6);
+      const before=reconcileAccounts();
+      const inbound=db.warehouseMoves.find(x=>x.ref===ref&&x.type==='transfer_in');
+      db.warehouseMoves=db.warehouseMoves.filter(x=>x!==inbound);
+      const missingPair=reconcileAccounts();
+      const missingIssues=missingPair.warehouseMovementIssues;
+      db.warehouseMoves.push(inbound);
+      const stockMove=db.stockMoves.find(x=>x.ref===ref&&x.type==='transfer');
+      db.stockMoves=db.stockMoves.filter(x=>x!==stockMove);
+      const missingStockMove=reconcileAccounts();
+      db.stockMoves.push(stockMove);
+      const repaired=reconcileAccounts();
+      return{before:before.ok,missingPair:missingPair.ok,missingIssues,
+        missingStockMove:missingStockMove.ok,repaired:repaired.ok,
+        status:repaired.items.find(x=>x.code==='warehouseMovements').status};
+    """)
+    c.true(r['before'],'a complete warehouse transfer reconciles')
+    c.true(not r['missingPair'],'reconciliation rejects a transfer missing its destination movement')
+    c.true(any('دو گردش مبدأ و مقصد' in x for x in r['missingIssues']),'missing transfer pair is reported')
+    c.true(not r['missingStockMove'],'reconciliation rejects a transfer without its canonical stock move')
+    c.true(r['repaired'],'restoring transfer records restores reconciliation')
+    c.eq(r['status'],'ok','transfer movement reconciliation returns to ok')
+    c.eq(pg.errs,[],'transfer reconciliation produces no browser errors')
+    await ctx.close()
+
+
+@test
 async def fifo_purchase_return_removes_original_purchase_layer_cost(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
