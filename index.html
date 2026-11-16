@@ -1444,10 +1444,10 @@ function stockMoveV21(variantId,qty,type,ref,cost=0,totalValue,warehouseId){
   if(typeof window.proInit==='function')window.proInit();
   db.warehouses=Array.isArray(db.warehouses)&&db.warehouses.length?db.warehouses:[{id:'MAIN',name:'انبار اصلی',active:true}];
   db.warehouseStocks=db.warehouseStocks&&typeof db.warehouseStocks==='object'?db.warehouseStocks:{};
-  const defaultWh=db.warehouses.find(w=>w.id==='MAIN')||db.warehouses[0];const targetWh=db.warehouses.find(w=>w.id===warehouseId&&w.active!==false)||defaultWh;db.warehouseStocks[targetWh.id]=db.warehouseStocks[targetWh.id]||{};
+  const defaultWh=db.warehouses.find(w=>w.id==='MAIN'&&w.active!==false)||db.warehouses.find(w=>w.active!==false);if(!defaultWh)throw Error('هیچ انبار فعالی برای ثبت گردش موجودی وجود ندارد');const requestedWh=warehouseId===undefined||warehouseId===null||warehouseId===''?defaultWh:db.warehouses.find(w=>w.id===warehouseId&&w.active!==false);if(!requestedWh)throw Error('انبار انتخاب‌شده برای گردش موجودی معتبر یا فعال نیست');const targetWh=requestedWh;db.warehouseStocks[targetWh.id]=db.warehouseStocks[targetWh.id]||{};
   if(db.warehouseStocks[targetWh.id][variantId]===undefined)db.warehouseStocks[targetWh.id][variantId]=targetWh.id==='MAIN'?Math.max(0,num(v.stock)):0;
   const targetQty=num(db.warehouseStocks[targetWh.id][variantId]);
-  if(q<0&&type!=='stocktake'&&targetQty+q<-.0001)throw Error('موجودی انبار «'+targetWh.name+'» برای این گردش کافی نیست.');
+  if(!Number.isFinite(targetQty)||targetQty<0)throw Error('موجودی ثبت‌شده در انبار «'+targetWh.name+'» نامعتبر است.');if(q<0&&targetQty+q<-.0001)throw Error('موجودی انبار «'+targetWh.name+'» برای این گردش کافی نیست.');
   let actualCost=Math.max(0,num(cost)),costInfo=null,addedValue=0;
   if(q>0){
     addedValue=totalValue!==undefined&&totalValue!==null?roundMoney(totalValue):roundMoney(q*(actualCost||num(v.buyPrice)));
