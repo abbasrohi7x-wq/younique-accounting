@@ -2905,7 +2905,7 @@ async def health_check_detects_purchase_return_cost_journal_drift(br,c):
 @test
 async def vat_purchase_return_rejects_invalid_inputs_atomically(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,\"\"\"
+    r=await ev(pg,"""
       const S=await T.seed({vat:10});
       const p=await T.buy(S,S.v,3,1000,{cash:3300});
       const item=db.purchaseItems.find(x=>x.id===p.items[0]);
@@ -2936,7 +2936,7 @@ async def vat_purchase_return_rejects_invalid_inputs_atomically(br,c):
         foreignUnchanged,warehouseRejected:!!warehouseError,warehouseUnchanged,
         sourceRejected:!!sourceError,sourceUnchanged,stock:variantBy(S.v).stock,
         returns:db.returns.length,unb:T.unbalanced(),errors:pg.errs};
-    \"\")
+    """)
     c.true(r['methodRejected'],'VAT purchase return rejects unsupported settlement methods')
     c.true(r['methodUnchanged'],'invalid settlement leaves every ledger and stock record unchanged')
     c.true(r['foreignRejected'],'VAT purchase return rejects invoice lines outside the source purchase')
