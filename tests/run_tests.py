@@ -18,7 +18,7 @@ class Check:
         if not cond:s.fails.append(what)
 async def page(br):
     ctx=await br.new_context(viewport={'width':1280,'height':800});pg=await ctx.new_page();errs=[]
-    pg.on('pageerror',lambda e:errs.append(str(e)[:200]));await pg.goto(URL);await pg.wait_for_timeout(1500);await pg.evaluate(HELP);pg.errs=errs;return pg,ctx
+    pg.on('pageerror',lambda e:errs.append(str(getattr(e,'stack',e))[:900]));await pg.goto(URL);await pg.wait_for_timeout(1500);await pg.evaluate(HELP);pg.errs=errs;return pg,ctx
 async def ev(pg,js):return await pg.evaluate('async()=>{'+js+'}')
 
 @test
