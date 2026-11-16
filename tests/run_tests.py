@@ -342,6 +342,29 @@ async def purchase_sale_items_and_stock_movements_share_invoice_references(br,c)
 
 
 @test
+async def direct_stocktake_rolls_back_all_inventory_ledgers_on_storage_failure(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      await T.buy(S,S.v,5,1000,{cash:5000});
+      const before={stock:variantBy(S.v).stock,warehouse:whStock('MAIN',S.v),
+        moves:db.stockMoves.length,takes:(db.stocktakes||[]).length,
+        inventory:accountBalance('inventory'),journals:db.journal.length};
+      const original=window.saveDB;window.saveDB=()=>false;
+      let rejected=false;try{yqStocktake(S.v,'MAIN',4)}catch(e){rejected=true}
+      window.saveDB=original;
+      const after={stock:variantBy(S.v).stock,warehouse:whStock('MAIN',S.v),
+        moves:db.stockMoves.length,takes:(db.stocktakes||[]).length,
+        inventory:accountBalance('inventory'),journals:db.journal.length};
+      return{rejected,before,after,health:runYouniqueHealthCheck().ok};
+    ''')
+    c.true(r['rejected'],'stocktake surfaces a persistence failure')
+    c.eq(r['after'],r['before'],'failed direct stocktake restores quantities, movements, stocktake rows and journals')
+    c.true(r['health'],'stocktake rollback preserves inventory integrity')
+    c.eq(pg.errs,[],'stocktake storage failure has no browser errors')
+    await ctx.close()
+
+
+@test
 async def invalid_inputs_are_rejected(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,10,1000,{cash:10000});const n0=db.sales.length;
       await T.sell(S,S.v,-2,1500,{cash:100});await T.sell(S,S.v,0.5,1500,{cash:100});await T.sell(S,S.v,1,1500,{cash:0},999999);await T.sell(S,S.v,99,1500,{cash:100});
