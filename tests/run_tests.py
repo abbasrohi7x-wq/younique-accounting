@@ -220,7 +220,7 @@ async def stocktake_records_have_unique_traceable_references(br,c):
     ''')
     c.eq(r['refs'].length,2,'two stocktake records created')
     c.true(r['refs'].every(Boolean),'each stocktake has a reference')
-    c.true(r['refs'][0]!==r['refs'][1],'same-day stocktakes receive distinct references')
+    c.true(r['refs'][0]!=r['refs'][1],'same-day stocktakes receive distinct references')
     c.eq(sorted(r['moveRefs']),sorted(r['refs']),'stock movements point back to their exact stocktake records')
     c.eq(r['diffs'],[-1,-1],'each stocktake records its own counted difference')
     c.eq(r['stock'],3,'both stocktakes update global stock')
