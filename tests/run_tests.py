@@ -2031,7 +2031,7 @@ async def colloquial_cash_open_command_asks_amount_then_requires_confirmation(br
       const first=await U.chat.handle('صندوق رو باز کن',{source:'text'});
       const askedAmount=!!U.ctx.clarify&&!U.ctx.pending;
       const unchangedBeforeAmount={sessions:db.cashSessions.length,journal:db.journal.length};
-      const second=await U.chat.handle('صفر',{source:'text'});
+      const second=await U.chat.handle('۰ ریال',{source:'text'});
       const waiting=!!U.ctx.pending;
       const unchangedBeforeConfirm={sessions:db.cashSessions.length,journal:db.journal.length};
       const third=await U.chat.handle('بله',{source:'text'});
