@@ -106,6 +106,45 @@ async def invoice_void_reverses_mixed_tender_and_all_ledgers(br,c):
     c.eq(pg.errs,[],'mixed tender invoice voids produce no browser errors')
     await ctx.close()
 
+
+@test
+async def credit_only_invoice_void_restores_party_balances_without_cash_movements(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({cash:750000});
+      const purchase=await T.buy(S,S.v,4,1000,{credit:4000});
+      const sale=await T.sell(S,S.v,1,1500,{credit:1500});
+      const before={stock:variantBy(S.v).stock,cash:accountBalance('cash'),
+        receivable:accountBalance('receivable'),payable:accountBalance('payable'),
+        payments:db.payments.filter(x=>x.embedded).length,
+        cashMoves:db.cashMovements.length};
+      const voidSale=Fin.voidSale(sale.number,'credit-only sale reversal');
+      const afterSale={stock:variantBy(S.v).stock,receivable:accountBalance('receivable'),
+        payable:accountBalance('payable'),cash:accountBalance('cash'),
+        cashMoves:db.cashMovements.length};
+      const voidPurchase=Fin.voidPurchase(purchase.number,'credit-only purchase reversal');
+      return{before,voidSale:!!voidSale,voidPurchase:!!voidPurchase,
+        saleStatus:sale.status,purchaseStatus:purchase.status,afterSale,
+        final:{stock:variantBy(S.v).stock,cash:accountBalance('cash'),
+          receivable:accountBalance('receivable'),payable:accountBalance('payable'),
+          payments:db.payments.filter(x=>x.embedded).length,
+          cashMoves:db.cashMovements.length,unbalanced:T.unbalanced(),
+          health:runYouniqueHealthCheck().ok}};
+    """)
+    c.eq(r['before'],{'stock':3,'cash':750000,'receivable':1500,'payable':4000,
+      'payments':0,'cashMoves':0},'credit-only invoice starting balances')
+    c.true(r['voidSale'],'credit-only sale void succeeds')
+    c.eq(r['afterSale'],{'stock':4,'receivable':0,'payable':4000,
+      'cash':750000,'cashMoves':0},'sale void restores customer balance without cash movement')
+    c.true(r['voidPurchase'],'credit-only purchase void succeeds')
+    c.eq(r['saleStatus'],'voided','credit-only sale status')
+    c.eq(r['purchaseStatus'],'voided','credit-only purchase status')
+    c.eq(r['final'],{'stock':0,'cash':750000,'receivable':0,'payable':0,
+      'payments':0,'cashMoves':0,'unbalanced':0,'health':True},
+      'credit-only voids restore inventory and party ledgers without synthetic payments')
+    c.eq(pg.errs,[],'credit-only voids produce no browser errors')
+    await ctx.close()
+
 @test
 async def costing_fifo_vs_average(br,c):
     for method,cogs,inv in (('fifo',12400,9600),('weighted_average',13200,8800)):
