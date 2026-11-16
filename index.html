@@ -2244,7 +2244,7 @@ function removePurchasedStock(variantId,qty,ref,warehouseId,type='purchase_retur
 window.Fin={
  saleReturn({ref,qtys,method='credit',note=''}){return atomic('برگشت از فروش '+ref,()=>{
    const s=saleByNo(ref);if(!s)throw Error('فاکتور فروش پیدا نشد');if(s.status!=='confirmed')throw Error('فاکتور باطل‌شده یا نامعتبر قابل برگشت نیست');
-   if(method==='credit'&&!s.customerId)throw Error('برای تسویه در حساب، فاکتور باید مشتری داشته باشد');
+   if(!['credit','cash','card','bank'].includes(method))throw Error('روش تسویه برگشت فروش نامعتبر است');if(method==='credit'&&!s.customerId)throw Error('برای تسویه در حساب، فاکتور باید مشتری داشته باشد');
    if(method==='cash'&&!activeCashSession())throw Error('برای برگشت نقدی ابتدا صندوق را باز کنید');
    const items=s.items.map(id=>db.saleItems.find(x=>x.id===id)).filter(Boolean);const sumNet=items.reduce((a,i)=>a+num(i.total),0);
    let total=0,costTotal=0;const out=[];
@@ -2301,7 +2301,7 @@ window.Fin={
    const qtys={};for(const id of p.items)qtys[id]=num(db.purchaseItems.find(x=>x.id===id)?.qty);
    let cost=0;
    for(const id of p.items){const i=db.purchaseItems.find(x=>x.id===id);if(!i)continue;const v=variantBy(i.variantId);if(num(v.stock)<num(i.qty))throw Error(`موجودی «${variantName(v)}» کمتر از مقدار خرید است؛ ابطال ممکن نیست`);const warehouseId=i.warehouseId||p.warehouseId||'MAIN';if(!(db.warehouses||[]).some(w=>w.id===warehouseId&&w.active!==false))throw Error('انبار ابطال خرید معتبر نیست');if(num(db.warehouseStocks?.[warehouseId]?.[v.id])<num(i.qty)-1e-9)throw Error('موجودی انبار انتخاب‌شده کافی نیست');
-     const ci=removePurchasedStock(v.id,num(i.qty),no,warehouseId,'void_purchase',i.unitPrice);cost+=ci.cost;});whMoveLog(warehouseId,v.id,-num(i.qty),'void_purchase',no)}
+     const ci=removePurchasedStock(v.id,num(i.qty),no,warehouseId,'void_purchase',i.unitPrice);cost+=ci.cost;}
    cost=R(cost);const lines=j.lines.filter(l=>l.account!=='inventory').map(l=>({...l,debit:num(l.credit),credit:num(l.debit)})),invOrig=R(j.lines.filter(l=>l.account==='inventory').reduce((a,l)=>a+num(l.debit),0)),variance=R(invOrig-cost);
    lines.push({account:'inventory',debit:0,credit:cost});if(variance>0)lines.push({account:'purchaseReturnVariance',debit:0,credit:variance});else if(variance<0)lines.push({account:'purchaseReturnVariance',debit:-variance,credit:0});
    for(const pm of db.payments.filter(x=>x.ref===no&&x.embedded&&x.direction==='out')){db.payments.push({id:uid(),date:now(),direction:'in',partyType:pm.partyType,partyId:pm.partyId,amount:pm.amount,account:pm.account,ref:no+'-VOID',embedded:true,note:'معکوس پرداخت فاکتور باطل‌شده'});if(pm.account==='cash'){const cs=activeCashSession();if(!cs)throw Error('برای ابطال خرید دارای پرداخت نقدی ابتدا صندوق را باز کنید');cashMove(cs.id,num(pm.amount),'purchase_void',no,'ابطال خرید')}}
