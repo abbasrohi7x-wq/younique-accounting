@@ -107,7 +107,7 @@ jobs:
           test -s "$GITHUB_WORKSPACE/vendor/vosk/vosk.js"
           test -s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz"
           tar -tzf "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz" > "$RUNNER_TEMP/model-files.txt"
-          grep -q '^model/am/final.mdl
+          grep -Fq 'model/am/final.mdl' "$RUNNER_TEMP/model-files.txt"
           test "$(stat -c%s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz")" -lt 95000000
 
       - name: Commit voice assets to main
@@ -127,7 +127,7 @@ jobs:
           git commit -m "build: add offline Persian Vosk assets"
           git push origin HEAD:main
  "$RUNNER_TEMP/model-files.txt"
-          grep -q '^model/conf/model.conf
+          grep -Fq 'model/conf/model.conf' "$RUNNER_TEMP/model-files.txt"
           test "$(stat -c%s "$GITHUB_WORKSPACE/vendor/vosk/model.tar.gz")" -lt 95000000
 
       - name: Commit voice assets to main
