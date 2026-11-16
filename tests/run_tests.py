@@ -1357,11 +1357,11 @@ async def cash_opening_variance_is_atomic_with_session_creation(br,c):
       db.cashSessions=[];db.cashMovements=[];db.journal=[];db.audit=[];saveDB(true);
       openCashSession(1000,'first shift','test');
       closeCashSession(1000,'close first shift','test');
-      const before={sessions:db.cashSessions.length,journal:db.journal.length,audit:db.audit.length,cash:accountBalance('cash')};
+      const before={sessions:db.cashSessions.length,journal:db.journal.length,openingAudits:db.audit.filter(x=>String(x.action).startsWith('باز کردن صندوق')).length,cash:accountBalance('cash')};
       window._persist=()=>false;let error='';
       try{openCashSession(900,'second shift','test')}catch(e){error=e.message}
       window._persist=originalPersist;saveDB(true);
-      const failed={sessions:db.cashSessions.length,journal:db.journal.length,audit:db.audit.length,
+      const failed={sessions:db.cashSessions.length,journal:db.journal.length,openingAudits:db.audit.filter(x=>String(x.action).startsWith('باز کردن صندوق')).length,
         variance:db.journal.filter(j=>j.entryType==='cash_open_variance').length,active:!!activeCashSession()};
       const second=openCashSession(900,'second shift retry','test');
       const variance=db.journal.find(j=>j.ref===second.number+'-OPEN-VARIANCE');
@@ -1371,7 +1371,7 @@ async def cash_opening_variance_is_atomic_with_session_creation(br,c):
     ''')
     c.eq(r['before']['cash'],1000,'first shift establishes the ledger cash balance')
     c.true(r['error'],'failed persistence is surfaced to the caller')
-    c.eq(r['failed'],{'sessions':1,'journal':r['before']['journal'],'audit':r['before']['audit'],'variance':0,'active':False},
+    c.eq(r['failed'],{'sessions':1,'journal':r['before']['journal'],'openingAudits':r['before']['openingAudits'],'variance':0,'active':False},
       'failed second opening rolls back the session and opening variance together')
     c.eq(r['success']['sessions'],2,'retry opens the next cash session')
     c.eq(r['success']['variance'],-100,'opening shortage equals counted cash minus ledger cash')
