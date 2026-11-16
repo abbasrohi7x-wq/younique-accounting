@@ -2022,4 +2022,38 @@ async def cash_income_revalidates_open_session_inside_atomic_transaction(br,c):
     await ctx.close()
 
 
+@test
+async def colloquial_cash_open_command_asks_amount_then_requires_confirmation(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const U=window.UAI;
+      const before={sessions:db.cashSessions.length,journal:db.journal.length};
+      const first=await U.chat.handle('صندوق رو باز کن',{source:'text'});
+      const askedAmount=!!U.ctx.clarify&&!U.ctx.pending;
+      const unchangedBeforeAmount={sessions:db.cashSessions.length,journal:db.journal.length};
+      const second=await U.chat.handle('صفر',{source:'text'});
+      const waiting=!!U.ctx.pending;
+      const unchangedBeforeConfirm={sessions:db.cashSessions.length,journal:db.journal.length};
+      const third=await U.chat.handle('بله',{source:'text'});
+      return{firstKind:first[0]&&first[0].kind,askedAmount,unchangedBeforeAmount,
+        secondKind:second[0]&&second[0].kind,waiting,unchangedBeforeConfirm,
+        opened:!!activeCashSession(),opening:activeCashSession()&&activeCashSession().openingCash,
+        sessions:db.cashSessions.length,answer:third.map(x=>x.text).join(' '),
+        unbalanced:T.unbalanced(),health:runYouniqueHealthCheck().ok,errors:pg.errs,before};
+    """)
+    c.eq(r['firstKind'],'ask','colloquial open-register command asks for the opening amount')
+    c.true(r['askedAmount'],'amount clarification is pending before confirmation')
+    c.eq(r['unchangedBeforeAmount'],r['before'],'asking for opening amount does not mutate data')
+    c.eq(r['secondKind'],'confirm','supplying the amount creates an explicit confirmation prompt')
+    c.true(r['waiting'],'opening the cash register awaits explicit confirmation')
+    c.eq(r['unchangedBeforeConfirm'],r['before'],'cash register remains unchanged before confirmation')
+    c.true(r['opened'],'cash register opens after explicit confirmation')
+    c.eq(r['opening'],0,'zero opening balance is preserved')
+    c.eq(r['sessions'],1,'exactly one cash session is created')
+    c.eq(r['unbalanced'],0,'opening cash journal remains balanced')
+    c.true(r['health'],'confirmed cash opening preserves database integrity')
+    c.eq(r['errors'],[],'cash assistant flow produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
