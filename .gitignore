@@ -6,6 +6,8 @@ node_modules/
 *.log
 .playwright/
 test-results/
+playwright-report/
+blob-report/
 __pycache__/
 *.py[cod]
 .pytest_cache/
@@ -17,3 +19,8 @@ htmlcov/
 venv/
 .envrc
 Thumbs.db
+
+# Generated static distribution and local test output
+/dist/
+/build/
+coverage/
