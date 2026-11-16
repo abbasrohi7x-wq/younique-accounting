@@ -1305,13 +1305,13 @@ async def cash_session_open_and_close_roll_back_on_persistence_failure(br,c):
       const active=activeCashSession();
       return{openState,close:{error:!!closeError,status:active?.status,journalDelta:db.journal.length-beforeJ,
         varianceRef:active?.varianceJournalRef||null,expected:cashSessionExpected(active),opening:active?.openingCash},
-        health:runYouniqueHealthCheck().ok,pageErrors:pg.errs}''')
+        health:runYouniqueHealthCheck().ok}''')
     c.eq(r['openState'],{error:true,sessions:0,journals:0,openingAudits:0},
       'failed cash opening rolls back session, opening journal and opening audit')
     c.eq(r['close'],{error:true,status:'open',journalDelta:0,varianceRef:null,expected:1000,opening:1000},
       'failed cash closing rolls back variance journal and keeps the session open')
     c.true(r['health'],'cash persistence rollback preserves a healthy database')
-    c.eq(r['pageErrors'],[],'cash rollback produces no uncaught browser errors')
+    c.eq(pg.errs,[],'cash rollback produces no uncaught browser errors')
     await ctx.close()
 
 
