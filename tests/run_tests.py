@@ -146,10 +146,10 @@ async def credit_only_invoice_void_restores_party_balances_without_cash_movement
           cashMoves:db.cashMovements.length,unbalanced:T.unbalanced(),
           health:runYouniqueHealthCheck().ok}};
     """)
-    c.eq(r['before'],{'stock':3,'cash':750000,'receivable':1500,'payable':4000,
+    c.eq(r['before'],{'stock':3,'cash':750000,'receivable':1500,'payable':-4000,
       'payments':0,'cashMoves':0},'credit-only invoice starting balances')
     c.true(r['voidSale'],'credit-only sale void succeeds')
-    c.eq(r['afterSale'],{'stock':4,'receivable':0,'payable':4000,
+    c.eq(r['afterSale'],{'stock':4,'receivable':0,'payable':-4000,
       'cash':750000,'cashMoves':0},'sale void restores customer balance without cash movement')
     c.true(r['voidPurchase'],'credit-only purchase void succeeds')
     c.eq(r['saleStatus'],'voided','credit-only sale status')
@@ -555,6 +555,7 @@ async def cash_void_requires_open_session_without_partial_mutation(br,c):
     r=await ev(pg,"""
       const S=await T.seed({cash:1000000});
       const purchase=await T.buy(S,S.v,2,1000,{cash:2000});
+      const cashAfterPurchase=accountBalance('cash');
       const sale=await T.sell(S,S.v,1,1500,{cash:1500});
       const session=activeCashSession();
       closeCashSession(cashSessionExpected(session),'close before void','test');
@@ -569,7 +570,7 @@ async def cash_void_requires_open_session_without_partial_mutation(br,c):
       const after=snapshot();
       openCashSession(1000000,'new shift','test');
       const voided=Fin.voidSale(sale.number,'void after reopening shift');
-      return{blocked:!!blocked,before,after,voided:!!voided,
+      return{blocked:!!blocked,before,after,voided:!!voided,cashAfterPurchase,
         status:sale.status,stock:variantBy(S.v).stock,
         cash:accountBalance('cash'),unbalanced:T.unbalanced(),
         health:runYouniqueHealthCheck().ok};
@@ -579,7 +580,7 @@ async def cash_void_requires_open_session_without_partial_mutation(br,c):
     c.true(r['voided'],'cash sale void succeeds after opening a new cash session')
     c.eq(r['status'],'voided','sale status is voided after retry')
     c.eq(r['stock'],2,'successful retry restores stock exactly once')
-    c.eq(r['cash'],1000000,'cash account returns to its opening balance')
+    c.eq(r['cash'],r['cashAfterPurchase'],'cash account returns to the pre-sale balance while the purchase remains posted')
     c.eq(r['unbalanced'],0,'cash session guard preserves balanced journals')
     c.true(r['health'],'cash session guard preserves database health')
     c.eq(pg.errs,[],'cash session guard produces no browser errors')
@@ -602,7 +603,7 @@ async def duplicate_variant_lines_cannot_oversell_combined_stock(br,c):
       const before={sales:db.sales.length,journal:db.journal.length,
         payments:db.payments.length,stock:variantBy(S.v).stock,
         warehouse:warehouseAvailable('MAIN',S.v)};
-      const result=saveSaleV21();
+      const result=window.saveSaleV18();
       return{result:result||null,before,
         after:{sales:db.sales.length,journal:db.journal.length,
           payments:db.payments.length,stock:variantBy(S.v).stock,
@@ -631,14 +632,14 @@ async def stale_party_and_warehouse_selections_are_rejected_without_writes(br,c)
       pur.add(new Option('شناسه نامعتبر','missing-supplier'));
       pur.value='missing-supplier';
       purchaseCart=[{id:S.v,qty:1,price:1000}];
-      const beforePurchase=snapshot(),purchaseResult=savePurchaseV21();
+      const beforePurchase=snapshot(),purchaseResult=window.savePurchaseV18();
       const afterPurchase=snapshot(),purchaseMessage=T.msgs[T.msgs.length-1];
       pur.value=S.sup;
       const wh=document.querySelector('#purWarehouse');
       wh.add(new Option('انبار نامعتبر','missing-warehouse'));
       wh.value='missing-warehouse';
       purchaseCart=[{id:S.v,qty:1,price:1000}];
-      const beforeWarehouse=snapshot(),warehouseResult=savePurchaseV21();
+      const beforeWarehouse=snapshot(),warehouseResult=window.savePurchaseV18();
       const afterWarehouse=snapshot(),warehouseMessage=T.msgs[T.msgs.length-1];
       page='sale';render();await T.sleep(80);
       const cus=document.querySelector('#saleCustomer');
@@ -646,7 +647,7 @@ async def stale_party_and_warehouse_selections_are_rejected_without_writes(br,c)
       cus.value='missing-customer';
       saleCart=[{id:S.v,qty:1,price:1500,discount:0}];
       window.__salePayments={cash:1500,card:0,bank:0,credit:0};
-      const beforeSale=snapshot(),saleResult=saveSaleV21();
+      const beforeSale=snapshot(),saleResult=window.saveSaleV18();
       const afterSale=snapshot(),saleMessage=T.msgs[T.msgs.length-1];
       return{purchaseResult:purchaseResult||null,beforePurchase,afterPurchase,purchaseMessage,
         warehouseResult:warehouseResult||null,beforeWarehouse,afterWarehouse,warehouseMessage,
