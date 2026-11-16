@@ -370,14 +370,14 @@ async def backup_rejects_malformed_settings_and_storage_metadata(br,c):
       const after=JSON.stringify({shop:db.settings.shopName,models:db.models,
         variants:db.variants,sales:db.sales,journal:db.journal});
       return{cases,before,after,pending:Object.keys(YStore.S.pending).length,
-        failed:!!YStore.S.failed,integrity:!!YStore.S.integrityError,errors:pg.errs};
+        failed:!!YStore.S.failed,integrity:!!YStore.S.integrityError,errors:[]};
     """)
     c.eq(r['cases'],[True,True,True],'malformed settings, sequence and warehouse metadata are rejected')
     c.eq(r['after'],r['before'],'invalid backup metadata never replaces live business data')
     c.eq(r['pending'],0,'invalid backup metadata queues no storage writes')
     c.eq(r['failed'],False,'invalid backup metadata does not poison storage')
     c.eq(r['integrity'],False,'invalid backup metadata does not alter integrity lock')
-    c.eq(r['errors'],[],'backup validation produces no browser errors')
+    c.eq(pg.errs,[],'backup validation produces no browser errors')
     await ctx.close()
 
 
@@ -1876,7 +1876,7 @@ async def stock_moves_reject_invalid_warehouses_and_stocktake_overdraw(br,c):
       const valid=stockMoveV21(S.v,-1,'stocktake','GOOD-ST',1000,undefined,'MAIN');
       return{missing:!!missing,inactive:!!inactive,overdraw:!!overdraw,before,afterRejected,
         stock:variantBy(S.v).stock,main:db.warehouseStocks.MAIN[S.v],valid:valid.cost,
-        health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
+        health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:[]};
     """)
     c.true(r['missing'],'movement rejects an unknown warehouse instead of silently using the default')
     c.true(r['inactive'],'movement rejects an inactive warehouse')
@@ -1886,7 +1886,7 @@ async def stock_moves_reject_invalid_warehouses_and_stocktake_overdraw(br,c):
     c.eq(r['main'],2,'valid stocktake movement updates selected warehouse stock')
     c.true(r['health'],'valid stocktake keeps warehouse and global balances reconciled')
     c.eq(r['unb'],0,'stocktake movement keeps accounting journals balanced')
-    c.eq(r['errors'],[],'warehouse movement guardrails produce no browser errors')
+    c.eq(pg.errs,[],'warehouse movement guardrails produce no browser errors')
     await ctx.close()
 
 
@@ -1898,7 +1898,7 @@ async def purchase_order_receipt_rolls_back_partial_multi_line_failure(br,c):
       await T.buy(S,S.v,3,1000,{cash:3000});
       const po={id:'PO-ATOMIC',number:'PO-ATOMIC',status:'draft',supplierId:'',
         lines:[{variantId:S.v,qty:2,received:0,unitCost:1000},{variantId:S.v,qty:2,received:0,unitCost:1000}],total:4000};
-      db.purchaseOrders.push(po);
+      (db.purchaseOrders=db.purchaseOrders||[]).push(po);
       const snap=()=>JSON.stringify({stock:variantBy(S.v).stock,warehouse:db.warehouseStocks.MAIN[S.v],
         moves:db.stockMoves,journal:db.journal,costLayers:db.costLayers[S.v],
         status:db.purchaseOrders.find(x=>x.id===po.id).status,
@@ -1908,12 +1908,12 @@ async def purchase_order_receipt_rolls_back_partial_multi_line_failure(br,c):
       const fields=[...form.querySelectorAll('[data-rq41]')];fields.forEach(x=>x.value='2');
       form.onsubmit({preventDefault(){}});
       const after=snap();
-      return{before,after,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
+      return{before,after,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:[]};
     """)
     c.eq(r['after'],r['before'],'failed later receipt line rolls back earlier stock, cost and document mutations')
     c.true(r['health'],'purchase receipt rollback preserves data integrity')
     c.eq(r['unb'],0,'purchase receipt rollback leaves balanced journals')
-    c.eq(r['errors'],[],'purchase receipt rollback produces no browser errors')
+    c.eq(pg.errs,[],'purchase receipt rollback produces no browser errors')
     await ctx.close()
 
 
@@ -1930,7 +1930,7 @@ async def payments_reject_unknown_counterparties_and_zero_after_rounding(br,c):
       try{recordPayment({direction:'in',amount:0.001,account:'bank',partyType:'other'})}catch(e){rounded=e.message}
       const after=snap();
       return{customer:!!customer,supplier:!!supplier,rounded:!!rounded,before,after,unb:T.unbalanced(),
-        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+        health:runYouniqueHealthCheck().ok,errors:[]};
     """)
     c.true(r['customer'],'payment rejects an unknown customer')
     c.true(r['supplier'],'payment rejects an unknown supplier')
@@ -1938,7 +1938,7 @@ async def payments_reject_unknown_counterparties_and_zero_after_rounding(br,c):
     c.eq(r['after'],r['before'],'rejected payments do not mutate payment rows, journal or account balances')
     c.eq(r['unb'],0,'rejected payments leave balanced journals')
     c.true(r['health'],'payment validation preserves database health')
-    c.eq(r['errors'],[],'payment validation produces no browser errors')
+    c.eq(pg.errs,[],'payment validation produces no browser errors')
     await ctx.close()
 
 
@@ -1952,14 +1952,14 @@ async def purchase_order_receipt_uses_order_destination_warehouse(br,c):
       db.warehouseStocks['ALT-PO']={};
       const po={id:'PO-ALT',number:'PO-ALT',status:'draft',supplierId:'',warehouseId:'ALT-PO',
         lines:[{variantId:S.v,qty:2,received:0,unitCost:1000}],total:2000};
-      db.purchaseOrders.push(po);
+      (db.purchaseOrders=db.purchaseOrders||[]).push(po);
       window.receivePO(po.id);
       const form=document.querySelector('#rof41');
       form.querySelector('[data-rq41="0"]').value='1';
       form.onsubmit({preventDefault(){}});
       return{global:variantBy(S.v).stock,main:db.warehouseStocks.MAIN[S.v]||0,
         alternate:db.warehouseStocks['ALT-PO'][S.v],received:po.lines[0].received,
-        destination:po.warehouseId,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
+        destination:po.warehouseId,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:[]};
     """)
     c.eq(r['global'],3,'partial purchase receipt increases global stock')
     c.eq(r['main'],2,'purchase receipt does not incorrectly route stock to MAIN')
@@ -1968,7 +1968,7 @@ async def purchase_order_receipt_uses_order_destination_warehouse(br,c):
     c.eq(r['destination'],'ALT-PO','purchase order retains its destination warehouse')
     c.true(r['health'],'multi-warehouse purchase receipt preserves stock integrity')
     c.eq(r['unb'],0,'multi-warehouse purchase receipt keeps journals balanced')
-    c.eq(r['errors'],[],'multi-warehouse receipt produces no browser errors')
+    c.eq(pg.errs,[],'multi-warehouse receipt produces no browser errors')
     await ctx.close()
 
 
@@ -1980,17 +1980,17 @@ async def purchase_receipt_rejects_fractional_quantity_without_mutation(br,c):
       await T.buy(S,S.v,3,1000,{cash:3000});
       const po={id:'PO-FRACTION',number:'PO-FRACTION',status:'draft',supplierId:'',
         warehouseId:'MAIN',lines:[{variantId:S.v,qty:2,received:0,unitCost:1000}],total:2000};
-      db.purchaseOrders.push(po);
+      (db.purchaseOrders=db.purchaseOrders||[]).push(po);
       const snap=()=>JSON.stringify({stock:variantBy(S.v).stock,warehouse:db.warehouseStocks.MAIN[S.v],
         moves:db.stockMoves.length,journal:db.journal.length,received:po.lines[0].received,status:po.status});
       const before=snap();window.receivePO(po.id);
       const form=document.querySelector('#rof41');
       form.querySelector('[data-rq41="0"]').value='1.5';
       form.onsubmit({preventDefault(){}});
-      return{before,after:snap(),errors:pg.errs};
+      return{before,after:snap(),errors:[]};
     """)
     c.eq(r['after'],r['before'],'fractional receipt is rejected before any inventory or accounting mutation')
-    c.eq(r['errors'],[],'invalid fractional receipt produces no browser errors')
+    c.eq(pg.errs,[],'invalid fractional receipt produces no browser errors')
     await ctx.close()
 
 
@@ -2031,12 +2031,12 @@ async def finance_transfers_recheck_balance_inside_atomic_transaction(br,c):
       window.atomic=original;
       const after=JSON.stringify({transfers:db.fundTransfers||[],journal:db.journal,
         bank:accountBalance('bank'),card:accountBalance('card')});
-      return{rejected,before,after,health:runYouniqueHealthCheck().ok,errors:pg.errs};
+      return{rejected,before,after,health:runYouniqueHealthCheck().ok,errors:[]};
     """)
     c.true(r['rejected'],'transfer rejects when source balance falls below amount inside the transaction')
     c.eq(r['after'],r['before'],'failed transfer rolls back the transaction and intervening ledger mutation')
     c.true(r['health'],'rejected transfer leaves the database healthy')
-    c.eq(r['errors'],[],'transfer race validation produces no browser errors')
+    c.eq(pg.errs,[],'transfer race validation produces no browser errors')
     await ctx.close()
 
 
@@ -2058,13 +2058,13 @@ async def cash_income_revalidates_open_session_inside_atomic_transaction(br,c):
       const after=JSON.stringify({incomes:db.incomes,journal:db.journal,
         movements:db.cashMovements,sessions:db.cashSessions});
       return{rejected,before,after,active:!!activeCashSession(),
-        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+        health:runYouniqueHealthCheck().ok,errors:[]};
     """)
     c.true(r['rejected'],'cash income rejects when its session is no longer open at commit time')
     c.eq(r['after'],r['before'],'rejected cash income rolls back all financial and session changes')
     c.true(r['active'],'rollback restores the active cash session')
     c.true(r['health'],'rejected cash income leaves the database healthy')
-    c.eq(r['errors'],[],'cash income session validation produces no browser errors')
+    c.eq(pg.errs,[],'cash income session validation produces no browser errors')
     await ctx.close()
 
 
@@ -2085,7 +2085,7 @@ async def colloquial_cash_open_command_asks_amount_then_requires_confirmation(br
         secondKind:second[0]&&second[0].kind,waiting,unchangedBeforeConfirm,
         opened:!!activeCashSession(),opening:activeCashSession()&&activeCashSession().openingCash,
         sessions:db.cashSessions.length,answer:third.map(x=>x.text).join(' '),
-        unbalanced:T.unbalanced(),health:runYouniqueHealthCheck().ok,errors:pg.errs,before};
+        unbalanced:T.unbalanced(),health:runYouniqueHealthCheck().ok,errors:[],before};
     """)
     c.eq(r['firstKind'],'ask','colloquial open-register command asks for the opening amount')
     c.true(r['askedAmount'],'amount clarification is pending before confirmation')
@@ -2098,7 +2098,7 @@ async def colloquial_cash_open_command_asks_amount_then_requires_confirmation(br
     c.eq(r['sessions'],1,'exactly one cash session is created')
     c.eq(r['unbalanced'],0,'opening cash journal remains balanced')
     c.true(r['health'],'confirmed cash opening preserves database integrity')
-    c.eq(r['errors'],[],'cash assistant flow produces no browser errors')
+    c.eq(pg.errs,[],'cash assistant flow produces no browser errors')
     await ctx.close()
 
 
@@ -2123,7 +2123,7 @@ async def voids_reject_missing_source_invoice_lines_without_mutation(br,c):
       try{Fin.voidSale(sale.number,'missing source line')}catch(e){saleError=e.message}
       try{Fin.voidPurchase(purchase.number,'missing source line')}catch(e){purchaseError=e.message}
       return{saleError,purchaseError,before,after:snap(),saleStatus:sale.status,
-        purchaseStatus:purchase.status,unb:T.unbalanced(),errors:pg.errs};
+        purchaseStatus:purchase.status,unb:T.unbalanced(),errors:[]};
     """)
     c.true(r['saleError'],'sale void rejects a missing original sale item')
     c.true(r['purchaseError'],'purchase void rejects a missing original purchase item')
@@ -2131,7 +2131,7 @@ async def voids_reject_missing_source_invoice_lines_without_mutation(br,c):
     c.eq(r['saleStatus'],'confirmed','sale remains confirmed after rejected void')
     c.eq(r['purchaseStatus'],'confirmed','purchase remains confirmed after rejected void')
     c.eq(r['unb'],0,'rejected voids preserve balanced journals')
-    c.eq(r['errors'],[],'missing source-line guards produce no uncaught browser errors')
+    c.eq(pg.errs,[],'missing source-line guards produce no uncaught browser errors')
     await ctx.close()
 
 
@@ -2158,7 +2158,7 @@ async def returns_reject_invalid_settlement_and_missing_source_items_atomically(
       try{Fin.purchaseReturn({ref:purchase.number,qtys:{'missing-purchase-item':1},method:'card'})}catch(e){missingPurchase=/اقلام فاکتور/.test(e.message)}
       purchase.items=purchaseIds;
       return{saleMethod,purchaseMethod,missingSale,missingPurchase,before,afterMethods,
-        returns:db.returns.length,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
+        returns:db.returns.length,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:[]};
     """)
     c.true(r['saleMethod'],'sale return rejects an unsupported settlement method')
     c.true(r['purchaseMethod'],'purchase return rejects an unsupported settlement method')
@@ -2168,7 +2168,7 @@ async def returns_reject_invalid_settlement_and_missing_source_items_atomically(
     c.eq(r['returns'],0,'invalid returns never create return records')
     c.true(r['health'],'rejected returns preserve business data integrity')
     c.eq(r['unb'],0,'rejected returns preserve balanced journals')
-    c.eq(r['errors'],[],'return validation produces no browser errors')
+    c.eq(pg.errs,[],'return validation produces no browser errors')
     await ctx.close()
 
 @test
@@ -2194,7 +2194,7 @@ async def bulk_barcode_generation_is_atomic_and_preserves_existing_codes(br,c):
       return{uniqueSelected,preserved,allHaveCodes:after.every(v=>!!v.barcode),
         uniqueAll:new Set(codes).size===codes.length,allHaveSkus:after.every(v=>!!v.sku),
         uniqueSkus:new Set(skus.map(x=>x.toLowerCase())).size===skus.length,
-        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+        health:runYouniqueHealthCheck().ok,errors:[]};
     """)
     c.true(r['uniqueSelected'],'selected variants receive distinct generated barcodes')
     c.true(r['preserved'],'bulk generation never changes an existing barcode')
@@ -2203,7 +2203,7 @@ async def bulk_barcode_generation_is_atomic_and_preserves_existing_codes(br,c):
     c.true(r['allHaveSkus'],'complete action fills missing SKUs')
     c.true(r['uniqueSkus'],'all generated SKUs remain unique')
     c.true(r['health'],'bulk barcode operations preserve catalog integrity')
-    c.eq(r['errors'],[],'bulk barcode actions produce no browser errors')
+    c.eq(pg.errs,[],'bulk barcode actions produce no browser errors')
     await ctx.close()
 
 @test
@@ -2229,12 +2229,12 @@ async def invalid_variant_wizard_input_never_mutates_catalog(br,c):
       document.querySelector('#sell').value='-5';
       document.querySelector('#makeVariants').click();
       const editUnchanged=modelBy(S.m).name===original;
-      return{createUnchanged,editUnchanged,health:runYouniqueHealthCheck().ok,errors:pg.errs};
+      return{createUnchanged,editUnchanged,health:runYouniqueHealthCheck().ok,errors:[]};
     """)
     c.true(r['createUnchanged'],'invalid new product prices do not insert a partial model')
     c.true(r['editUnchanged'],'invalid edit prices do not mutate the existing model')
     c.true(r['health'],'rejected variant wizard input preserves catalog integrity')
-    c.eq(r['errors'],[],'invalid wizard validation produces no browser errors')
+    c.eq(pg.errs,[],'invalid wizard validation produces no browser errors')
     await ctx.close()
 
 @test
@@ -2251,13 +2251,13 @@ async def sale_void_restores_recorded_fifo_unit_cost(br,c):
       Fin.voidSale(sale.number,'FIFO cost reversal regression');
       const movement=db.stockMoves.slice(before).find(x=>x.type==='void_sale');
       return{expected,actual:movement&&movement.cost,stock:variantBy(S.v).stock,
-        health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:pg.errs};
+        health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:[]};
     """)
     c.eq(r['actual'],r['expected'],'sale void restores stock at the exact recorded FIFO unit cost')
     c.eq(r['stock'],4,'void restores all sold units')
     c.true(r['health'],'FIFO void reversal preserves data integrity')
     c.eq(r['unbalanced'],0,'FIFO void reversal keeps journals balanced')
-    c.eq(r['errors'],[],'FIFO void reversal produces no browser errors')
+    c.eq(pg.errs,[],'FIFO void reversal produces no browser errors')
 
 
 @test
@@ -2277,14 +2277,14 @@ async def extracted_fin_partial_sale_returns_reconcile_exact_cents(br,c):
       return{net:rows.reduce((a,x)=>a+x.total,0),cost:rows.reduce((a,x)=>a+x.costTotal,0),
         expectedNet:Number(item.total)-1,expectedCost:beforeCost,
         qty:rows.reduce((a,x)=>a+x.items[0].qty,0),
-        stock:variantBy(S.v).stock,unbalanced:T.unbalanced(),errors:pg.errs};
+        stock:variantBy(S.v).stock,unbalanced:T.unbalanced(),errors:[]};
     """)
     c.eq(r['net'],r['expectedNet'],'split returns reconcile to the exact discounted line net')
     c.eq(r['cost'],r['expectedCost'],'split returns reconcile to the original recorded cost')
     c.eq(r['qty'],3,'all original units are returned across partial returns')
     c.eq(r['stock'],3,'all returned units restore stock')
     c.eq(r['unbalanced'],0,'split return journals remain balanced')
-    c.eq(r['errors'],[],'split returns produce no browser errors')
+    c.eq(pg.errs,[],'split returns produce no browser errors')
     await ctx.close()
 
 
@@ -2311,7 +2311,7 @@ async def active_returns_reject_incomplete_or_foreign_invoice_lines_atomically(b
       try{Fin.purchaseReturn({ref:purchase.number,qtys:{'foreign-purchase-line':1},method:'card'})}catch(e){purchaseForeign=e.message}
       return{before,after:snap(),saleMissing:!!saleMissing,purchaseMissing:!!purchaseMissing,
         saleForeign:!!saleForeign,purchaseForeign:!!purchaseForeign,
-        health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:pg.errs};
+        health:runYouniqueHealthCheck().ok,unbalanced:T.unbalanced(),errors:[]};
     """)
     c.true(r['saleMissing'],'sale return rejects a missing source invoice line')
     c.true(r['purchaseMissing'],'purchase return rejects a missing source invoice line')
@@ -2320,7 +2320,7 @@ async def active_returns_reject_incomplete_or_foreign_invoice_lines_atomically(b
     c.eq(r['after'],r['before'],'all rejected returns leave stock, journals, payments and movement ledgers unchanged')
     c.true(r['health'],'restored source invoices preserve business health')
     c.eq(r['unbalanced'],0,'rejected returns preserve balanced journals')
-    c.eq(r['errors'],[],'return source validation produces no browser errors')
+    c.eq(pg.errs,[],'return source validation produces no browser errors')
     await ctx.close()
 
 
@@ -2331,7 +2331,7 @@ async def purchase_order_partial_receipts_get_unique_traceable_refs_and_legacy_w
       const S=await T.seed({});
       const po={id:'PO-PARTIAL-TRACE',number:'PO-PARTIAL-TRACE',status:'draft',supplierId:'',
         lines:[{variantId:S.v,qty:3,received:0,unitCost:1200}],total:3600};
-      db.purchaseOrders.push(po);
+      (db.purchaseOrders=db.purchaseOrders||[]).push(po);
       const receive=qty=>{
         window.receivePO(po.id);
         const f=document.querySelector('#rof41');
@@ -2348,7 +2348,7 @@ async def purchase_order_partial_receipts_get_unique_traceable_refs_and_legacy_w
       db.warehouses.find(w=>w.id==='MAIN').active=false;
       db.warehouses.push({id:'LEGACY-ALT',name:'انبار جایگزین',active:true});
       db.warehouseStocks['LEGACY-ALT']={};
-      db.purchaseOrders.push(legacy);
+      (db.purchaseOrders=db.purchaseOrders||[]).push(legacy);
       window.receivePO(legacy.id);
       const lf=document.querySelector('#rof41');
       lf.querySelector('[data-rq41="0"]').value='1';
@@ -2359,7 +2359,7 @@ async def purchase_order_partial_receipts_get_unique_traceable_refs_and_legacy_w
         totalReceived:po.receipts?.reduce((a,x)=>a+x.total,0)||0,
         legacyWarehouse:legacy.warehouseId,legacyReceived:legacy.lines[0].received,
         legacyStock:db.warehouseStocks['LEGACY-ALT'][S.v],health:runYouniqueHealthCheck().ok,
-        unbalanced:T.unbalanced(),errors:pg.errs};
+        unbalanced:T.unbalanced(),errors:[]};
     """)
     c.eq(r['afterFirst'],{'status':'partial','received':1},'first partial receipt updates only its received quantity')
     c.eq(r['finalStatus'],'received','second receipt completes the order')
@@ -2374,7 +2374,7 @@ async def purchase_order_partial_receipts_get_unique_traceable_refs_and_legacy_w
     c.eq(r['legacyStock'],1,'legacy receipt enters the resolved destination warehouse')
     c.true(r['health'],'purchase order receipt history preserves data integrity')
     c.eq(r['unbalanced'],0,'partial receipt journals remain balanced')
-    c.eq(r['errors'],[],'partial receipt flow produces no browser errors')
+    c.eq(pg.errs,[],'partial receipt flow produces no browser errors')
     await ctx.close()
 
 
@@ -2398,12 +2398,12 @@ async def variant_edit_rejects_case_insensitive_barcode_and_rolls_back_failed_sa
       const after=variantBy(S.v);
       const unchanged=JSON.stringify({color:after.color,size:after.size,barcode:after.barcode,sku:after.sku,
         purchasePrice:after.purchasePrice,sellPrice:after.sellPrice,minStock:after.minStock})===JSON.stringify(snapshot);
-      return{duplicateRejected,unchanged,health:runYouniqueHealthCheck().ok,errors:pg.errs};
+      return{duplicateRejected,unchanged,health:runYouniqueHealthCheck().ok,errors:[]};
     """)
     c.true(r['duplicateRejected'],'barcode uniqueness is case-insensitive')
     c.true(r['unchanged'],'failed persistence restores the original variant values')
     c.true(r['health'],'variant edit rollback preserves catalog integrity')
-    c.eq(r['errors'],[],'variant edit persistence failure is handled without browser errors')
+    c.eq(pg.errs,[],'variant edit persistence failure is handled without browser errors')
     await ctx.close()
 
 
@@ -2427,13 +2427,13 @@ async def product_creation_rolls_back_model_variants_and_codes_on_save_failure(b
         barcodeSeq:db.seq.barcode,skuSeq:db.seq.sku};
       return{before,after,partialModel:db.models.some(m=>m.name==='کفش تست تراکنشی'),
         partialVariant:db.variants.some(v=>v.modelId&&modelBy(v.modelId)?.name==='کفش تست تراکنشی'),
-        health:runYouniqueHealthCheck().ok,errors:pg.errs};
+        health:runYouniqueHealthCheck().ok,errors:[]};
     """)
     c.eq(r['after'],r['before'],'failed product save restores model, variants and generated code counters')
     c.true(not r['partialModel'],'failed product save leaves no partial model')
     c.true(not r['partialVariant'],'failed product save leaves no partial variants')
     c.true(r['health'],'product creation rollback preserves catalog integrity')
-    c.eq(r['errors'],[],'product creation persistence failure is handled without browser errors')
+    c.eq(pg.errs,[],'product creation persistence failure is handled without browser errors')
     await ctx.close()
 
 
@@ -2460,13 +2460,13 @@ async def backup_validation_rejects_broken_references_duplicate_barcodes_and_unb
       try{await replaceDB(dangling)}catch(e){rejected.restore=true}
       const after={models:db.models.length,variants:db.variants.length,sales:db.sales.length,
         purchases:db.purchases.length,journal:db.journal.length,stock:variantBy(S.v).stock};
-      return{rejected,before,after,health:runYouniqueHealthCheck().ok,errors:pg.errs};
+      return{rejected,before,after,health:runYouniqueHealthCheck().ok,errors:[]};
     """)
     for key in ['duplicate','dangling','unbalanced','restore']:
         c.true(r['rejected'][key],f'backup validator rejects {key} corruption')
     c.eq(r['after'],r['before'],'failed restore leaves the live database unchanged')
     c.true(r['health'],'backup rejection preserves current database integrity')
-    c.eq(r['errors'],[],'backup integrity checks produce no browser errors')
+    c.eq(pg.errs,[],'backup integrity checks produce no browser errors')
     await ctx.close()
 
 
