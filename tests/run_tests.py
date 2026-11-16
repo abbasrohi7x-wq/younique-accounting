@@ -54,6 +54,58 @@ async def void_flows_restore_everything(br,c):
       return{blocked:!!blocked,dbl:!!dbl,nonZero:z,stock:variantBy(S.v).stock,cash:b.cash,unb:T.unbalanced()}''')
     c.true(r['blocked'],'void purchase must be blocked after stock sold');c.true(r['dbl'],'double void blocked');c.eq(r['nonZero'],[],'all accounts back to zero');c.eq(r['stock'],0,'stock');c.eq(r['cash'],1000000,'cash restored');c.eq(r['unb'],0,'balanced');await ctx.close()
 
+
+@test
+async def invoice_void_reverses_mixed_tender_and_all_ledgers(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,\"\"\"
+      const S=await T.seed({cash:1000000});
+      const purchase=await T.buy(S,S.v,4,1000,{cash:2000,card:1000,bank:1000});
+      const sale=await T.sell(S,S.v,1,1500,{cash:500,card:500,bank:500});
+      const purchaseJournal=db.journal.find(j=>j.purchaseId===purchase.id&&!j.reversalOf);
+      const saleJournal=db.journal.find(j=>j.saleId===sale.id&&!j.reversalOf);
+      const before={stock:variantBy(S.v).stock,warehouse:db.warehouseStocks.MAIN[S.v],
+        cash:accountBalance('cash'),card:accountBalance('card'),bank:accountBalance('bank'),
+        payments:db.payments.length,journal:db.journal.length,cashMoves:db.cashMovements.length};
+      const voidSale=Fin.voidSale(sale.number,'mixed tender sale reversal');
+      const saleReverse=db.journal.find(j=>j.reversalOf===saleJournal.id);
+      const salePaymentReversals=db.payments.filter(p=>p.ref===sale.number+'-VOID'&&p.direction==='out');
+      const afterSale={stock:variantBy(S.v).stock,cash:accountBalance('cash'),
+        card:accountBalance('card'),bank:accountBalance('bank'),
+        reversals:salePaymentReversals.length,cashMoves:db.cashMovements.length};
+      const voidPurchase=Fin.voidPurchase(purchase.number,'mixed tender purchase reversal');
+      const purchaseReverse=db.journal.find(j=>j.reversalOf===purchaseJournal.id);
+      const purchasePaymentReversals=db.payments.filter(p=>p.ref===purchase.number+'-VOID'&&p.direction==='in');
+      return{before,voidSale:!!voidSale,voidPurchase:!!voidPurchase,
+        saleStatus:sale.status,purchaseStatus:purchase.status,
+        afterSale,saleReverse:!!saleReverse,saleReversalPayments:salePaymentReversals.map(p=>[p.account,p.amount]),
+        purchaseReverse:!!purchaseReverse,purchaseReversalPayments:purchasePaymentReversals.map(p=>[p.account,p.amount]),
+        final:{stock:variantBy(S.v).stock,warehouse:db.warehouseStocks.MAIN[S.v],
+          cash:accountBalance('cash'),card:accountBalance('card'),bank:accountBalance('bank'),
+          inventory:accountBalance('inventory'),cashMoves:db.cashMovements.length,
+          unbalanced:T.unbalanced(),health:runYouniqueHealthCheck().ok}};
+    \"\"\")
+    c.eq(r['before']['stock'],3,'sale consumes one unit before void')
+    c.eq(r['before']['warehouse'],3,'warehouse stock follows sale')
+    c.true(r['voidSale'],'mixed tender sale void succeeds')
+    c.eq(r['afterSale']['stock'],4,'sale void restores variant stock')
+    c.eq(r['afterSale']['cash'],999500,'sale void reverses cash receipt')
+    c.eq(r['afterSale']['card'],-500,'sale void reverses card receipt')
+    c.eq(r['afterSale']['bank'],-500,'sale void reverses bank receipt')
+    c.eq(r['afterSale']['reversals'],3,'sale void reverses all three tender rows')
+    c.true(r['saleReverse'],'sale void creates a reversing journal')
+    c.eq(r['saleReversalPayments'],[['cash',500],['card',500],['bank',500]],'sale reversal preserves tender accounts and amounts')
+    c.true(r['voidPurchase'],'mixed tender purchase void succeeds after sale reversal')
+    c.eq(r['saleStatus'],'voided','sale status is voided')
+    c.eq(r['purchaseStatus'],'voided','purchase status is voided')
+    c.true(r['purchaseReverse'],'purchase void creates a reversing journal')
+    c.eq(r['purchaseReversalPayments'],[['cash',2000],['card',1000],['bank',1000]],'purchase reversal preserves tender accounts and amounts')
+    c.eq(r['final'],{'stock':0,'warehouse':0,'cash':1000000,'card':0,'bank':0,
+      'inventory':0,'cashMoves':4,'unbalanced':0,'health':True},
+      'both voids restore all stock, tender balances, cash movements and accounting integrity')
+    c.eq(pg.errs,[],'mixed tender invoice voids produce no browser errors')
+    await ctx.close()
+
 @test
 async def costing_fifo_vs_average(br,c):
     for method,cogs,inv in (('fifo',12400,9600),('weighted_average',13200,8800)):
