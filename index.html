@@ -369,7 +369,7 @@ function recordPayment(p){
  if((partyType==='customer'||partyType==='supplier')&&!String(p.partyId||'').trim())throw Error('انتخاب طرف حساب الزامی است');
  return atomic('ثبت دریافت/پرداخت',()=>{
   const session=acct==='cash'?activeCashSession():null;if(acct==='cash'&&!session)throw Error('برای تراکنش نقدی ابتدا صندوق را باز کنید');
-  const id=uid(),ref=String(p.ref||id),row={...p,id,date:now(),amount,direction,account:acct,partyType,partyId:p.partyId||''};
+  const id=uid(),ref=String(p.ref||id).trim();if(!ref)throw Error('شماره مرجع تراکنش معتبر نیست');if((db.payments||[]).some(x=>String(x.ref||'')===ref&&!x.embedded))throw Error('این شماره مرجع قبلاً برای دریافت/پرداخت ثبت شده است');const row={...p,id,date:now(),amount,direction,account:acct,partyType,partyId:p.partyId||'',ref};
   db.payments.push(row);const party=partyType==='customer'?'receivable':partyType==='supplier'?'payable':null;
   if(direction==='in')postJournal(ref,'دریافت وجه',[{account:acct,debit:amount,credit:0},{account:party||'income',debit:0,credit:amount,partyType,partyId:row.partyId}]);
   else postJournal(ref,'پرداخت وجه',[{account:party||'expense',debit:amount,credit:0,partyType,partyId:row.partyId},{account:acct,debit:0,credit:amount}]);
