@@ -2088,3 +2088,39 @@ async def colloquial_cash_open_command_asks_amount_then_requires_confirmation(br
 
 
 asyncio.run(main())
+
+@test
+async def returns_reject_invalid_settlement_and_missing_source_items_atomically(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const purchase=await T.buy(S,S.v,4,1000,{cash:4000});
+      const sale=await T.sell(S,S.v,2,1500,{cash:3000});
+      const saleItem=db.saleItems.find(x=>x.id===sale.items[0]);
+      const purchaseItem=db.purchaseItems.find(x=>x.id===purchase.items[0]);
+      const snapshot=()=>JSON.stringify({returns:db.returns,journal:db.journal,payments:db.payments,
+        stock:variantBy(S.v).stock,moves:db.stockMoves,warehouseMoves:db.warehouseMoves});
+      const before=snapshot();
+      let saleMethod=false,purchaseMethod=false,missingSale=false,missingPurchase=false;
+      try{Fin.saleReturn({ref:sale.number,qtys:{[saleItem.id]:1},method:'crypto'})}catch(e){saleMethod=/روش تسویه/.test(e.message)}
+      try{Fin.purchaseReturn({ref:purchase.number,qtys:{[purchaseItem.id]:1},method:'cheque'})}catch(e){purchaseMethod=/روش تسویه/.test(e.message)}
+      const afterMethods=snapshot();
+      const saleIds=sale.items.slice();sale.items=['missing-sale-item'];
+      try{Fin.saleReturn({ref:sale.number,qtys:{'missing-sale-item':1},method:'card'})}catch(e){missingSale=/اقلام فاکتور/.test(e.message)}
+      sale.items=saleIds;
+      const purchaseIds=purchase.items.slice();purchase.items=['missing-purchase-item'];
+      try{Fin.purchaseReturn({ref:purchase.number,qtys:{'missing-purchase-item':1},method:'card'})}catch(e){missingPurchase=/اقلام فاکتور/.test(e.message)}
+      purchase.items=purchaseIds;
+      return{saleMethod,purchaseMethod,missingSale,missingPurchase,before,afterMethods,
+        returns:db.returns.length,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
+    """)
+    c.true(r['saleMethod'],'sale return rejects an unsupported settlement method')
+    c.true(r['purchaseMethod'],'purchase return rejects an unsupported settlement method')
+    c.eq(r['afterMethods'],r['before'],'unsupported settlement methods leave all records unchanged')
+    c.true(r['missingSale'],'sale return rejects a missing source invoice item')
+    c.true(r['missingPurchase'],'purchase return rejects a missing source invoice item')
+    c.eq(r['returns'],0,'invalid returns never create return records')
+    c.true(r['health'],'rejected returns preserve business data integrity')
+    c.eq(r['unb'],0,'rejected returns preserve balanced journals')
+    c.eq(r['errors'],[],'return validation produces no browser errors')
+    await ctx.close()
