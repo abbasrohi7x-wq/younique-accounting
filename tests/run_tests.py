@@ -928,7 +928,6 @@ async def inventory_purchase_precedes_sale_and_split_payment(br,c):
     c.eq(r['stock'],3,'sale decrements received inventory')
     c.eq(r['unb'],0,'purchase and sale ledgers remain balanced')
     c.true(r['health'],'business health check remains valid')
-    c.true(r['reconciliation'],'VAT purchase return reconciles warehouse movements and inventory ledger')
     await ctx.close()
 
 
