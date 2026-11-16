@@ -1489,6 +1489,7 @@ async def invoice_void_persistence_failure_rolls_back_all_ledgers(br,c):
       try{Fin.voidSale(sale.number,'test persistence failure')}catch(e){saleError=e.message}
       window.saveDB=originalSaveDB;saveDB(true);
       const afterSale=snap(S1,sale,'sale');
+      const active=activeCashSession();if(active)closeCashSession(cashSessionExpected(active),'close sale void test shift','test');
       const S2=await T.seed({});const purchase=await T.buy(S2,S2.v,4,1000,{cash:4000});
       const beforePurchase=snap(S2,purchase,'purchase');
       window.saveDB=()=>false;let purchaseError='';
