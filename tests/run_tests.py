@@ -1411,4 +1411,26 @@ async def customer_payment_failure_rolls_back_all_ledgers(br,c):
     await ctx.close()
 
 
+@test
+async def sale_persistence_failure_rolls_back_invoice_and_preserves_draft(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,2,1000,{cash:2000});
+      openCashSession(accountBalance('cash'),'sale failure test','test');
+      page='sale';render();await T.sleep(100);addSale(S.v);saleCart[0].qty=1;saleCart[0].price=1500;renderSaleCart();
+      window.__salePayments={cash:700,card:800,bank:0,credit:0};renderPaymentRows();
+      const before={sales:db.sales.length,items:db.saleItems.length,journal:db.journal.length,payments:db.payments.length,
+        moves:db.cashMovements.length,stock:variantBy(S.v).stock,cash:accountBalance('cash'),card:accountBalance('card')};
+      const originalPersist=window._persist;window._persist=()=>false;saveSale();window._persist=originalPersist;saveDB(true);
+      return{before,after:{sales:db.sales.length,items:db.saleItems.length,journal:db.journal.length,payments:db.payments.length,
+        moves:db.cashMovements.length,stock:variantBy(S.v).stock,cash:accountBalance('cash'),card:accountBalance('card')},
+        cart:saleCart.map(x=>[x.qty,x.price]),page,health:runYouniqueHealthCheck().ok}
+    ''')
+    c.eq(r['after'],r['before'],'failed sale persistence rolls back every ledger and stock mutation')
+    c.eq(r['cart'],[[1,1500]],'failed sale preserves the editable sale draft')
+    c.eq(r['page'],'sale','failed sale keeps the POS page open')
+    c.true(r['health'],'failed sale rollback preserves database integrity')
+    c.eq(pg.errs,[],'sale persistence failure produces no uncaught browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
