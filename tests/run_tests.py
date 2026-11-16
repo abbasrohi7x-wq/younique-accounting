@@ -1490,4 +1490,43 @@ async def warehouse_stock_reconciliation_is_reported(br,c):
     c.eq(pg.errs,[],'stock reconciliation check produces no browser errors')
     await ctx.close()
 
+
+@test
+async def returns_cannot_exceed_original_quantity_or_be_voided(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const purchase=await T.buy(S,S.v,3,1000,{cash:3000});
+      const sale=await T.sell(S,S.v,2,1500,{cash:3000});
+      const si=db.saleItems.find(x=>x.id===sale.items[0]);
+      const pi=db.purchaseItems.find(x=>x.id===purchase.items[0]);
+      const saleFirst=Fin.saleReturn({ref:sale.number,qtys:{[si.id]:1},method:'card'});
+      const saleBefore={returns:db.returns.length,stock:variantBy(S.v).stock,journal:db.journal.length};
+      let saleOver='',saleVoid='';
+      try{Fin.saleReturn({ref:sale.number,qtys:{[si.id]:2},method:'card'})}catch(e){saleOver=e.message}
+      try{Fin.voidSale(sale.number,'تست پس از برگشت')}catch(e){saleVoid=e.message}
+      const saleAfter={returns:db.returns.length,stock:variantBy(S.v).stock,journal:db.journal.length};
+      const purchaseFirst=Fin.purchaseReturn({ref:purchase.number,qtys:{[pi.id]:1},method:'card'});
+      const purchaseBefore={returns:db.returns.length,stock:variantBy(S.v).stock,journal:db.journal.length};
+      let purchaseOver='',purchaseVoid='';
+      try{Fin.purchaseReturn({ref:purchase.number,qtys:{[pi.id]:3},method:'card'})}catch(e){purchaseOver=e.message}
+      try{Fin.voidPurchase(purchase.number,'تست پس از برگشت')}catch(e){purchaseVoid=e.message}
+      const purchaseAfter={returns:db.returns.length,stock:variantBy(S.v).stock,journal:db.journal.length};
+      return{saleFirst:!!saleFirst,saleOver:!!saleOver,saleVoid:!!saleVoid,saleBefore,saleAfter,
+        purchaseFirst:!!purchaseFirst,purchaseOver:!!purchaseOver,purchaseVoid:!!purchaseVoid,
+        purchaseBefore,purchaseAfter,health:runYouniqueHealthCheck().ok,unb:T.unbalanced()};
+    """)
+    c.true(r['saleFirst'],'partial sale return is accepted')
+    c.true(r['saleOver'],'sale return quantity cannot exceed remaining invoice quantity')
+    c.true(r['saleVoid'],'sale with a registered return cannot be voided')
+    c.eq(r['saleAfter'],r['saleBefore'],'rejected sale over-return and void attempts leave all ledgers unchanged')
+    c.true(r['purchaseFirst'],'partial purchase return is accepted')
+    c.true(r['purchaseOver'],'purchase return quantity cannot exceed remaining invoice quantity')
+    c.true(r['purchaseVoid'],'purchase with a registered return cannot be voided')
+    c.eq(r['purchaseAfter'],r['purchaseBefore'],'rejected purchase over-return and void attempts leave all ledgers unchanged')
+    c.true(r['health'],'return guardrails preserve database integrity')
+    c.eq(r['unb'],0,'return guardrails preserve balanced journals')
+    c.eq(pg.errs,[],'return guardrails produce no uncaught browser errors')
+    await ctx.close()
+
 asyncio.run(main())
