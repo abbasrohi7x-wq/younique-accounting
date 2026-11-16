@@ -1436,7 +1436,8 @@ function stockMoveV21(variantId,qty,type,ref,cost=0,totalValue,warehouseId){
   return {cost:totalCost,unitCost:actualCost,details:costInfo?.details||[]};
 }
 function saleCostForItems(items){return roundMoney(items.reduce((sum,i)=>sum+num(i.costTotal||num(i.cost)*num(i.qty)),0));}
-function saveSaleV21(){try{atomic('ثبت فروش',()=>{
+function saveSaleV21(){let savedNumber='';try{atomic('ثبت فروش',()=>{
+  if(!saleCart.length)throw Error('فاکتور خالی است');
   if(!saleCart.length)throw Error('فاکتور خالی است');
   const validationError=saleValidationError(saleCart,num($('#saleDiscount').value));if(validationError)throw Error(validationError);
   const customerId=$('#saleCustomer').value,total=saleTotal(saleCart,num($('#saleDiscount').value));if(total<=0)throw Error('مبلغ فاکتور معتبر نیست');
@@ -1456,8 +1457,8 @@ function saveSaleV21(){try{atomic('ثبت فروش',()=>{
   items.forEach(i=>{i.warehouseId=warehouseId;const move=stockMoveV21(i.variantId,-i.qty,'sale',no,i.cost,undefined,warehouseId);i.cost=roundMoney(move.unitCost);i.costTotal=roundMoney(move.cost);i.costDetails=move.details;db.saleItems.push(i)});cost=saleCostForItems(items);profit=roundMoney(items.reduce((a,i)=>a+i.total,0)-discount-cost-vatCost);sale.costTotal=cost;sale.profit=profit;
   paymentRows.filter(x=>x.account!=='credit').forEach(x=>{db.payments.push({id:uid(),date:now(),direction:'in',partyType:customerId?'customer':'other',partyId:customerId,amount:x.amount,account:x.account,ref:no,embedded:true,note:'پرداخت همراه فروش'});if(x.account==='cash'){const cs=activeCashSession();cashMove(cs.id,x.amount,'sale',no,'دریافت نقدی فروش')}});
   const lines=[];if(p.cash)lines.push({account:'cash',debit:num(p.cash),credit:0});if(p.card)lines.push({account:'card',debit:num(p.card),credit:0});if(p.bank)lines.push({account:'bank',debit:num(p.bank),credit:0});if(credit)lines.push({account:'receivable',debit:credit,credit:0,partyType:'customer',partyId:customerId});lines.push({account:'sales',debit:0,credit:roundMoney(total-vat)});if(vat)lines.push({account:'vatPayable',debit:0,credit:vat});if(cost){lines.push({account:'cogs',debit:cost,credit:0});lines.push({account:'inventory',debit:0,credit:cost})}
-  postJournal(no,'فروش',lines,{saleId:sale.id,paymentSplit:paymentRows,costingMethod:costingMethod(),costTotal:cost});audit('ثبت فروش',no,`بهای تمام‌شده ${cost} · ${costingMethod()}`);saveDB(true);toast(`فروش ${no} با موفقیت ثبت شد`);saleCart=[];window.__salePayments={cash:0,card:0,bank:0,credit:0};page='sales';render();
-})}catch(e){toast(e.message||'ثبت فروش ناموفق بود',true)}}
+  postJournal(no,'فروش',lines,{saleId:sale.id,paymentSplit:paymentRows,costingMethod:costingMethod(),costTotal:cost});audit('ثبت فروش',no,`بهای تمام‌شده ${cost} · ${costingMethod()}`);savedNumber=no;
+});saleCart=[];window.__salePayments={cash:0,card:0,bank:0,credit:0};page='sales';render();toast(`فروش ${savedNumber} با موفقیت ثبت شد`);return savedNumber}catch(e){toast(e.message||'ثبت فروش ناموفق بود',true);return null}}
 function savePurchaseV21(){try{atomic('ثبت خرید',()=>{
   if(!purchaseCart.length)throw Error('خرید خالی است');
   for(let i=0;i<purchaseCart.length;i++){const x=purchaseCart[i]||{},q=num(x.qty),price=num(x.price);if(!variantBy(x.id))throw Error(`کالای ردیف ${i+1} پیدا نشد`);if(!Number.isFinite(q)||q<=0||!Number.isInteger(q))throw Error(`تعداد ردیف ${i+1} باید عدد صحیح و مثبت باشد`);if(!Number.isFinite(price)||price<0)throw Error(`قیمت ردیف ${i+1} معتبر نیست`)}
