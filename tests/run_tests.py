@@ -2630,4 +2630,51 @@ async def backup_validation_rejects_broken_references_duplicate_barcodes_and_unb
     await ctx.close()
 
 
+
+@test
+async def integrated_warehouse_returns_discrepancy_and_variant_profit_report(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,'''const S=await T.seed({});
+      db.warehouses.push({id:'W2',name:'انبار دوم',active:true},{id:'W3',name:'انبار سوم',active:true});
+      db.warehouseStocks.W2={};db.warehouseStocks.W3={};saveDB(true);
+      const p=await T.buy(S,S.v,8,1000,{cash:8000},'W2');
+      const moved=recordTransfer('W2','W3',S.v,3);
+      const s=await T.sell(S,S.v,2,1500,{cash:3000},0,'W3');
+      const saleRet=Fin.saleReturn({ref:s.number,qtys:{[s.items[0]]:1},method:'cash',note:'return from W3'});
+      const purchaseRet=Fin.purchaseReturn({ref:p.number,qtys:{[p.items[0]]:2},method:'cash',note:'return from W2'});
+      const beforeMismatch={main:whStock('MAIN',S.v),w2:whStock('W2',S.v),w3:whStock('W3',S.v),total:variantBy(S.v).stock};
+      let mismatchBlocked=false;db.warehouseStocks.W2[S.v]+=1;
+      try{recordTransfer('W2','W3',S.v,1)}catch(e){mismatchBlocked=/مغایرت/.test(e.message)}
+      db.warehouseStocks.W2[S.v]-=1;
+      const diff=window.yqStocktake(S.v,'W2',4,'شمارش دوره‌ای تست');
+      page='reports';render();const body=document.querySelector('#content').innerText;
+      const report=window.yqVariantPerformanceRows().find(x=>x.variantId===S.v);
+      const stocktake=db.stocktakes[db.stocktakes.length-1];
+      return{pWarehouse:p.warehouseId,sWarehouse:s.warehouseId,moved:{from:moved.from,to:moved.to,qty:moved.qty},
+        beforeMismatch,saleReturn:{qty:saleRet.items[0].qty,warehouse:db.stockMoves.filter(x=>x.type==='sale_return').slice(-1)[0].warehouseId},
+        purchaseReturn:{qty:purchaseRet.items[0].qty,warehouse:db.stockMoves.filter(x=>x.type==='purchase_return').slice(-1)[0].warehouseId},
+        mismatchBlocked,diff,stocktake:{ref:stocktake.ref,reason:stocktake.reason,warehouseId:stocktake.warehouseId},
+        report:{netSoldQty:report.netSoldQty,netRevenue:report.netRevenue,netCogs:report.netCogs,grossProfit:report.grossProfit,stock:report.stock,w2:report.warehouses.find(x=>x.id==='W2').qty,w3:report.warehouses.find(x=>x.id==='W3').qty},
+        reportVisible:body.includes('سودآوری و موجودی هر تنوع کالا')&&body.includes('سوابق مغایرت و انبارگردانی')&&!!document.querySelector('[data-variant-performance="'+S.v+'"]'),
+        unb:T.unbalanced(),health:runYouniqueHealthCheck().ok,errors:[]};
+    ''')
+    c.eq(r['pWarehouse'],'W2','purchase is assigned to selected warehouse')
+    c.eq(r['sWarehouse'],'W3','sale is assigned to selected warehouse')
+    c.eq(r['moved'],{'from':'W2','to':'W3','qty':3},'transfer links source and destination')
+    c.eq(r['beforeMismatch'],{'main':0,'w2':3,'w3':2,'total':5},'multi-warehouse balances after returns')
+    c.eq(r['saleReturn'],{'qty':1,'warehouse':'W3'},'sale return restores the original sale warehouse')
+    c.eq(r['purchaseReturn'],{'qty':2,'warehouse':'W2'},'purchase return removes stock from the original purchase warehouse')
+    c.true(r['mismatchBlocked'],'transfer refuses inconsistent warehouse totals')
+    c.eq(r['diff'],1,'stocktake corrects counted warehouse quantity')
+    c.true(bool(r['stocktake']['ref']),'stocktake keeps a unique reference')
+    c.eq(r['stocktake']['reason'],'شمارش دوره‌ای تست','stocktake reason is persisted')
+    c.eq(r['stocktake']['warehouseId'],'W2','stocktake records the exact warehouse')
+    c.eq(r['report'],{'netSoldQty':1,'netRevenue':1500,'netCogs':1000,'grossProfit':500,'stock':6,'w2':4,'w3':2},'variant profitability and stock reconcile after returns and stocktake')
+    c.true(r['reportVisible'],'variant and discrepancy report sections render')
+    c.eq(r['unb'],0,'all return and adjustment journals remain balanced')
+    c.true(r['health'],'integrated inventory workflows preserve data integrity')
+    c.eq(pg.errs,[],'integrated warehouse and report flows have no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
