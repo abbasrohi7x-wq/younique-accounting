@@ -335,6 +335,37 @@ async def invalid_backup_never_mutates_live_data(br,c):
     await ctx.close()
 
 
+
+@test
+async def backup_rejects_malformed_settings_and_storage_metadata(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      db.settings.shopName='داده زنده';await YStore.flush();
+      const before=JSON.stringify({shop:db.settings.shopName,models:db.models,
+        variants:db.variants,sales:db.sales,journal:db.journal});
+      const cases=[];
+      const badSettings=cloneDB();badSettings.settings=[];
+      const badSeq=cloneDB();badSeq.seq='not-an-object';
+      const badWarehouse=cloneDB();badWarehouse.warehouseStocks=[];
+      for(const data of [badSettings,badSeq,badWarehouse]){
+        let rejected=false;try{await replaceDB(data)}catch(_){rejected=true}
+        cases.push(rejected);
+      }
+      const after=JSON.stringify({shop:db.settings.shopName,models:db.models,
+        variants:db.variants,sales:db.sales,journal:db.journal});
+      return{cases,before,after,pending:Object.keys(YStore.S.pending).length,
+        failed:!!YStore.S.failed,integrity:!!YStore.S.integrityError,errors:pg.errs};
+    """)
+    c.eq(r['cases'],[True,True,True],'malformed settings, sequence and warehouse metadata are rejected')
+    c.eq(r['after'],r['before'],'invalid backup metadata never replaces live business data')
+    c.eq(r['pending'],0,'invalid backup metadata queues no storage writes')
+    c.eq(r['failed'],False,'invalid backup metadata does not poison storage')
+    c.eq(r['integrity'],False,'invalid backup metadata does not alter integrity lock')
+    c.eq(r['errors'],[],'backup validation produces no browser errors')
+    await ctx.close()
+
+
 @test
 async def encrypted_backup_rejects_malformed_envelope(br,c):
     pg,ctx=await page(br)
