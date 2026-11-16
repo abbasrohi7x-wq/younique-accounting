@@ -209,15 +209,15 @@ async def warehouse_transfer_and_stocktake(br,c):
 @test
 async def stocktake_records_have_unique_traceable_references(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,\"\"\"const S=await T.seed({});
+    r=await ev(pg,'''const S=await T.seed({});
       await T.buy(S,S.v,5,1000,{cash:5000});
       yqStocktake(S.v,'MAIN',4);
       yqStocktake(S.v,'MAIN',3);
       const rows=db.stocktakes.slice(-2),refs=rows.map(x=>x.ref);
       const moveRefs=db.stockMoves.filter(x=>x.type==='stocktake'&&refs.includes(x.ref)).map(x=>x.ref);
       return{refs,moveRefs,diffs:rows.map(x=>x.diff),stock:variantBy(S.v).stock,
-        unb:T.unbalanced(),health:runYouniqueHealthCheck().ok,errors:pg.errs};
-    \"\"\")
+        unb:T.unbalanced(),health:runYouniqueHealthCheck().ok};
+    ''')
     c.eq(r['refs'].length,2,'two stocktake records created')
     c.true(r['refs'].every(Boolean),'each stocktake has a reference')
     c.true(r['refs'][0]!==r['refs'][1],'same-day stocktakes receive distinct references')
