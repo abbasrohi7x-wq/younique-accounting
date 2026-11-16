@@ -1841,7 +1841,7 @@ async def invoice_payment_split_reconciliation_is_reported(br,c):
 @test
 async def stock_moves_reject_invalid_warehouses_and_stocktake_overdraw(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,\"\"\" 
+    r=await ev(pg,""" 
       const S=await T.seed({});
       await T.buy(S,S.v,3,1000,{cash:3000});
       db.warehouses.push({id:'OFF',name:'انبار غیرفعال',active:false});
@@ -1862,7 +1862,7 @@ async def stock_moves_reject_invalid_warehouses_and_stocktake_overdraw(br,c):
       return{missing:!!missing,inactive:!!inactive,overdraw:!!overdraw,before,afterRejected,
         stock:variantBy(S.v).stock,main:db.warehouseStocks.MAIN[S.v],valid:valid.cost,
         health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
-    \"\"\")
+    """)
     c.true(r['missing'],'movement rejects an unknown warehouse instead of silently using the default')
     c.true(r['inactive'],'movement rejects an inactive warehouse')
     c.true(r['overdraw'],'stocktake cannot consume more than the selected warehouse balance')
@@ -1878,7 +1878,7 @@ async def stock_moves_reject_invalid_warehouses_and_stocktake_overdraw(br,c):
 @test
 async def purchase_order_receipt_rolls_back_partial_multi_line_failure(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,\"\"\"
+    r=await ev(pg,"""
       const S=await T.seed({});
       await T.buy(S,S.v,3,1000,{cash:3000});
       const po={id:'PO-ATOMIC',number:'PO-ATOMIC',status:'draft',supplierId:'',
@@ -1894,7 +1894,7 @@ async def purchase_order_receipt_rolls_back_partial_multi_line_failure(br,c):
       form.onsubmit({preventDefault(){}});
       const after=snap();
       return{before,after,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
-    \"\"\")
+    """)
     c.eq(r['after'],r['before'],'failed later receipt line rolls back earlier stock, cost and document mutations')
     c.true(r['health'],'purchase receipt rollback preserves data integrity')
     c.eq(r['unb'],0,'purchase receipt rollback leaves balanced journals')
@@ -1905,7 +1905,7 @@ async def purchase_order_receipt_rolls_back_partial_multi_line_failure(br,c):
 @test
 async def payments_reject_unknown_counterparties_and_zero_after_rounding(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,\"\"\"
+    r=await ev(pg,"""
       await T.seed({});
       const snap=()=>JSON.stringify({payments:db.payments,journal:db.journal,cash:accountBalance('cash'),
         bank:accountBalance('bank'),card:accountBalance('card')});
@@ -1916,7 +1916,7 @@ async def payments_reject_unknown_counterparties_and_zero_after_rounding(br,c):
       const after=snap();
       return{customer:!!customer,supplier:!!supplier,rounded:!!rounded,before,after,unb:T.unbalanced(),
         health:runYouniqueHealthCheck().ok,errors:pg.errs};
-    \"\"\")
+    """)
     c.true(r['customer'],'payment rejects an unknown customer')
     c.true(r['supplier'],'payment rejects an unknown supplier')
     c.true(r['rounded'],'payment rejects an amount that rounds to zero')
@@ -1930,7 +1930,7 @@ async def payments_reject_unknown_counterparties_and_zero_after_rounding(br,c):
 @test
 async def purchase_order_receipt_uses_order_destination_warehouse(br,c):
     pg,ctx=await page(br)
-    r=await ev(pg,\"\"\"
+    r=await ev(pg,"""
       const S=await T.seed({});
       await T.buy(S,S.v,2,1000,{cash:2000});
       db.warehouses.push({id:'ALT-PO',name:'انبار دوم',active:true});
@@ -1945,7 +1945,7 @@ async def purchase_order_receipt_uses_order_destination_warehouse(br,c):
       return{global:variantBy(S.v).stock,main:db.warehouseStocks.MAIN[S.v]||0,
         alternate:db.warehouseStocks['ALT-PO'][S.v],received:po.lines[0].received,
         destination:po.warehouseId,health:runYouniqueHealthCheck().ok,unb:T.unbalanced(),errors:pg.errs};
-    \"\"\")
+    """)
     c.eq(r['global'],3,'partial purchase receipt increases global stock')
     c.eq(r['main'],2,'purchase receipt does not incorrectly route stock to MAIN')
     c.eq(r['alternate'],1,'purchase receipt increases the order destination warehouse')
