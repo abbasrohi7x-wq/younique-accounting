@@ -1466,4 +1466,5 @@ async def return_persistence_failure_rolls_back_stock_and_ledgers(br,c):
     await ctx.close()
 
 
-\nasyncio.run(main())
+
+asyncio.run(main())
