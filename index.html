@@ -1845,6 +1845,7 @@ const ActionEngine=(()=>{
   }
   pro39Init();
   function yqNetSalesAfterVat(sales,returns){const gross=(sales||[]).reduce((a,x)=>a+num(x.total),0),vat=(sales||[]).reduce((a,x)=>a+num(x.vat),0),refund=(returns||[]).reduce((a,x)=>a+num(x.refund??x.total),0),returnVat=(returns||[]).reduce((a,x)=>a+num(x.vat),0);return roundMoney(gross-vat-refund+returnVat)}window.yqNetSales=yqNetSalesAfterVat;
+function yqNetPurchasesAfterVat(purchases,returns){const gross=(purchases||[]).reduce((a,x)=>a+num(x.total),0),vat=(purchases||[]).reduce((a,x)=>a+num(x.vat),0),refund=(returns||[]).reduce((a,x)=>a+num(x.total),0),returnVat=(returns||[]).reduce((a,x)=>a+num(x.vat),0);return roundMoney(gross-vat-refund+returnVat)}window.yqNetPurchases=yqNetPurchasesAfterVat;
 function reports39(){
     pro39Init();
     const sales=db.sales.filter(x=>x.status==='confirmed'), purchases=db.purchases.filter(x=>x.status==='confirmed');
@@ -1852,7 +1853,7 @@ function reports39(){
     const salesTotal=sales.reduce((a,x)=>a+num(x.total),0);
     const netSales=window.yqNetSales(sales,saleReturns);
     const purchaseTotal=purchases.reduce((a,x)=>a+num(x.total),0);
-    const netPurchases=purchaseTotal-purchaseReturns.reduce((a,x)=>a+num(x.total),0);
+    const netPurchases=window.yqNetPurchases(purchases,purchaseReturns);
     const cost=sales.reduce((a,x)=>a+num(x.costTotal),0)-saleReturns.reduce((a,x)=>a+num(x.costTotal),0);
     const gross=sales.reduce((a,x)=>a+num(x.profit),0)-saleReturns.reduce((a,x)=>a+(typeof saleReturnProfitValue==='function'?saleReturnProfitValue(x):num(x.total)-num(x.costTotal)),0);
     const netProfit=typeof profit==='function'?roundMoney(profit()):gross;
