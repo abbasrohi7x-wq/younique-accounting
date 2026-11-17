@@ -204,7 +204,7 @@ async def weighted_average_multi_warehouse_transfer_sale_and_returns(br,c):
     c.eq(r['inventory'],25500,'general-ledger inventory equals weighted-average layers')
     c.eq(r['unbalanced'],0,'all journals remain balanced')
     c.true(r['reconciliation'],'GL and subsidiary reconciliation passes')
-    c.true(r['health'],'health check passes: '+JSON.stringify(r['issues']))
+    c.true(r['health'],'health check passes: '+str(r['issues']))
     c.eq(pg.errs,[],'multi-warehouse weighted-average flow has no browser errors')
     await ctx.close()
 
