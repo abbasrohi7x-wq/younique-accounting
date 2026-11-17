@@ -5736,6 +5736,30 @@ var h=function(){var b=BLOCK[role()];
 if(b&&b.indexOf(window.page)>-1){var p=window.page;window.page='dashboard';var r=R.apply(this,arguments);try{toast('این بخش برای نقش «'+role()+'» مجاز نیست',true)}catch(_){}return r}
 return R.apply(this,arguments)};
 h.__yqRole=true;window.render=h})()}catch(_){}
+/* Action-level authorization: UI and AI permissions are not security boundaries by themselves. */
+try{(function(){'use strict';
+ var U=window.UAI,P=U&&U.Perm;if(!P)return;
+ function role(){var us=window.db&&db.users||[],u=us.find(function(x){return x.id===db.currentUserId})||us[0];return String(u&&u.role||'cashier')}
+ function deny(label){throw Error('اجازهٔ انجام عملیات «'+label+'» برای نقش فعلی وجود ندارد.')}
+ function wrap(name,check,label){var f=window[name];if(typeof f!=='function'||f.__yqActionGuard)return;
+  var g=function(){if(!check.apply(this,arguments))deny(label);return f.apply(this,arguments)};
+  g.__yqActionGuard=true;g.__yqOriginal=f;window[name]=g}
+ function owner(){return role()==='owner'||role()==='manager'}
+ function can(p){return owner()||P.can(p)}
+ wrap('saveSaleV21',function(){return can('sales.create')},'ثبت فروش');
+ wrap('savePurchaseV21',function(){return can('purchase.create')},'ثبت خرید');
+ wrap('recordPayment',function(p){return p&&p.direction==='in'?can('finance.receive'):p&&p.direction==='out'?can('finance.pay'):false},'دریافت/پرداخت');
+ wrap('openCashSession',function(){return can('cash.manage')},'باز کردن صندوق');
+ wrap('closeCashSession',function(){return can('cash.manage')},'بستن صندوق');
+ wrap('recordTransfer',function(){return owner()||role()==='warehouse'},'انتقال بین انبارها');
+ wrap('setPhysicalStock',function(){return owner()||role()==='warehouse'},'انبارگردانی');
+ var F=window.Fin;
+ if(F&&!F.__yqActionGuard){
+  ['saleReturn','purchaseReturn'].forEach(function(k){var f=F[k];if(typeof f!=='function')return;
+   F[k]=function(){if(!can('returns.create'))deny('برگشت خرید/فروش');return f.apply(this,arguments)};
+  });F.__yqActionGuard=true;
+ }
+})()}catch(e){console.error('action permission guard',e)}
 try{(function(){var o=window.parseLocalInvoiceText;if(typeof o!=='function'||o.__yq)return;
 var BASE='کتونی مردانه زنانه بچگانه اسکیچرز نیوبالانس نایکی آدیداس پوما ریبوک جردن ترویس ساقدار ساکانی سایز ویژه سفید مشکی نقره سرمه ای طوسی قهوه ناب پرو مکس کد میانه قرمز آبی سبز زرد صورتی بنفش نارنجی کرمی خاکستری طلایی کفش صندل نیم‌بوت بوت اسپرت'.split(' ');
 function lev(a,b){var m=a.length,n=b.length,d=[],i,j;for(i=0;i<=m;i++){d[i]=[i]}for(j=1;j<=n;j++)d[0][j]=j;for(i=1;i<=m;i++)for(j=1;j<=n;j++)d[i][j]=Math.min(d[i-1][j]+1,d[i][j-1]+1,d[i-1][j-1]+(a[i-1]===b[j-1]?0:1));return d[m][n]}
