@@ -442,10 +442,11 @@ async def direct_operation_permissions_are_enforced(br,c):
       const after={sales:db.sales.length,purchases:db.purchases.length,payments:db.payments.length};
       active.role=priorRole;db.currentUserId=priorId;saveDB(true);
       const ownerCan=window.UAI.Perm.can('sales.create');
-      return{denied,before,after,ownerCan,activeRole,helperDenied};
+      return{denied,before,after,ownerCan,activeRole,helperDenied,writers:{sale:typeof window.saveSaleV21,purchase:typeof window.savePurchaseV21}};
     """)
     c.eq(r['activeRole'],'warehouse','permission context follows the selected warehouse user')
     c.true(r['helperDenied'],'shared permission guard rejects warehouse sales')
+    c.eq(r['writers'],{'sale':'function','purchase':'function'},'authoritative V21 invoice writers are exposed for direct permission enforcement')
     c.eq(r['denied'],{'sale':True,'purchase':True,'payment':True,'return':True},'warehouse direct financial operations denied at service boundary')
     c.eq(r['after'],r['before'],'denied direct operations do not mutate business records')
     c.true(r['ownerCan'],'owner permission context remains intact')
