@@ -1844,12 +1844,13 @@ const ActionEngine=(()=>{
     db.pro={version:2,onlineStore:{enabled:false},sync:{enabled:false,lastSync:null},...(db.pro||{})};
   }
   pro39Init();
-  function reports39(){
+  function yqNetSalesAfterVat(sales,returns){const gross=(sales||[]).reduce((a,x)=>a+num(x.total),0),vat=(sales||[]).reduce((a,x)=>a+num(x.vat),0),refund=(returns||[]).reduce((a,x)=>a+num(x.refund??x.total),0),returnVat=(returns||[]).reduce((a,x)=>a+num(x.vat),0);return roundMoney(gross-vat-refund+returnVat)}window.yqNetSales=yqNetSalesAfterVat;
+function reports39(){
     pro39Init();
     const sales=db.sales.filter(x=>x.status==='confirmed'), purchases=db.purchases.filter(x=>x.status==='confirmed');
     const saleReturns=(db.returns||[]).filter(x=>x.type==='sale'), purchaseReturns=(db.returns||[]).filter(x=>x.type==='purchase');
     const salesTotal=sales.reduce((a,x)=>a+num(x.total),0);
-    const netSales=salesTotal-saleReturns.reduce((a,x)=>a+num(x.refund??x.total),0);
+    const netSales=window.yqNetSales(sales,saleReturns);
     const purchaseTotal=purchases.reduce((a,x)=>a+num(x.total),0);
     const netPurchases=purchaseTotal-purchaseReturns.reduce((a,x)=>a+num(x.total),0);
     const cost=sales.reduce((a,x)=>a+num(x.costTotal),0)-saleReturns.reduce((a,x)=>a+num(x.costTotal),0);
