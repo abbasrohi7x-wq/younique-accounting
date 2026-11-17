@@ -3175,4 +3175,26 @@ async def warehouse_role_is_limited_to_inventory_workflows(br,c):
     await ctx.close()
 
 
+
+@test
+async def tax_profile_rejects_invalid_vat_rates_without_partial_save(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      db.taxProfile={enabled:false,vatRate:8,taxId:'OLD-TAX',economicCode:'OLD-ECO',branchCode:'OLD-BR',invoiceType:'normal'};
+      window.proTax();
+      $('#txe').value='true';$('#txr').value='100';$('#txi').value='NEW-TAX';
+      $('#txs').click();
+      const afterInvalid={enabled:db.taxProfile.enabled,vatRate:db.taxProfile.vatRate,
+        taxId:db.taxProfile.taxId,economicCode:db.taxProfile.economicCode};
+      $('#txr').value='9.5';$('#txs').click();
+      return{afterInvalid,afterValid:{enabled:db.taxProfile.enabled,
+        vatRate:db.taxProfile.vatRate,taxId:db.taxProfile.taxId}};
+    """)
+    c.eq(r['afterInvalid'],{'enabled':False,'vatRate':8,'taxId':'OLD-TAX','economicCode':'OLD-ECO'},
+         'invalid VAT rate prevents every partial profile mutation')
+    c.eq(r['afterValid'],{'enabled':True,'vatRate':9.5,'taxId':'NEW-TAX'},
+         'valid fractional VAT rate is saved normally')
+    c.eq(pg.errs,[],'VAT profile validation produces no browser errors')
+    await ctx.close()
+
 asyncio.run(main())
