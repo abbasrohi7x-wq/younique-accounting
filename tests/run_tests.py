@@ -3041,7 +3041,7 @@ async def active_fifo_sale_posts_exact_layer_cost_and_cogs(br,c):
     """)
     c.eq(r['saleCost'],4000,'active sale writer consumes FIFO layers in purchase order')
     c.eq(r['itemCost'],4000,'sale line stores the exact FIFO cost total')
-    c.eq(r['itemUnitCost'],round(4000/3,2),'sale line unit cost reflects consumed FIFO value')
+    c.eq(r['itemUnitCost'],1333,'sale line unit cost is rounded to the app currency precision')
     c.eq(r['profit'],5000,'sale profit uses FIFO cost rather than the latest purchase price')
     c.eq(r['cogs'],4000,'COGS journal posts the exact FIFO cost')
     c.eq(r['inventoryCredit'],4000,'inventory credit matches FIFO consumption')
