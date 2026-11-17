@@ -3055,4 +3055,28 @@ async def active_fifo_sale_posts_exact_layer_cost_and_cogs(br,c):
     await ctx.close()
 
 
+@test
+async def warehouse_role_is_limited_to_inventory_workflows(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const owner=db.users.find(x=>x.id===db.currentUserId)||db.users[0];
+      const warehouse={id:'warehouse-regression-user',name:'انباردار آزمون',role:'warehouse',active:true,pin:''};
+      db.users.push(warehouse);db.currentUserId=warehouse.id;saveDB(true);
+      const blocked=[];
+      for(const target of ['finance','sales','purchase','accounting','reports','users','backup','settings']){
+        page=target;render();if(page!=='dashboard')blocked.push(target);
+      }
+      const allowed=[];
+      for(const target of ['dashboard','inventory','warehouse','barcode']){
+        page=target;render();if(page===target)allowed.push(target);
+      }
+      return{blocked,allowed,role:window.UAI?.Perm?.user()?.role||warehouse.role};
+    """)
+    c.eq(r['blocked'],[],'warehouse role cannot open financial, sales, purchase, reports or administration pages')
+    c.eq(r['allowed'],['dashboard','inventory','warehouse','barcode'],'warehouse role retains operational inventory pages')
+    c.eq(r['role'],'warehouse','active permission context resolves the warehouse user')
+    c.eq(pg.errs,[],'warehouse role navigation produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())

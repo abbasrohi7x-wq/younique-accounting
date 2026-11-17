@@ -5729,7 +5729,8 @@ closeModal();window.page='customerOrders';render();toast(made+' سفارش سا�
 s2.__yqOrd=true;window.showInvoiceResult=s2})()}catch(_){}
 try{(function(){var R=window.render;if(typeof R!=='function'||R.__yqRole)return;
 var BLOCK={cashier:['purchase','purchases','purchaseOrders','suppliers','finance','checks','loans','accounting','tax','reports','automation','documents','users','settings','backup'],
-accountant:['users','settings','backup','automation']};
+accountant:['users','settings','backup','automation'],
+warehouse:['sale','sales','returns','purchase','purchases','purchaseOrders','customers','suppliers','crm','finance','checks','loans','accounting','tax','reports','automation','ai','documents','insights','users','settings','backup','sync','engine','products']};
 function role(){var us=db.users||[];if(!us.length)return'owner';var u=us.find(function(x){return x.id===db.currentUserId})||us[0];return String(u&&u.role||'cashier')}
 var h=function(){var b=BLOCK[role()];
 if(b&&b.indexOf(window.page)>-1){var p=window.page;window.page='dashboard';var r=R.apply(this,arguments);try{toast('این بخش برای نقش «'+role()+'» مجاز نیست',true)}catch(_){}return r}
