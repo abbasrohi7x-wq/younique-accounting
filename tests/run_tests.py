@@ -168,6 +168,48 @@ async def costing_fifo_vs_average(br,c):
         c.eq(r['m'],method,method+' active');c.eq(r['cogs'],cogs,method+' cogs');c.eq(r['inv'],inv,method+' inventory');c.eq(r['unb'],0,'balanced');await ctx.close()
 
 @test
+async def weighted_average_multi_warehouse_transfer_sale_and_returns(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({costing:'weighted_average'});
+      const p1=await T.buy(S,S.v,10,1000,{cash:10000},'MAIN');
+      db.warehouses.push({id:'W2',name:'انبار دوم',active:true});saveDB(true);
+      const p2=await T.buy(S,S.v,10,2000,{cash:20000},'W2');
+      const initial={qty:variantBy(S.v).stock,value:costValue(),avg:weightedUnitCost(variantBy(S.v))};
+      page='warehouse';render();await T.sleep(120);document.querySelector('#transfer').click();await T.sleep(80);
+      document.querySelector('#tv').value=S.v;document.querySelector('#tfrom').value='MAIN';
+      document.querySelector('#tto').value='W2';document.querySelector('#tq').value='4';
+      document.querySelector('#tf').dispatchEvent(new Event('submit',{cancelable:true}));await T.sleep(160);
+      const afterTransfer={main:whStock('MAIN',S.v),w2:whStock('W2',S.v),value:costValue()};
+      const sale=await T.sell(S,S.v,3,2500,{cash:7500},0,'W2');
+      const saleItem=db.saleItems.find(x=>x.id===sale.items[0]);
+      const saleReturn=Fin.saleReturn({ref:sale.number,qtys:{[saleItem.id]:1},method:'cash',note:'weighted multi warehouse'});
+      const purchaseItem=db.purchaseItems.find(x=>x.id===p1.items[0]);
+      const purchaseReturn=Fin.purchaseReturn({ref:p1.number,qtys:{[purchaseItem.id]:1},method:'card',note:'weighted multi warehouse'});
+      const recon=reconcileAccounts(),health=runYouniqueHealthCheck();
+      return{initial,afterTransfer,saleCost:sale.costTotal,saleReturnCost:saleReturn.costTotal,
+        purchaseReturnCost:purchaseReturn.costTotal,qty:variantBy(S.v).stock,
+        warehouses:[whStock('MAIN',S.v),whStock('W2',S.v)],value:costValue(),
+        inventory:accountBalance('inventory'),unbalanced:T.unbalanced(),
+        reconciliation:recon.ok,health:health.ok,issues:health.issues};
+    """)
+    c.eq(r['initial'],{'qty':20,'value':30000,'avg':1500},'weighted opening average across receipts')
+    c.eq(r['afterTransfer'],{'main':6,'w2':14,'value':30000},'transfer preserves total quantity and valuation')
+    c.eq(r['saleCost'],4500,'sale from destination warehouse consumes company moving average')
+    c.eq(r['saleReturnCost'],1500,'sale return restores original moving-average COGS')
+    c.eq(r['purchaseReturnCost'],1500,'purchase return removes current weighted-average inventory value')
+    c.eq(r['qty'],17,'quantity after transfer, sale and both returns')
+    c.eq(r['warehouses'],[5,12],'warehouse balances after all movements')
+    c.eq(r['value'],25500,'remaining weighted-average inventory value')
+    c.eq(r['inventory'],25500,'general-ledger inventory equals weighted-average layers')
+    c.eq(r['unbalanced'],0,'all journals remain balanced')
+    c.true(r['reconciliation'],'GL and subsidiary reconciliation passes')
+    c.true(r['health'],'health check passes: '+JSON.stringify(r['issues']))
+    c.eq(pg.errs,[],'multi-warehouse weighted-average flow has no browser errors')
+    await ctx.close()
+
+
+@test
 async def cash_session_variance_and_reopen(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''const S=await T.seed({});await T.buy(S,S.v,10,1000,{cash:10000});await T.sell(S,S.v,3,2000,{cash:6000});
       const exp=cashSessionExpected(activeCashSession());closeCashSession(exp-500,'short');let b=T.bal();const short=b.cashShortage,cashAfterClose=b.cash;
