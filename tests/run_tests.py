@@ -2976,6 +2976,32 @@ async def fifo_purchase_return_removes_original_purchase_layer_cost(br,c):
 
 
 @test
+async def management_net_sales_excludes_vat_before_and_after_returns(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      async function scenario(mode){
+        const S=await T.seed({vat:10,mode});
+        await T.buy(S,S.v,2,1000,{cash:2000});
+        const sale=await T.sell(S,S.v,2,1500,{cash:3300});
+        const item=db.saleItems.find(x=>x.id===sale.items[0]);
+        const ret=Fin.saleReturn({ref:sale.number,qtys:{[item.id]:1},method:'cash'});
+        const rows=db.sales.filter(x=>x.status==='confirmed');
+        const returns=db.returns.filter(x=>x.type==='sale');
+        return{total:sale.total,saleVat:sale.vat,refund:ret.refund,returnVat:ret.vat,
+          net:window.yqNetSales(rows,returns)};
+      }
+      const exclusive=await scenario('exclusive');
+      const inclusive=await scenario('inclusive');
+      return{exclusive,inclusive,helper:typeof window.yqNetSales};
+    """)
+    c.eq(r['helper'],'function','management report uses shared net-sales calculation')
+    c.eq(r['exclusive'],{'total':3300,'saleVat':300,'refund':1650,'returnVat':150,'net':1500},'exclusive VAT excluded from net sales and refund VAT reversed')
+    c.eq(r['inclusive'],{'total':3000,'saleVat':273,'refund':1500,'returnVat':136,'net':1363},'inclusive VAT excluded from net sales and refund VAT reversed')
+    c.eq(pg.errs,[],'VAT-aware net sales calculation produces no browser errors')
+    await ctx.close()
+
+
+@test
 async def net_profit_includes_purchase_return_variance_and_inventory_adjustments(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
