@@ -3015,4 +3015,44 @@ async def vat_purchase_return_rejects_invalid_inputs_atomically(br,c):
     await ctx.close()
 
 
+@test
+async def active_fifo_sale_posts_exact_layer_cost_and_cogs(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({costing:'fifo',vat:0});
+      await T.buy(S,S.v,2,1000,{cash:2000});
+      await T.buy(S,S.v,2,2000,{card:4000});
+      const sale=await T.sell(S,S.v,3,3000,{cash:9000});
+      const item=db.saleItems.find(x=>x.id===sale.items[0]);
+      const journal=db.journal.find(x=>x.ref===sale.number&&!x.reversalOf);
+      const cogs=journal?.lines.find(x=>x.account==='cogs');
+      const inventory=journal?.lines.find(x=>x.account==='inventory');
+      const rec=reconcileAccounts();
+      return{
+        saleCost:sale.costTotal,itemCost:item?.costTotal,
+        itemUnitCost:item?.cost,profit:sale.profit,
+        cogs:cogs?.debit,inventoryCredit:inventory?.credit,
+        remainingStock:variantBy(S.v).stock,costValue:costValue(),
+        remainingLayers:(db.costLayers[S.v]||[]).map(x=>({ref:x.ref,remaining:x.remaining,value:x.value})),
+        inventoryLedger:accountBalance('inventory'),
+        reconciled:rec.ok,health:runYouniqueHealthCheck().ok,
+        unbalanced:T.unbalanced()
+      };
+    """)
+    c.eq(r['saleCost'],4000,'active sale writer consumes FIFO layers in purchase order')
+    c.eq(r['itemCost'],4000,'sale line stores the exact FIFO cost total')
+    c.eq(r['itemUnitCost'],round(4000/3,2),'sale line unit cost reflects consumed FIFO value')
+    c.eq(r['profit'],5000,'sale profit uses FIFO cost rather than the latest purchase price')
+    c.eq(r['cogs'],4000,'COGS journal posts the exact FIFO cost')
+    c.eq(r['inventoryCredit'],4000,'inventory credit matches FIFO consumption')
+    c.eq(r['remainingStock'],1,'sale leaves one unit')
+    c.eq(r['costValue'],2000,'remaining FIFO layer retains its carrying value')
+    c.eq(r['inventoryLedger'],2000,'inventory control account equals remaining FIFO layer value')
+    c.true(r['reconciled'],'inventory and subsidiary costing reconcile after FIFO sale')
+    c.true(r['health'],'FIFO sale preserves application data integrity')
+    c.eq(r['unbalanced'],0,'FIFO sale journal remains balanced')
+    c.eq(pg.errs,[],'FIFO sale produces no browser errors')
+    await ctx.close()
+
+
 asyncio.run(main())
