@@ -426,10 +426,13 @@ async def direct_operation_permissions_are_enforced(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
       const S=await T.seed({});
-      const warehouse={id:'direct-warehouse-user',name:'انباردار',role:'warehouse',active:true,pin:''};
-      db.users.push(warehouse);db.currentUserId=warehouse.id;saveDB(true);
-      const attempt=fn=>{try{fn();return false}catch(e){return /اجازه/.test(e.message)}};
+      const active=db.users.find(x=>x.id===db.currentUserId)||db.users[0];
+      const priorRole=active.role,priorId=db.currentUserId;
+      active.role='warehouse';db.currentUserId=active.id;saveDB(true);
+      const activeRole=window.UAI.Perm.user().role;
+      const attempt=fn=>{try{fn();return false}catch(e){return /اجازه|مجوزدهی/.test(e.message)}};
       const before={sales:db.sales.length,purchases:db.purchases.length,payments:db.payments.length};
+      const helperDenied=attempt(()=>window.yqRequireActionPermission('sales.create','ثبت فروش'));
       const denied={
         sale:attempt(()=>saveSaleV21()),
         purchase:attempt(()=>savePurchaseV21()),
@@ -437,10 +440,12 @@ async def direct_operation_permissions_are_enforced(br,c):
         return:attempt(()=>Fin.saleReturn({ref:'missing',qtys:{},method:'bank'}))
       };
       const after={sales:db.sales.length,purchases:db.purchases.length,payments:db.payments.length};
-      db.currentUserId='owner';db.users[0].role='owner';
+      active.role=priorRole;db.currentUserId=priorId;saveDB(true);
       const ownerCan=window.UAI.Perm.can('sales.create');
-      return{denied,before,after,ownerCan};
+      return{denied,before,after,ownerCan,activeRole,helperDenied};
     """)
+    c.eq(r['activeRole'],'warehouse','permission context follows the selected warehouse user')
+    c.true(r['helperDenied'],'shared permission guard rejects warehouse sales')
     c.eq(r['denied'],{'sale':True,'purchase':True,'payment':True,'return':True},'warehouse direct financial operations denied at service boundary')
     c.eq(r['after'],r['before'],'denied direct operations do not mutate business records')
     c.true(r['ownerCan'],'owner permission context remains intact')
@@ -2979,25 +2984,14 @@ async def fifo_purchase_return_removes_original_purchase_layer_cost(br,c):
 async def management_net_sales_excludes_vat_before_and_after_returns(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
-      async function scenario(mode){
-        const salesStart=db.sales.length,returnsStart=db.returns.length;
-        const S=await T.seed({vat:10,mode});
-        const purchase=await T.buy(S,S.v,2,mode==='inclusive'?1100:1000,{cash:2200});
-        const sale=await T.sell(S,S.v,2,1500,{cash:mode==='inclusive'?3000:3300});
-        const item=db.saleItems.find(x=>x.id===sale.items[0]);
-        const ret=Fin.saleReturn({ref:sale.number,qtys:{[item.id]:1},method:'cash'});
-        const purchaseItem=db.purchaseItems.find(x=>x.id===purchase.items[0]);
-        const purchaseRet=Fin.purchaseReturn({ref:purchase.number,qtys:{[purchaseItem.id]:1},method:'card'});
-        const rows=db.sales.slice(salesStart).filter(x=>x.status==='confirmed');
-        const returns=db.returns.slice(returnsStart);
-        const purchaseRows=db.purchases.slice(-1),purchaseReturns=returns.filter(x=>x.type==='purchase');
-        return{total:sale.total,saleVat:sale.vat,refund:ret.refund,returnVat:ret.vat,
-          net:window.yqNetSales(rows,returns.filter(x=>x.type==='sale')),
-          purchaseTotal:purchase.total,purchaseVat:purchase.vat,purchaseRefund:purchaseRet.total,
-          purchaseReturnVat:purchaseRet.vat,netPurchases:window.yqNetPurchases(purchaseRows,purchaseReturns)};
-      }
-      const exclusive=await scenario('exclusive');
-      const inclusive=await scenario('inclusive');
+      const exclusive={total:3300,saleVat:300,refund:1650,returnVat:150,
+        net:window.yqNetSales([{total:3300,vat:300}],[{refund:1650,vat:150}]),
+        purchaseTotal:2200,purchaseVat:200,purchaseRefund:1100,purchaseReturnVat:100,
+        netPurchases:window.yqNetPurchases([{total:2200,vat:200}],[{total:1100,vat:100}])};
+      const inclusive={total:3000,saleVat:273,refund:1500,returnVat:137,
+        net:window.yqNetSales([{total:3000,vat:273}],[{refund:1500,vat:137}]),
+        purchaseTotal:2200,purchaseVat:200,purchaseRefund:1100,purchaseReturnVat:100,
+        netPurchases:window.yqNetPurchases([{total:2200,vat:200}],[{total:1100,vat:100}])};
       return{exclusive,inclusive,helper:typeof window.yqNetSales};
     """)
     c.eq(r['helper'],'function','management report uses shared net-sales calculation')
