@@ -2982,22 +2982,27 @@ async def management_net_sales_excludes_vat_before_and_after_returns(br,c):
       async function scenario(mode){
         const salesStart=db.sales.length,returnsStart=db.returns.length;
         const S=await T.seed({vat:10,mode});
-        await T.buy(S,S.v,2,1000,{cash:2000});
-        const sale=await T.sell(S,S.v,2,1500,{cash:3300});
+        const purchase=await T.buy(S,S.v,2,mode==='inclusive'?1100:1000,{cash:2200});
+        const sale=await T.sell(S,S.v,2,1500,{cash:mode==='inclusive'?3000:3300});
         const item=db.saleItems.find(x=>x.id===sale.items[0]);
         const ret=Fin.saleReturn({ref:sale.number,qtys:{[item.id]:1},method:'cash'});
+        const purchaseItem=db.purchaseItems.find(x=>x.id===purchase.items[0]);
+        const purchaseRet=Fin.purchaseReturn({ref:purchase.number,qtys:{[purchaseItem.id]:1},method:'card'});
         const rows=db.sales.slice(salesStart).filter(x=>x.status==='confirmed');
-        const returns=db.returns.slice(returnsStart).filter(x=>x.type==='sale');
+        const returns=db.returns.slice(returnsStart);
+        const purchaseRows=db.purchases.slice(-1),purchaseReturns=returns.filter(x=>x.type==='purchase');
         return{total:sale.total,saleVat:sale.vat,refund:ret.refund,returnVat:ret.vat,
-          net:window.yqNetSales(rows,returns)};
+          net:window.yqNetSales(rows,returns.filter(x=>x.type==='sale')),
+          purchaseTotal:purchase.total,purchaseVat:purchase.vat,purchaseRefund:purchaseRet.total,
+          purchaseReturnVat:purchaseRet.vat,netPurchases:window.yqNetPurchases(purchaseRows,purchaseReturns)};
       }
       const exclusive=await scenario('exclusive');
       const inclusive=await scenario('inclusive');
       return{exclusive,inclusive,helper:typeof window.yqNetSales};
     """)
     c.eq(r['helper'],'function','management report uses shared net-sales calculation')
-    c.eq(r['exclusive'],{'total':3300,'saleVat':300,'refund':1650,'returnVat':150,'net':1500},'exclusive VAT excluded from net sales and refund VAT reversed')
-    c.eq(r['inclusive'],{'total':3000,'saleVat':273,'refund':1500,'returnVat':137,'net':1364},'inclusive VAT excluded from net sales and refund VAT reversed')
+    c.eq(r['exclusive'],{'total':3300,'saleVat':300,'refund':1650,'returnVat':150,'net':1500,'purchaseTotal':2200,'purchaseVat':200,'purchaseRefund':1100,'purchaseReturnVat':100,'netPurchases':1000},'exclusive VAT excluded from net sales and refund VAT reversed')
+    c.eq(r['inclusive'],{'total':3000,'saleVat':273,'refund':1500,'returnVat':137,'net':1364,'purchaseTotal':2200,'purchaseVat':200,'purchaseRefund':1100,'purchaseReturnVat':100,'netPurchases':1000},'inclusive VAT excluded from net sales and refund VAT reversed')
     c.eq(pg.errs,[],'VAT-aware net sales calculation produces no browser errors')
     await ctx.close()
 
