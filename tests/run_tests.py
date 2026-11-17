@@ -2980,13 +2980,14 @@ async def management_net_sales_excludes_vat_before_and_after_returns(br,c):
     pg,ctx=await page(br)
     r=await ev(pg,"""
       async function scenario(mode){
+        const salesStart=db.sales.length,returnsStart=db.returns.length;
         const S=await T.seed({vat:10,mode});
         await T.buy(S,S.v,2,1000,{cash:2000});
         const sale=await T.sell(S,S.v,2,1500,{cash:3300});
         const item=db.saleItems.find(x=>x.id===sale.items[0]);
         const ret=Fin.saleReturn({ref:sale.number,qtys:{[item.id]:1},method:'cash'});
-        const rows=db.sales.filter(x=>x.status==='confirmed');
-        const returns=db.returns.filter(x=>x.type==='sale');
+        const rows=db.sales.slice(salesStart).filter(x=>x.status==='confirmed');
+        const returns=db.returns.slice(returnsStart).filter(x=>x.type==='sale');
         return{total:sale.total,saleVat:sale.vat,refund:ret.refund,returnVat:ret.vat,
           net:window.yqNetSales(rows,returns)};
       }
