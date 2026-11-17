@@ -422,6 +422,33 @@ async def role_page_guard(br,c):
     await ctx.close()
 
 @test
+async def direct_operation_permissions_are_enforced(br,c):
+    pg,ctx=await page(br)
+    r=await ev(pg,"""
+      const S=await T.seed({});
+      const warehouse={id:'direct-warehouse-user',name:'انباردار',role:'warehouse',active:true,pin:''};
+      db.users.push(warehouse);db.currentUserId=warehouse.id;saveDB(true);
+      const attempt=fn=>{try{fn();return false}catch(e){return /اجازه/.test(e.message)}};
+      const before={sales:db.sales.length,purchases:db.purchases.length,payments:db.payments.length};
+      const denied={
+        sale:attempt(()=>saveSaleV21()),
+        purchase:attempt(()=>savePurchaseV21()),
+        payment:attempt(()=>recordPayment({direction:'out',amount:100,account:'bank',partyType:'other'})),
+        return:attempt(()=>Fin.saleReturn({ref:'missing',qtys:{},method:'bank'}))
+      };
+      const after={sales:db.sales.length,purchases:db.purchases.length,payments:db.payments.length};
+      db.currentUserId='owner';db.users[0].role='owner';
+      const ownerCan=window.UAI.Perm.can('sales.create');
+      return{denied,before,after,ownerCan};
+    """)
+    c.eq(r['denied'],{'sale':True,'purchase':True,'payment':True,'return':True},'warehouse direct financial operations denied at service boundary')
+    c.eq(r['after'],r['before'],'denied direct operations do not mutate business records')
+    c.true(r['ownerCan'],'owner permission context remains intact')
+    c.eq(pg.errs,[],'action-level permission checks produce no browser errors')
+    await ctx.close()
+
+
+@test
 async def pin_lock_and_lockout(br,c):
     pg,ctx=await page(br);r=await ev(pg,'''db.users[0].pin=window.yqPinInput('4321','');db.security={loginEnabled:true,failed:0,lockedUntil:null};saveDB(true);sessionStorage.removeItem('younique_local_unlock_v1');render();await T.sleep(150);
       const try_=async v=>{document.querySelector('#yUnlockPin').value=v;document.querySelector('#yUnlockForm').dispatchEvent(new Event('submit',{cancelable:true}));await T.sleep(120)};
