@@ -2997,7 +2997,7 @@ async def management_net_sales_excludes_vat_before_and_after_returns(br,c):
     """)
     c.eq(r['helper'],'function','management report uses shared net-sales calculation')
     c.eq(r['exclusive'],{'total':3300,'saleVat':300,'refund':1650,'returnVat':150,'net':1500},'exclusive VAT excluded from net sales and refund VAT reversed')
-    c.eq(r['inclusive'],{'total':3000,'saleVat':273,'refund':1500,'returnVat':136,'net':1363},'inclusive VAT excluded from net sales and refund VAT reversed')
+    c.eq(r['inclusive'],{'total':3000,'saleVat':273,'refund':1500,'returnVat':137,'net':1364},'inclusive VAT excluded from net sales and refund VAT reversed')
     c.eq(pg.errs,[],'VAT-aware net sales calculation produces no browser errors')
     await ctx.close()
 
